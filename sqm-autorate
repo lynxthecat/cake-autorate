@@ -49,12 +49,12 @@ avg_RTT=$(echo $(cat $RTTs) | sort -n | awk '{ a[i++] = $0 ; s += $0 } END { pri
 
 function update_rates {
         get_avg_RTT
-        delta_RTT=$(echo "scale=10; $avg_RTT - $prev_avg_RTT" | bc)
+        delta_RTT=$(echo "scale=10; $avg_RTT - $baseline_avg_RTT" | bc)
 
         if [ $(echo "$delta_RTT>=0" | bc) -eq 1 ]; then
-                prev_avg_RTT=$(echo "scale=4; (1-$alpha_RTT_increase)*$prev_avg_RTT+$alpha_RTT_increase*$avg_RTT" | bc)
+                baseline_avg_RTT=$(echo "scale=4; (1-$alpha_RTT_increase)*$baseline_avg_RTT+$alpha_RTT_increase*$avg_RTT" | bc)
         else
-                prev_avg_RTT=$(echo "scale=4; (1-$alpha_RTT_decrease)*$prev_avg_RTT+$alpha_RTT_decrease*$avg_RTT" | bc)
+                baseline_avg_RTT=$(echo "scale=4; (1-$alpha_RTT_decrease)*$baseline_avg_RTT+$alpha_RTT_decrease*$avg_RTT" | bc)
         fi
 
         cur_rx_bytes=$(cat $rx_bytes_path)
@@ -105,13 +105,13 @@ function update_rates {
                 cur_ul_rate=$max_ul_rate;
         fi
 
-        printf "%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\n" $rx_load $tx_load $prev_avg_RTT $avg_RTT $delta_RTT $cur_dl_rate $cur_ul_rate
+        printf "%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\n" $rx_load $tx_load $baseline_avg_RTT $avg_RTT $delta_RTT $cur_dl_rate $cur_ul_rate
 }
 
 
 get_avg_RTT
 
-prev_avg_RTT=$avg_RTT;
+baseline_avg_RTT=$avg_RTT;
 
 cur_dl_rate=$min_dl_rate
 cur_ul_rate=$min_ul_rate
@@ -121,7 +121,7 @@ t_prev_bytes=$(date +%s.%N)
 prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
 
-printf "%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\n" "rx_load" "tx_load" "prev_avg_RTT" "avg_RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
+printf "%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\n" "rx_load" "tx_load" "baseline_avg_RTT" "avg_RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
 
 while true
 do
