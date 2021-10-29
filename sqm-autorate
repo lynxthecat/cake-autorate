@@ -2,7 +2,7 @@
 
 # sqm-autorate
 # intellectual creation by @moeller0 (OpenWrt forum)
-# implemented by @Lynx of OpenWrt
+# initial sh implementation by @Lynx (OpenWrt forum)
 # requires iputils-ping, coreutils-date and coreutils-sleep
 
 max_ul_rate=35000
