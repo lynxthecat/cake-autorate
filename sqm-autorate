@@ -1,22 +1,21 @@
 #!/bin/sh
 
-# sqm-autorate
-# intellectual creation by @moeller0 (OpenWrt forum)
+# inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires iputils-ping, coreutils-date and coreutils-sleep
 
 max_ul_rate=35000
 min_ul_rate=25000
 
-max_dl_rate=60000
+max_dl_rate=70000
 min_dl_rate=20000
 
 tick_duration=1
 
-alpha_RTT_increase=0.1
+alpha_RTT_increase=0.01
 alpha_RTT_decrease=0.9
 
-rate_adjust_RTT_spike=0.1
+rate_adjust_RTT_spike=0.05
 rate_adjust_load_high=0.01
 rate_adjust_load_low=0.005
 
@@ -36,25 +35,25 @@ no_reflectors=$(echo "$reflectors" | wc -l)
 
 RTTs=$(mktemp)
 
-function get_avg_RTT {
+function get_RTT {
 
 for reflector in $reflectors;
 do
-        echo $(mtr -G 0.01 -c 10 -n -l -i 0.01 -m 3 -u $reflector | grep "p 2" | cut -d ' ' -f 3 | awk '{ a[i++] = $0 ; s += $0} END { print s/i }') >> $RTTs&
+        echo $(/usr/bin/ping -i 0.00 -c 10 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 2) >> $RTTs&
 done
 wait
-avg_RTT=$(echo $(cat $RTTs) | sort -n | awk '{ a[i++] = $0 ; s += $0 } END { print (a[int(i / 2)] + a[int((i - 1) / 2)]) / 2 / 1000 }')
+RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
 > $RTTs
 }
 
 function update_rates {
-        get_avg_RTT
-        delta_RTT=$(echo "scale=10; $avg_RTT - $baseline_avg_RTT" | bc)
+        get_RTT
+        delta_RTT=$(echo "scale=10; $RTT - $baseline_RTT" | bc)
 
         if [ $(echo "$delta_RTT>=0" | bc) -eq 1 ]; then
-                baseline_avg_RTT=$(echo "scale=4; (1-$alpha_RTT_increase)*$baseline_avg_RTT+$alpha_RTT_increase*$avg_RTT" | bc)
+                baseline_RTT=$(echo "scale=4; (1-$alpha_RTT_increase)*$baseline_RTT+$alpha_RTT_increase*$RTT" | bc)
         else
-                baseline_avg_RTT=$(echo "scale=4; (1-$alpha_RTT_decrease)*$baseline_avg_RTT+$alpha_RTT_decrease*$avg_RTT" | bc)
+                baseline_RTT=$(echo "scale=4; (1-$alpha_RTT_decrease)*$baseline_RTT+$alpha_RTT_decrease*$RTT" | bc)
         fi
 
         cur_rx_bytes=$(cat $rx_bytes_path)
@@ -105,13 +104,13 @@ function update_rates {
                 cur_ul_rate=$max_ul_rate;
         fi
 
-        printf "%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\n" $rx_load $tx_load $baseline_avg_RTT $avg_RTT $delta_RTT $cur_dl_rate $cur_ul_rate
+        printf "%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\n" $rx_load $tx_load $baseline_RTT $RTT $delta_RTT $cur_dl_rate $cur_ul_rate
 }
 
 
-get_avg_RTT
+get_RTT
 
-baseline_avg_RTT=$avg_RTT;
+baseline_RTT=$RTT;
 
 cur_dl_rate=$min_dl_rate
 cur_ul_rate=$min_ul_rate
@@ -121,7 +120,7 @@ t_prev_bytes=$(date +%s.%N)
 prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
 
-printf "%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\n" "rx_load" "tx_load" "baseline_avg_RTT" "avg_RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
+printf "%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\n" "rx_load" "tx_load" "baselile_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
 
 while true
 do
