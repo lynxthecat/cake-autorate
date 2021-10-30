@@ -4,6 +4,9 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires iputils-ping, coreutils-date and coreutils-sleep
 
+ul_if=wan
+dl_if=veth-lan
+
 max_ul_rate=35000
 min_ul_rate=25000
 
@@ -126,8 +129,8 @@ while true
 do
         t_start=$(date +%s.%N)
         update_rates
-        tc qdisc change root dev wan cake bandwidth "$cur_ul_rate"Kbit
-        tc qdisc change root dev veth-lan cake bandwidth "$cur_dl_rate"Kbit
+        tc qdisc change root dev $ul_if cake bandwidth "$cur_ul_rate"Kbit
+        tc qdisc change root dev $dl_if cake bandwidth "$cur_dl_rate"Kbit
         t_end=$(date +%s.%N)
         sleep_duration=$(echo "$tick_duration-($t_end-$t_start)"|bc)
         if [ $(echo "$sleep_duration > 0" |bc) -eq 1 ]; then
