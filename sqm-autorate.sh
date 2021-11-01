@@ -30,7 +30,7 @@ max_delta_RTT=10 # increase from baseline RTT for detection of bufferbloat
 
 # verify these are correct using 'cat /sys/class/...'
 # if using veth-lan then for download switch rom rx_byte to tx_bytes
-rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
 tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
 
 echo $rx_bytes_path
