@@ -16,7 +16,7 @@ Requires packages:
 
 Example steps to set up on OpenWrt:
 
-* enable CAKE on your interfaces of choice as described in the OpenWrt documentation, e.g. here: 
+* enable CAKE on your interfaces of choice as described in the OpenWrt documentation, e.g. here:
 https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm
 * ssh into router
 * run 'opkg update'
