@@ -12,7 +12,7 @@ Requires packages:
 * bc (for calculations) 
 * iputils-ping (for more advanced ping with sub 1s ping frequency)
 * coreutils-date (for accurate time keeping)
-*coreutils-sleep (for accurate sleeping)
+* coreutils-sleep (for accurate sleeping)
 
 Example steps to set up on OpenWrt:
 
