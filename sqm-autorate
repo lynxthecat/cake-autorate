@@ -26,8 +26,8 @@ load_thresh=0.5
 
 max_delta_RTT=10
 
-rx_bytes_path="/sys/class/net/wan/statistics/rx_bytes"
-tx_bytes_path="/sys/class/net/wan/statistics/tx_bytes"
+rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
+tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
 
 read -d '' reflectors << EOF
 1.1.1.1
