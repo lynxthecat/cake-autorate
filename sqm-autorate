@@ -107,7 +107,7 @@ function update_rates {
                 cur_ul_rate=$max_ul_rate;
         fi
 
-        printf "%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\t%12.2f\n" $rx_load $tx_load $baseline_RTT $RTT $delta_RTT $cur_dl_rate $cur_ul_rate
+        printf "%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $rx_load $tx_load $baseline_RTT $RTT $delta_RTT $cur_dl_rate $cur_ul_rate
 }
 
 
@@ -123,7 +123,7 @@ t_prev_bytes=$(date +%s.%N)
 prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
 
-printf "%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\t%12s\n" "rx_load" "tx_load" "baselile_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
+printf "%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "rx_load" "tx_load" "baseline_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
 
 while true
 do
