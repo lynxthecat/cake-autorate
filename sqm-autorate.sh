@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# automatically adjust bandwidth for CAKE in dependence on detected load and RTT
+
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: bc, iputils-ping, coreutils-date and coreutils-sleep
@@ -47,6 +49,7 @@ no_reflectors=$(echo "$reflectors" | wc -l)
 
 RTTs=$(mktemp)
 
+# get minimum RTT across entire set of reflectors
 function get_RTT {
 
 for reflector in $reflectors;
@@ -58,6 +61,7 @@ RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
 > $RTTs
 }
 
+# update download and upload rates for CAKE
 function update_rates {
         get_RTT
         delta_RTT=$(echo "scale=10; $RTT - $baseline_RTT" | bc)
@@ -121,6 +125,7 @@ function update_rates {
         fi
 }
 
+# set initial values for first run
 
 get_RTT
 
@@ -138,6 +143,7 @@ if [ $enable_verbose_output -eq 1 ]; then
         printf "%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "rx_load" "tx_load" "baseline_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
 fi
 
+# main loop runs every tick_duration seconds
 while true
 do
         t_start=$(date +%s.%N)
