@@ -2,7 +2,7 @@
 
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
-# requires iputils-ping, coreutils-date and coreutils-sleep
+# requires packages: bc, iputils-ping, coreutils-date and coreutils-sleep
 
 ul_if=wan
 dl_if=veth-lan
