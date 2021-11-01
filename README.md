@@ -22,10 +22,11 @@ https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm
 * run 'opkg update'
 * run 'opkg install bc iputils-ping coreutils-date coreutils-sleep
 * run 'cd root'
-* run 'wget https://raw.githubusercontent.com/lynxthecat/sqm-autorate/main/sqm-autorate'
-* run 'chmod +x ./sqm-autorate
+* run 'wget https://raw.githubusercontent.com/lynxthecat/sqm-autorate/main/sqm-autorate.sh'
+* run 'chmod +x ./sqm-autorate.sh
 * edit script using vi to change parameters for your connection, e.g. upload and download interfaces to which CAKE is applied
 * set minimum bandwidth to the minimum bandwidth you want when there is no load
 * set maximum bandwidth to the maximum bandwidth you think your connection can obtain
-* run script using './sqm-autorate'
+* run script using './sqm-autorate.sh'
 * monitor output lines to see how it scales up download and upload rates as you use the connection
+* optionally set up serice file in /etc/init.d to run as service from LuCi
