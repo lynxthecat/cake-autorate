@@ -3,8 +3,8 @@ Adjusts bandwidth for CAKE by measuring load and RTT times
 
 In summary, for each 'tick':
 
-- under no load bandwidth decays down to minimum set bandwidth
-- under load bandwidth is incremented until RTT spike is deteted or until max set bandwidth is hit 
+- under low load, bandwidth decays down to minimum set bandwidth
+- under high load, bandwidth is incremented until RTT spike is deteted or until max set bandwidth is hit 
 - upon RTT spike, bandwidth is decremented 
 
 Requires packages: 
