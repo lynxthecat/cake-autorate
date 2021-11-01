@@ -1,0 +1,31 @@
+# sqm-autorate
+Adjusts bandwidth for CAKE by measuring load and RTT times
+
+In summary, for each 'tick':
+
+- under no load bandwidth decays down to minimum set bandwidth
+- under load bandwidth is incremented until RTT spike is deteted or until max set bandwidth is hit 
+- upon RTT spike, bandwidth is decremented 
+
+Requires packages: 
+
+* bc (for calculations) 
+* iputils-ping (for more advanced ping with sub 1s ping frequency)
+* coreutils-date (for accurate time keeping)
+*coreutils-sleep (for accurate sleeping)
+
+Example steps to set up on OpenWrt:
+
+* enable CAKE on your interfaces of choice as described in the OpenWrt documentation, e.g. here: 
+https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm
+* ssh into router
+* run 'opkg update'
+* run 'opkg install bc iputils-ping coreutils-date coreutils-sleep
+* run 'cd root'
+* run 'wget https://raw.githubusercontent.com/lynxthecat/sqm-autorate/main/sqm-autorate'
+* run 'chmod +x ./sqm-autorate
+* edit script using vi to change parameters for your connection, e.g. upload and download interfaces to which CAKE is applied
+* set minimum bandwidth to the minimum bandwidth you want when there is no load
+* set maximum bandwidth to the maximum bandwidth you think your connection can obtain
+* run script using './sqm-autorate'
+* monitor output lines to see how it scales up download and upload rates as you use the connection
