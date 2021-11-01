@@ -30,3 +30,6 @@ https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm
 * run script using './sqm-autorate.sh'
 * monitor output lines to see how it scales up download and upload rates as you use the connection
 * optionally set up serice file in /etc/init.d to run as service from LuCi
+* the service file outputs to /tmp
+* if 'enable_verbose_output' is set to '1' then this will generate one line of text every tick_duration
+* so if running script and monitoring is not required then take care to set 'enable_verbose_output' to '0'
