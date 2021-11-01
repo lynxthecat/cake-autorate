@@ -29,11 +29,13 @@ load_thresh=0.5 # % of currently set bandwidth for detecting high load
 max_delta_RTT=10 # increase from baseline RTT for detection of bufferbloat
 
 # verify these are correct using 'cat /sys/class/...'
-# if using veth-lan then for download switch rom rx_byte to tx_bytes
 rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
 tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
 
-echo $rx_bytes_path
+# if using veth-lan then for download switch from rx_byte to tx_bytes
+if [ $dl_if = "veth-lan" ]; then 
+        rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+fi
 
 # list of reflectors to use
 read -d '' reflectors << EOF
@@ -69,10 +71,7 @@ function update_rates {
         cur_rx_bytes=$(cat $rx_bytes_path)
         cur_tx_bytes=$(cat $tx_bytes_path)
         t_cur_bytes=$(date +%s.%N)
-
-
-        echo "scale=10; (8/1000)*(($cur_rx_bytes-$prev_rx_bytes)/($t_cur_bytes-$t_prev_bytes)*(1/$cur_dl_rate))"
-
+        
         rx_load=$(echo "scale=10; (8/1000)*(($cur_rx_bytes-$prev_rx_bytes)/($t_cur_bytes-$t_prev_bytes)*(1/$cur_dl_rate))"|bc)
         tx_load=$(echo "scale=10; (8/1000)*(($cur_tx_bytes-$prev_tx_bytes)/($t_cur_bytes-$t_prev_bytes)*(1/$cur_ul_rate))"|bc)
 
