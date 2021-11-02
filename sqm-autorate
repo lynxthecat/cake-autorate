@@ -14,5 +14,5 @@ start() {
 }
 
 stop() {
-        killall -9 sqm-autorate.sh
+        ps | grep sqm-autorate.sh | grep -v grep | awk '{print $1}' | xargs kill
 }
