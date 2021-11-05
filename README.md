@@ -21,7 +21,7 @@ https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm
 * ssh into router
 * run 'opkg update'
 * run 'opkg install bc iputils-ping coreutils-date coreutils-sleep
-* run 'cd root'
+* run 'cd /root'
 * run 'wget https://raw.githubusercontent.com/lynxthecat/sqm-autorate/main/sqm-autorate.sh'
 * run 'chmod +x ./sqm-autorate.sh
 * edit script using vi to change parameters for your connection, e.g. upload and download interfaces to which CAKE is applied
