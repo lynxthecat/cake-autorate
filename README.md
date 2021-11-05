@@ -7,7 +7,7 @@ In summary, for each 'tick':
 - under high load, bandwidth is incremented until RTT spike is deteted or until max set bandwidth is hit 
 - upon RTT spike, bandwidth is decremented 
 
-Requires packages: 
+Required packages: 
 
 * bc (for calculations) 
 * iputils-ping (for more advanced ping with sub 1s ping frequency)
