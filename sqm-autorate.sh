@@ -6,16 +6,18 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: bc, iputils-ping, coreutils-date and coreutils-sleep
 
+debug=1
+
 enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
-ul_if=wan # upload interface
-dl_if=veth-lan # download interface
+ul_if=pppoe-wan # upload interface
+dl_if=ifb4pppoe-wan # download interface
 
-max_ul_rate=35000 # maximum bandwidth for upload
-min_ul_rate=25000 # minimum bandwidth for upload
+max_ul_rate=36000 # maximum bandwidth for upload
+min_ul_rate=10000 # minimum bandwidth for upload
 
-max_dl_rate=70000 # maximum bandwidth for download
-min_dl_rate=20000 # minimum bandwidth for download
+max_dl_rate=100000 # maximum bandwidth for download
+min_dl_rate=33000 # minimum bandwidth for download
 
 tick_duration=1 # seconds to wait between ticks
 
@@ -31,13 +33,35 @@ load_thresh=0.5 # % of currently set bandwidth for detecting high load
 max_delta_RTT=10 # increase from baseline RTT for detection of bufferbloat
 
 # verify these are correct using 'cat /sys/class/...'
-rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
-tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
-
-# if using veth-lan then for download switch from rx_byte to tx_bytes
-if [ $dl_if = "veth-lan" ]; then 
+case "${dl_if}" in
+    \veth*) 
         rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+    	;;
+    \ifb*) 
+        rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+    	;;
+    *) 
+        rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
+	;;
+esac
+
+case "${ul_if}" in
+    \veth*) 
+        tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
+    	;;
+    \ifb*) 
+        tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
+    	;;
+    *) 
+        tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
+	;;
+esac
+
+if [ "$debug" ] ; then
+    echo "rx_bytes_path: $rx_bytes_path"
+    echo "tx_bytes_path: $tx_bytes_path"
 fi
+
 
 # list of reflectors to use
 read -d '' reflectors << EOF
@@ -50,7 +74,7 @@ no_reflectors=$(echo "$reflectors" | wc -l)
 RTTs=$(mktemp)
 
 # get minimum RTT across entire set of reflectors
-function get_RTT {
+get_RTT() {
 
 for reflector in $reflectors;
 do
@@ -60,6 +84,62 @@ wait
 RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
 > $RTTs
 }
+
+
+get_next_shaper_rate() {
+    local cur_delta_RTT
+    local cur_max_delta_RTT
+    local cur_rate
+    local cur_rate_adjust_RTT_spike
+    local cur_max_rate
+    local cur_min_rate
+    local cur_load
+    local cur_load_thresh
+    local cur_rate_adjust_load_high
+    local cur_rate_adjust_load_low
+    
+    local next_rate
+    
+    cur_delta_RTT=$1
+    cur_max_delta_RTT=$2
+    cur_rate=$3
+    cur_rate_adjust_RTT_spike=$4
+    cur_max_rate=$5
+    cur_min_rate=$6
+    cur_load=$7
+    cur_load_thresh=$8
+    cur_rate_adjust_load_high=$9
+    cur_rate_adjust_load_low=$10
+
+
+	# in case of supra-threshold RTT spikes decrease the rate unconditionally
+        if [ $( echo "$cur_delta_RTT >= $cur_max_delta_RTT" | bc -l ) -eq 1 ] ; then
+            next_rate=$( echo "scale=10; $cur_rate - $cur_rate_adjust_RTT_spike * ($cur_max_rate - $cur_min_rate)" | bc )
+        else
+	    # ... otherwise take the current load into account
+	    # high load, so we would like to increase the rate
+    	    if [ $( echo "$cur_load >= $cur_load_thresh" | bc ) -eq 1 ] ; then
+        	next_rate=$( echo "scale=10; $cur_rate + $cur_rate_adjust_load_high * ($cur_max_rate - $cur_min_rate )" | bc )
+    	    fi
+
+	    # low load gently decrease the rate again
+    	    if [ $( echo "$cur_load < $cur_load_thresh" | bc ) -eq 1 ] ; then
+    	        next_rate=$( echo "scale=10; $cur_rate - $cur_rate_adjust_load_low * ($cur_max_rate - $cur_min_rate)" | bc )
+    	    fi
+	fi
+
+	# make sure to only return rates between cur_min_rate and cur_max_rate
+        if [ $( echo "$next_rate < $cur_min_rate" | bc ) -eq 1 ]; then
+            next_rate=$cur_min_rate;
+        fi
+
+        if [ $( echo "$next_rate > $cur_max_rate" | bc ) -eq 1 ]; then
+            next_rate=$cur_max_rate;
+        fi
+        
+        echo "$next_rate"
+}
+
 
 # update download and upload rates for CAKE
 function update_rates {
@@ -83,42 +163,11 @@ function update_rates {
         prev_rx_bytes=$cur_rx_bytes
         prev_tx_bytes=$cur_tx_bytes
 
-        if [ $(echo "$delta_RTT > $max_delta_RTT" | bc -l) -eq 1 ]; then
-                cur_dl_rate=$(echo "scale=10; $cur_dl_rate-$rate_adjust_RTT_spike*($max_dl_rate-$min_dl_rate)" | bc)
-                cur_ul_rate=$(echo "scale=10; $cur_ul_rate-$rate_adjust_RTT_spike*($max_ul_rate-$min_ul_rate)" | bc)
-        fi
+	# calculte the next rate for dl and ul
+	cur_dl_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_dl_rate" "$rate_adjust_RTT_spike" "$max_dl_rate" "$min_dl_rate" "$rx_load" "$load_thresh" "$rate_adjust_load_high" "$rate_adjust_load_low" )
+	cur_ul_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_ul_rate" "$rate_adjust_RTT_spike" "$max_ul_rate" "$min_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_load_high" "$rate_adjust_load_low" )
 
-        if [ $(echo "$delta_RTT < $max_delta_RTT && $rx_load > $load_thresh" |bc) -eq 1 ]; then
-                cur_dl_rate=$(echo "scale=10; $cur_dl_rate + $rate_adjust_load_high*($max_dl_rate-$min_dl_rate)"|bc)
-        fi
 
-        if [ $(echo "$delta_RTT < $max_delta_RTT && $tx_load > $load_thresh" |bc) -eq 1 ]; then
-                cur_ul_rate=$(echo "scale=10; $cur_ul_rate + $rate_adjust_load_high*($max_ul_rate-$min_ul_rate)"|bc)
-        fi
-
-        if [ $(echo "$delta_RTT < $max_delta_RTT && $rx_load < $load_thresh" |bc) -eq 1 ]; then
-                cur_dl_rate=$(echo "scale=10; $cur_dl_rate - $rate_adjust_load_low*($max_dl_rate-$min_dl_rate)"|bc)
-        fi
-
-        if [ $(echo "$delta_RTT < $max_delta_RTT && $tx_load < $load_thresh" |bc) -eq 1 ]; then
-                cur_ul_rate=$(echo "scale=10; $cur_ul_rate - $rate_adjust_load_low*($max_ul_rate-$min_ul_rate)"|bc)
-        fi
-
-        if [ $(echo "$cur_dl_rate<$min_dl_rate" | bc) -eq 1 ]; then
-                cur_dl_rate=$min_dl_rate;
-        fi
-
-        if [ $(echo "$cur_ul_rate<$min_ul_rate" | bc) -eq 1 ]; then
-                cur_ul_rate=$min_ul_rate;
-        fi
-
-        if [ $(echo "$cur_dl_rate>$max_dl_rate" | bc) -eq 1 ]; then
-                cur_dl_rate=$max_dl_rate;
-        fi
-
-        if [ $(echo "$cur_ul_rate>$max_ul_rate" | bc) -eq 1 ]; then
-                cur_ul_rate=$max_ul_rate;
-        fi
 
         if [ $enable_verbose_output -eq 1 ]; then
                 printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $( date "+%Y%m%dT%H%M%S.%N" ) $rx_load $tx_load $baseline_RTT $RTT $delta_RTT $cur_dl_rate $cur_ul_rate
@@ -140,7 +189,7 @@ prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
 
 if [ $enable_verbose_output -eq 1 ]; then
-        printf "%14s;%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "log_time" "rx_load" "tx_load" "baseline_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
+        printf "%25s;%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "log_time" "rx_load" "tx_load" "baseline_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
 fi
 
 # main loop runs every tick_duration seconds
