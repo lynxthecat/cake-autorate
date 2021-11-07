@@ -146,14 +146,6 @@ get_next_shaper_rate() {
 
 # update download and upload rates for CAKE
 function update_rates {
-        get_RTT
-        delta_RTT=$(echo "scale=10; $RTT - $baseline_RTT" | bc)
-
-        if [ $(echo "$delta_RTT>=0" | bc) -eq 1 ]; then
-                baseline_RTT=$(echo "scale=4; (1-$alpha_RTT_increase)*$baseline_RTT+$alpha_RTT_increase*$RTT" | bc)
-        else
-                baseline_RTT=$(echo "scale=4; (1-$alpha_RTT_decrease)*$baseline_RTT+$alpha_RTT_decrease*$RTT" | bc)
-        fi
 
         cur_rx_bytes=$(cat $rx_bytes_path)
         cur_tx_bytes=$(cat $tx_bytes_path)
@@ -177,6 +169,32 @@ function update_rates {
         fi
 }
 
+get_baseline_RTT() {
+    local cur_RTT
+    local cur_delta_RTT
+    local last_baseline_RTT
+    local cur_alpha_RTT_increase
+    local cur_alpha_RTT_decrease
+    
+    local cur_baseline_RTT
+    
+    cur_RTT=$1
+    cur_delta_RTT=$2
+    last_baseline_RTT=$3
+    cur_alpha_RTT_increase=$4
+    cur_alpha_RTT_decrease=$5
+    
+        if [ $(echo "$cur_delta_RTT >= 0" | bc ) -eq 1 ] ; then
+                cur_baseline_RTT=$( echo "scale=4; (1 - $cur_alpha_RTT_increase) * $last_baseline_RTT + $cur_alpha_RTT_increase * $cur_RTT" | bc )
+        else
+                cur_baseline_RTT=$( echo "scale=4; (1 - $cur_alpha_RTT_decrease) * $last_baseline_RTT + $cur_alpha_RTT_decrease * $cur_RTT" | bc )
+        fi
+    
+    echo "${cur_baseline_RTT}"
+}
+
+
+
 # set initial values for first run
 
 get_RTT
@@ -185,7 +203,7 @@ baseline_RTT=$RTT;
 
 cur_dl_rate=$min_dl_rate
 cur_ul_rate=$min_ul_rate
-
+# set the next different from the cur_XX_rates so that on the first round we are guaranteed to call tc
 last_dl_rate=0
 last_ul_rate=0
 
@@ -203,8 +221,10 @@ fi
 while true
 do
         t_start=$(date +%s.%N)
-        # remember the last rates
-
+	get_RTT
+        delta_RTT=$( echo "scale=10; $RTT - $baseline_RTT" | bc )
+	baseline_RTT=$( get_baseline_RTT "$RTT" "$delta_RTT" "$baseline_RTT" "$alpha_RTT_increase" "$alpha_RTT_decrease" )
+	
         update_rates
 
 	# only fire up tc if there are rates to change...
