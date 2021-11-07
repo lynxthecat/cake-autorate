@@ -137,7 +137,10 @@ get_next_shaper_rate() {
             next_rate=$cur_max_rate;
         fi
         
-        echo "$next_rate"
+        # chop of the decimals, (effectively floor(next_rate))
+        # this is good enough here, as rates are in kbps, and on a link so slow that fractional
+        # kbps would matter this script is not going to work anyway...
+        echo "${next_rate%%.*}"
 }
 
 
@@ -163,7 +166,7 @@ function update_rates {
         prev_rx_bytes=$cur_rx_bytes
         prev_tx_bytes=$cur_tx_bytes
 
-	# calculte the next rate for dl and ul
+	# calculate the next rate for dl and ul
 	cur_dl_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_dl_rate" "$rate_adjust_RTT_spike" "$max_dl_rate" "$min_dl_rate" "$rx_load" "$load_thresh" "$rate_adjust_load_high" "$rate_adjust_load_low" )
 	cur_ul_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_ul_rate" "$rate_adjust_RTT_spike" "$max_ul_rate" "$min_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_load_high" "$rate_adjust_load_low" )
 
@@ -183,6 +186,10 @@ baseline_RTT=$RTT;
 cur_dl_rate=$min_dl_rate
 cur_ul_rate=$min_ul_rate
 
+last_dl_rate=0
+last_ul_rate=0
+
+
 t_prev_bytes=$(date +%s.%N)
 
 prev_rx_bytes=$(cat $rx_bytes_path)
@@ -196,9 +203,23 @@ fi
 while true
 do
         t_start=$(date +%s.%N)
+        # remember the last rates
+
         update_rates
-        tc qdisc change root dev $ul_if cake bandwidth "$cur_ul_rate"Kbit
-        tc qdisc change root dev $dl_if cake bandwidth "$cur_dl_rate"Kbit
+
+	# only fire up tc if there are rates to change...
+        if [ "$last_dl_rate" -ne "$cur_dl_rate" ] ; then
+    	    #echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
+    	    tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+        fi
+        if [ "$last_ul_rate" -ne "$cur_ul_rate" ] ; then
+    	    #echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
+    	    tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+        fi
+        # remember the last rates
+	last_dl_rate=$cur_dl_rate
+	last_ul_rate=$cur_ul_rate
+
         t_end=$(date +%s.%N)
         sleep_duration=$(echo "$tick_duration-($t_end-$t_start)"|bc)
         if [ $(echo "$sleep_duration > 0" |bc) -eq 1 ]; then
