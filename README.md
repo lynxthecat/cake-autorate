@@ -142,7 +142,7 @@ To do this:
 
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
 - Run these commands to install the service file
-and start/enable it: _(Are these commands correct?)_
+and start/enable it:
 
    ```bash
    cd /etc/init.d
