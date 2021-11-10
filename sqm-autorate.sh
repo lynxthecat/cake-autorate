@@ -109,7 +109,7 @@ get_next_shaper_rate() {
     cur_load=$7
     cur_load_thresh=$8
     cur_rate_adjust_load_high=$9
-    cur_rate_adjust_load_low=$10
+    cur_rate_adjust_load_low=${10}
 
 
 	# in case of supra-threshold RTT spikes decrease the rate unconditionally
