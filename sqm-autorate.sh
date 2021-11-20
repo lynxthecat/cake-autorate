@@ -10,23 +10,23 @@ debug=1
 
 enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
-ul_if=pppoe-wan # upload interface
-dl_if=ifb4pppoe-wan # download interface
+ul_if=wan # upload interface
+dl_if=veth-lan # download interface
 
-max_ul_rate=36000 # maximum bandwidth for upload
-min_ul_rate=10000 # minimum bandwidth for upload
+max_ul_rate=35000 # maximum bandwidth for upload
+min_ul_rate=25000 # minimum bandwidth for upload
 
-max_dl_rate=100000 # maximum bandwidth for download
-min_dl_rate=33000 # minimum bandwidth for download
+max_dl_rate=70000 # maximum bandwidth for download
+min_dl_rate=25000 # minimum bandwidth for download
 
 tick_duration=1 # seconds to wait between ticks
 
-alpha_RTT_increase=0.01 # how rapidly baseline RTT is allowed to increase
+alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
 
 rate_adjust_RTT_spike=0.05 # how rapidly to reduce bandwidth upon detection of bufferbloat
-rate_adjust_load_high=0.01 # how rapidly to increase bandwidth upon high load detected
-rate_adjust_load_low=0.005 # how rapidly to decrease bandwidth upon low load detected
+rate_adjust_load_high=0.005 # how rapidly to increase bandwidth upon high load detected
+rate_adjust_load_low=0.0025 # how rapidly to decrease bandwidth upon low load detected
 
 load_thresh=0.5 # % of currently set bandwidth for detecting high load
 
