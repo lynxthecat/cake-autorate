@@ -116,15 +116,15 @@ get_next_shaper_rate() {
 
 	# in case of supra-threshold RTT spikes decrease the rate unconditionally
 	if awk "BEGIN {exit !($cur_delta_RTT >= $cur_max_delta_RTT)}"; then
-	    next_rate=$( printf '%s' "$( call_awk "int(${cur_rate} - ${cur_rate_adjust_RTT_spike} * (${cur_max_rate} - ${cur_min_rate}) )" )" )
+	    next_rate=$( call_awk "int(${cur_rate} - ${cur_rate_adjust_RTT_spike} * (${cur_max_rate} - ${cur_min_rate}) )" )
         else
 	    # ... otherwise take the current load into account
 	    # high load, so we would like to increase the rate
 	    if awk "BEGIN {exit !($cur_load >= $cur_load_thresh)}"; then
-                next_rate=$( printf '%s' "$( call_awk "int(${cur_rate} + ${cur_rate_adjust_load_high} * (${cur_max_rate} - ${cur_min_rate}) )" )" )
+                next_rate=$( call_awk "int(${cur_rate} + ${cur_rate_adjust_load_high} * (${cur_max_rate} - ${cur_min_rate}) )" )
 	    else
 	        # low load gently decrease the rate again
-		        next_rate=$( printf '%s' "$( call_awk "int(${cur_rate} - ${cur_rate_adjust_load_low} * (${cur_max_rate} - ${cur_min_rate}) )" )" )
+		        next_rate=$( call_awk "int(${cur_rate} - ${cur_rate_adjust_load_low} * (${cur_max_rate} - ${cur_min_rate}) )" )
         fi
 	fi
 
@@ -146,8 +146,8 @@ function update_rates {
         cur_tx_bytes=$(cat $tx_bytes_path)
         t_cur_bytes=$(date +%s.%N)
         
-        rx_load=$( printf '%s' "$( call_awk "(8/1000)*(${cur_rx_bytes} - ${prev_rx_bytes}) / (${t_cur_bytes} - ${t_prev_bytes}) * (1/${cur_dl_rate}) " )" )
-   	tx_load=$( printf '%s' "$( call_awk "(8/1000)*(${cur_tx_bytes} - ${prev_tx_bytes}) / (${t_cur_bytes} - ${t_prev_bytes}) * (1/${cur_ul_rate}) " )" )
+        rx_load=$( call_awk "(8/1000)*(${cur_rx_bytes} - ${prev_rx_bytes}) / (${t_cur_bytes} - ${t_prev_bytes}) * (1/${cur_dl_rate}) " )
+   	tx_load=$( call_awk "(8/1000)*(${cur_tx_bytes} - ${prev_tx_bytes}) / (${t_cur_bytes} - ${t_prev_bytes}) * (1/${cur_ul_rate}) " )
 
         t_prev_bytes=$t_cur_bytes
         prev_rx_bytes=$cur_rx_bytes
@@ -179,9 +179,9 @@ get_baseline_RTT() {
     cur_alpha_RTT_increase=$4
     cur_alpha_RTT_decrease=$5
         if awk "BEGIN {exit !($cur_delta_RTT >= 0)}"; then
-		cur_baseline_RTT=$( printf '%s' "$( call_awk "( 1 - ${cur_alpha_RTT_increase} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_increase} * ${cur_RTT} " )" )
+		cur_baseline_RTT=$( call_awk "( 1 - ${cur_alpha_RTT_increase} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_increase} * ${cur_RTT} " )
         else
-		cur_baseline_RTT=$( printf '%s' "$( call_awk "( 1 - ${cur_alpha_RTT_decrease} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_decrease} * ${cur_RTT} " )" )
+		cur_baseline_RTT=$( call_awk "( 1 - ${cur_alpha_RTT_decrease} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_decrease} * ${cur_RTT} " )
         fi
     
     echo "${cur_baseline_RTT}"
@@ -216,7 +216,7 @@ while true
 do
         t_start=$(date +%s.%N)
 	get_RTT
-	delta_RTT=$( printf '%s' "$( call_awk "${RTT} - ${baseline_RTT}" )" )
+	delta_RTT=$( call_awk "${RTT} - ${baseline_RTT}" )
 	baseline_RTT=$( get_baseline_RTT "$RTT" "$delta_RTT" "$baseline_RTT" "$alpha_RTT_increase" "$alpha_RTT_decrease" )
         update_rates
 
@@ -234,7 +234,7 @@ do
 	last_ul_rate=$cur_ul_rate
 
         t_end=$(date +%s.%N)
-	sleep_duration=$( printf '%s' "$( call_awk "${tick_duration} - ${t_end} + ${t_start}" )" )
+	sleep_duration=$( call_awk "${tick_duration} - ${t_end} + ${t_start}" )
         if awk "BEGIN {exit !($sleep_duration > 0)}"; then
                 sleep $sleep_duration
         fi
