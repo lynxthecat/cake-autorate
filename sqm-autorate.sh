@@ -4,7 +4,7 @@
 
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
-# requires packages: bc, iputils-ping, coreutils-date and coreutils-sleep
+# requires packages: iputils-ping, coreutils-date and coreutils-sleep
 
 debug=1
 
@@ -69,8 +69,6 @@ read -d '' reflectors << EOF
 8.8.8.8
 EOF
 
-no_reflectors=$(echo "$reflectors" | wc -l)
-
 RTTs=$(mktemp)
 
 # get minimum RTT across entire set of reflectors
@@ -85,6 +83,10 @@ RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
 > $RTTs
 }
 
+
+call_awk() {
+  printf '%s' "$(awk 'BEGIN {print '"${1}"'}')"
+}
 
 get_next_shaper_rate() {
     local cur_delta_RTT
@@ -113,46 +115,39 @@ get_next_shaper_rate() {
 
 
 	# in case of supra-threshold RTT spikes decrease the rate unconditionally
-        if [ $( echo "$cur_delta_RTT >= $cur_max_delta_RTT" | bc -l ) -eq 1 ] ; then
-            next_rate=$( echo "scale=10; $cur_rate - $cur_rate_adjust_RTT_spike * ($cur_max_rate - $cur_min_rate)" | bc )
+	if awk "BEGIN {exit !($cur_delta_RTT >= $cur_max_delta_RTT)}"; then
+	    next_rate=$( call_awk "int(${cur_rate} - ${cur_rate_adjust_RTT_spike} * (${cur_max_rate} - ${cur_min_rate}) )" )
         else
 	    # ... otherwise take the current load into account
 	    # high load, so we would like to increase the rate
-    	    if [ $( echo "$cur_load >= $cur_load_thresh" | bc ) -eq 1 ] ; then
-        	next_rate=$( echo "scale=10; $cur_rate + $cur_rate_adjust_load_high * ($cur_max_rate - $cur_min_rate )" | bc )
-    	    fi
-
-	    # low load gently decrease the rate again
-    	    if [ $( echo "$cur_load < $cur_load_thresh" | bc ) -eq 1 ] ; then
-    	        next_rate=$( echo "scale=10; $cur_rate - $cur_rate_adjust_load_low * ($cur_max_rate - $cur_min_rate)" | bc )
-    	    fi
+	    if awk "BEGIN {exit !($cur_load >= $cur_load_thresh)}"; then
+                next_rate=$( call_awk "int(${cur_rate} + ${cur_rate_adjust_load_high} * (${cur_max_rate} - ${cur_min_rate}) )" )
+	    else
+	        # low load gently decrease the rate again
+		        next_rate=$( call_awk "int(${cur_rate} - ${cur_rate_adjust_load_low} * (${cur_max_rate} - ${cur_min_rate}) )" )
+        fi
 	fi
 
 	# make sure to only return rates between cur_min_rate and cur_max_rate
-        if [ $( echo "$next_rate < $cur_min_rate" | bc ) -eq 1 ]; then
+        if awk "BEGIN {exit !($next_rate < $cur_min_rate)}"; then
             next_rate=$cur_min_rate;
         fi
 
-        if [ $( echo "$next_rate > $cur_max_rate" | bc ) -eq 1 ]; then
+        if awk "BEGIN {exit !($next_rate > $cur_max_rate)}"; then
             next_rate=$cur_max_rate;
         fi
-        
-        # chop of the decimals, (effectively floor(next_rate))
-        # this is good enough here, as rates are in kbps, and on a link so slow that fractional
-        # kbps would matter this script is not going to work anyway...
-        echo "${next_rate%%.*}"
+        echo "${next_rate}"
 }
 
 
 # update download and upload rates for CAKE
 function update_rates {
-
         cur_rx_bytes=$(cat $rx_bytes_path)
         cur_tx_bytes=$(cat $tx_bytes_path)
         t_cur_bytes=$(date +%s.%N)
         
-        rx_load=$(echo "scale=10; (8/1000)*(($cur_rx_bytes-$prev_rx_bytes)/($t_cur_bytes-$t_prev_bytes)*(1/$cur_dl_rate))"|bc)
-        tx_load=$(echo "scale=10; (8/1000)*(($cur_tx_bytes-$prev_tx_bytes)/($t_cur_bytes-$t_prev_bytes)*(1/$cur_ul_rate))"|bc)
+        rx_load=$( call_awk "(8/1000)*(${cur_rx_bytes} - ${prev_rx_bytes}) / (${t_cur_bytes} - ${t_prev_bytes}) * (1/${cur_dl_rate}) " )
+   	tx_load=$( call_awk "(8/1000)*(${cur_tx_bytes} - ${prev_tx_bytes}) / (${t_cur_bytes} - ${t_prev_bytes}) * (1/${cur_ul_rate}) " )
 
         t_prev_bytes=$t_cur_bytes
         prev_rx_bytes=$cur_rx_bytes
@@ -183,11 +178,10 @@ get_baseline_RTT() {
     last_baseline_RTT=$3
     cur_alpha_RTT_increase=$4
     cur_alpha_RTT_decrease=$5
-    
-        if [ $(echo "$cur_delta_RTT >= 0" | bc ) -eq 1 ] ; then
-                cur_baseline_RTT=$( echo "scale=4; (1 - $cur_alpha_RTT_increase) * $last_baseline_RTT + $cur_alpha_RTT_increase * $cur_RTT" | bc )
+        if awk "BEGIN {exit !($cur_delta_RTT >= 0)}"; then
+		cur_baseline_RTT=$( call_awk "( 1 - ${cur_alpha_RTT_increase} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_increase} * ${cur_RTT} " )
         else
-                cur_baseline_RTT=$( echo "scale=4; (1 - $cur_alpha_RTT_decrease) * $last_baseline_RTT + $cur_alpha_RTT_decrease * $cur_RTT" | bc )
+		cur_baseline_RTT=$( call_awk "( 1 - ${cur_alpha_RTT_decrease} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_decrease} * ${cur_RTT} " )
         fi
     
     echo "${cur_baseline_RTT}"
@@ -222,9 +216,8 @@ while true
 do
         t_start=$(date +%s.%N)
 	get_RTT
-        delta_RTT=$( echo "scale=10; $RTT - $baseline_RTT" | bc )
+	delta_RTT=$( call_awk "${RTT} - ${baseline_RTT}" )
 	baseline_RTT=$( get_baseline_RTT "$RTT" "$delta_RTT" "$baseline_RTT" "$alpha_RTT_increase" "$alpha_RTT_decrease" )
-	
         update_rates
 
 	# only fire up tc if there are rates to change...
@@ -241,8 +234,8 @@ do
 	last_ul_rate=$cur_ul_rate
 
         t_end=$(date +%s.%N)
-        sleep_duration=$(echo "$tick_duration-($t_end-$t_start)"|bc)
-        if [ $(echo "$sleep_duration > 0" |bc) -eq 1 ]; then
+	sleep_duration=$( call_awk "${tick_duration} - ${t_end} + ${t_start}" )
+        if awk "BEGIN {exit !($sleep_duration > 0)}"; then
                 sleep $sleep_duration
         fi
 done
