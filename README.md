@@ -81,7 +81,6 @@ There is a detailed discussion of the script's evolution on the
 
 ## Required packages
 
-- **bc** for calculations
 - **iputils-ping** for more advanced ping with sub 1s ping frequency
 - **coreutils-date** for accurate time keeping
 - **coreutils-sleep** for accurate sleeping
@@ -96,7 +95,7 @@ as described in the
 and make it executable:
 
    ```bash
-   opkg update; opkg install bc iputils-ping coreutils-date coreutils-sleep
+   opkg update; opkg install iputils-ping coreutils-date coreutils-sleep
    cd /root
    wget https://raw.githubusercontent.com/lynxthecat/sqm-autorate/main/sqm-autorate.sh
    chmod +x ./sqm-autorate.sh
