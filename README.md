@@ -10,7 +10,7 @@ fixed bandwidth.
 CAKE is an algorithm that manages the buffering of data being sent/received
 by an [OpenWrt router](https://openwrt.org) so that no more data
 is queued than is necessary, minimizing the latency (and bufferbloat)
-and improving the network's responsiveness.
+and improving the responsiveness of a network.
 
 The present implementation of CAKE requires a fixed bandwidth setting.
 This presents a challenge in applying CAKE
@@ -28,12 +28,11 @@ to reflect the current conditions on the bottleneck link.
 The script is typically configured to run once per second
 and make the following adjustments:
 
-- When traffic is low, allow the bandwidth setting to decay
-toward minimum configured value
-- When traffic is high, incrementally increase the bandwidth setting
-until a RTT spike is detected
-or until the setting reaches the maximum configured value
-- Upon detecting a RTT spike, decrease the bandwidth setting
+- When traffic is low, the bandwidth setting decays
+toward a minimum configured value
+- When traffic is high, the bandwidth setting is incrementally increased
+until an RTT spike is detected or until the setting reaches the maximum configured value
+- Upon detecting an RTT spike, the bandwidth setting is decreased
 
 The minimum bandwidth for the CAKE algorithm
 should be set to at, or below, the slowest
