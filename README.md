@@ -1,5 +1,7 @@
 # CAKE with Adaptive Bandwidth - "autorate"
 
+If you use this script I have just one ask. Please post on the OoenWrt thread referenced below and comment with your feedback. This will help improve the script for the benefit of others.  
+
 A script that automatically adapts
 [CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
 bandwidth settings by measuring traffic load and RTT times.
@@ -75,7 +77,7 @@ Or, if a lower maximum bandwidth is required
 by the user, the maximum bandwidth is set
 to that lower bandwidth as explained above.
 
-There is a detailed discussion of the script's evolution on the
+There is a detailed and fun discussion with plenty of sketches relating to the development of the script and alternatives on the
 [OpenWrt Forum - CAKE /w Adaptive Bandwidth.](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/312)
 
 ## Required packages
@@ -151,3 +153,5 @@ and start/enable it:
 
 When running as a service, the `autorate.sh` script outputs
 to `/tmp/sqm-autorate.log` when `enable_verbose_output` is set to '1'.
+
+Disabling logging when bit required is a good idea given the rate of logging. 
