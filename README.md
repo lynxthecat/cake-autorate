@@ -156,4 +156,4 @@ Disabling logging when bit required is a good idea given the rate of logging.
 
 ## Polite request
 
-If you use this script I have just one ask. Please post on the OoenWrt thread referenced below and comment with your feedback. This will help improve the script for the benefit of others.  
+If you use this script I have just one ask. Please post on the OpenWrt thread referenced below and comment with your feedback. This will help improve the script for the benefit of others.  
