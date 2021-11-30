@@ -19,7 +19,7 @@ actual bandwidth at any given moment is unknown.
 
 A compromise bandwidth has to be set, and typically this means 
 lost bandwidth in exchange for latency control that only works 
-some of the time. In any case this compromise is hardly ideal.
+some of the time. In any case, this compromise is hardly ideal.
 
 ![image of Bandwidth Compromise](./Bandwidth-Compromise.png)
 
