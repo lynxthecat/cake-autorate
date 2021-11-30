@@ -17,7 +17,7 @@ This presents a challenge in applying CAKE
 to variable bandwidth connections, because the
 actual bandwidth at any given moment is unknown.
 
-![image of Bandwidth Compromise](./Bandwidth Compromise.png)
+![image of Bandwidth Compromise](./Bandwidth-Compromise.png)
 
 This script periodically updates CAKE's bandwidth
 settings based on current measured conditions.
