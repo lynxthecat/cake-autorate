@@ -19,12 +19,13 @@ actual bandwidth at any given moment is unknown.
 
 A compromise bandwidth has to be set, and typically this means 
 lost bandwidth in exchange for latency control that only works 
-some of the time. In any even this compromise is not ideal.
+some of the time. In any case this compromise is hardly ideal.
 
 ![image of Bandwidth Compromise](./Bandwidth-Compromise.png)
 
-This script periodically updates CAKE's bandwidth
-settings based on current measured conditions.
+This script aims to provide a solution to this problem 
+and so periodically updates CAKE's bandwidth
+settings based on determined load and RTT measurements.
 
 ## Theory of Operation
 
