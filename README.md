@@ -17,6 +17,8 @@ This presents a challenge in applying CAKE
 to variable bandwidth connections, because the
 actual bandwidth at any given moment is unknown.
 
+![Bandwidth Compromise](./Bandwidth Compromise.png)
+
 This script periodically updates CAKE's bandwidth
 settings based on current measured conditions.
 
@@ -32,7 +34,8 @@ and make the following adjustments:
 toward a minimum configured value
 - When traffic is high, the bandwidth setting is incrementally increased
 until an RTT spike is detected or until the setting reaches the maximum configured value
-- Upon detecting an RTT spike, the bandwidth setting is decreased
+- Upon detecting an RTT spike, the bandwidth setting is decreased![144124775-46306fce-9966-42ec-8e94-c91d0dec2c40](https://user-images.githubusercontent.com/10721999/144124811-a9af0453-11e8-425c-9551-71f2ac293ba7.png)
+
 
 The minimum bandwidth for the CAKE algorithm
 should be set to at, or below, the slowest
