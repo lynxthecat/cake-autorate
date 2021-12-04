@@ -28,7 +28,7 @@ rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load d
 
 load_thresh=0.5 # % of currently set bandwidth for detecting high load
 
-max_delta_RTT=10 # increase from baseline RTT for detection of bufferbloat
+max_delta_RTT=15 # increase from baseline RTT for detection of bufferbloat
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
