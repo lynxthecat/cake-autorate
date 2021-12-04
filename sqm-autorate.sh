@@ -131,7 +131,7 @@ get_next_shaper_rate() {
                 # low load gently increase to steady state rate
                 next_rate=$cur_rate_decayed_up
             else
-                next_rate=$base_rate
+                next_rate=$cur_base_rate
         fi
         fi
 
