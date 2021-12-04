@@ -8,7 +8,7 @@
 
 debug=1
 
-enable_verbose_output=0 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
+enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
@@ -113,21 +113,21 @@ get_next_shaper_rate() {
 
         # in case of supra-threshold RTT spikes decrease the rate unconditionally
         if awk "BEGIN {exit !($cur_delta_RTT >= $cur_max_delta_RTT)}"; then
-            next_rate=$( call_awk "int(${cur_rate} * ( 1 - ${cur_rate_adjust_RTT_spike}) )" )
+            next_rate=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_RTT_spike}) )" )
         else
             # ... otherwise take the current load into account
             # high load, so we would like to increase the rate
             if awk "BEGIN {exit !($cur_load >= $cur_load_thresh)}"; then
-                next_rate=$( call_awk "int(${cur_rate} * ( 1 + ${cur_rate_adjust_load_high}) )" )
+                next_rate=$( call_awk "int( ${cur_rate}*(1+${cur_rate_adjust_load_high}) )" )
             fi
             # low load, so determine whether to decay down, decay up, or set as base rate
-            cur_rate_decayed_down=$( call_awk "int(${cur_rate} * ( 1 - ${cur_rate_adjust_load_low}) )" )
-            cur_rate_decayed_up=$( call_awk "int(${cur_rate} * ( 1 + ${cur_rate_adjust_load_low}) )" )
+            cur_rate_decayed_down=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_load_low}) )" )
+            cur_rate_decayed_up=$( call_awk "int( ${cur_rate}*(1+${cur_rate_adjust_load_low}) )" )
 
-            if awk "BEGIN {exit !($cur_rate_decayed_down > $base_rate)}"; then
+            if awk "BEGIN {exit !($cur_rate_decayed_down > $cur_base_rate)}"; then
                 # low load gently decrease to steady state rate
                 next_rate=$cur_rate_decayed_down
-            elif awk "BEGIN {exit !($cur_rate_decayed_up < $base_rate)}"; then
+            elif awk "BEGIN {exit !($cur_rate_decayed_up < $cur_base_rate)}"; then
                 # low load gently increase to steady state rate
                 next_rate=$cur_rate_decayed_up
             else
@@ -192,8 +192,8 @@ get_RTT
 
 baseline_RTT=$RTT;
 
-cur_dl_rate=$min_dl_rate
-cur_ul_rate=$min_ul_rate
+cur_dl_rate=$base_dl_rate
+cur_ul_rate=$base_ul_rate
 # set the next different from the cur_XX_rates so that on the first round we are guaranteed to call tc
 last_dl_rate=0
 last_ul_rate=0
