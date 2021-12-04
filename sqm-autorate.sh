@@ -115,21 +115,22 @@ get_next_shaper_rate() {
         if awk "BEGIN {exit !(($cur_delta_RTT >= $cur_max_delta_RTT) && $cur_load >= $cur_load_thresh)}"; then
             next_rate=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_RTT_spike}) )" )
         else
-            # ... otherwise take the current load into account
+            # ... otherwise determine whether to increase or decrease the rate in dependence on load
             # high load, so we would like to increase the rate
             if awk "BEGIN {exit !($cur_load >= $cur_load_thresh)}"; then
                 next_rate=$( call_awk "int( ${cur_rate}*(1+${cur_rate_adjust_load_high}) )" )
             else
-                # low load, so determine whether to decay down, decay up, or set as base rate
+                # low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
                 cur_rate_decayed_down=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_load_low}) )" )
                 cur_rate_decayed_up=$( call_awk "int( ${cur_rate}*(1+${cur_rate_adjust_load_low}) )" )
 
-                # low load gently decrease to steady state rate
+                # gently decrease to steady state rate
                 if awk "BEGIN {exit !($cur_rate_decayed_down > $cur_base_rate)}"; then
                         next_rate=$cur_rate_decayed_down
-                # low load gently increase to steady state rate
+                # gently increase to steady state rate
                 elif awk "BEGIN {exit !($cur_rate_decayed_up < $cur_base_rate)}"; then
                         next_rate=$cur_rate_decayed_up
+                # steady state has been reached
                 else
                         next_rate=$cur_base_rate
         fi
