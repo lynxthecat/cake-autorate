@@ -17,7 +17,7 @@ base_ul_rate=30000 # steady state bandwidth for upload
 
 base_dl_rate=30000 # steady state bandwidth for download
 
-tick_duration=1 # seconds to wait between ticks
+tick_duration=0.5 # seconds to wait between ticks
 
 alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
@@ -111,8 +111,8 @@ get_next_shaper_rate() {
     cur_rate_adjust_load_high=$8
     cur_rate_adjust_load_low=$9
 
-        # in case of supra-threshold RTT spikes decrease the rate unconditionally
-        if awk "BEGIN {exit !($cur_delta_RTT >= $cur_max_delta_RTT)}"; then
+        # in case of supra-threshold RTT spikes decrease the rate so long as there is a load
+        if awk "BEGIN {exit !(($cur_delta_RTT >= $cur_max_delta_RTT) && $cur_load >= $cur_load_thresh)}"; then
             next_rate=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_RTT_spike}) )" )
         else
             # ... otherwise take the current load into account
