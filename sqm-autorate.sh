@@ -22,7 +22,7 @@ tick_duration=0.5 # seconds to wait between ticks
 alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
 
-rate_adjust_RTT_spike=0.05 # how rapidly to reduce bandwidth upon detection of bufferbloat
+rate_adjust_RTT_spike=0.01 # how rapidly to reduce bandwidth upon detection of bufferbloat
 rate_adjust_load_high=0.005 # how rapidly to increase bandwidth upon high load detected
 rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load detected
 
@@ -112,7 +112,7 @@ get_next_shaper_rate() {
     cur_rate_adjust_load_low=$9
 
         # in case of supra-threshold RTT spikes decrease the rate so long as there is a load
-        if awk "BEGIN {exit !(($cur_delta_RTT >= $cur_max_delta_RTT) && $cur_load >= $cur_load_thresh)}"; then
+        if awk "BEGIN {exit !(($cur_delta_RTT >= $cur_max_delta_RTT))}"; then
             next_rate=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_RTT_spike}) )" )
         else
             # ... otherwise determine whether to increase or decrease the rate in dependence on load
