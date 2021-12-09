@@ -69,7 +69,7 @@ OWDs=$(mktemp)
 BASELINES_prev=$(mktemp)
 BASELINES_cur=$(mktemp)
 
-# get minimum OWDs across entire set of reflectors
+# get minimum OWDs for each reflector
 get_OWDs() {
 > $OWDs
 for reflector in $reflectors;
@@ -161,6 +161,8 @@ function update_rates {
         fi
 }
 
+# determine minimum OWD deltas across all reflectors
+# and update baselines for each reflector
 get_min_OWD_deltas() {
 
 	local reflector
@@ -169,14 +171,17 @@ get_min_OWD_deltas() {
 	local cur_uplink_baseline
 	local cur_downlink_baseline
 	local reflector_OWDs
+	local uplink_OWD
+	local dowlink_OWD
 	
 	min_uplink_delta=10000
 	min_downlink_delta=10000
 
 	> $BASELINES_cur
 
-	cat $BASELINES_prev
-
+	# Read through previous OWD baseline file for each reflector
+	# get corresponding new OWD measurement for each reflector
+	# update baselines and store in cur OWD baseline file
 	while IFS= read -r reflector_line; do
 		reflector=$(echo $reflector_line | awk '{print $1}')
 		prev_uplink_baseline=$(echo $reflector_line | awk '{print $2}')
@@ -188,6 +193,11 @@ get_min_OWD_deltas() {
 
 		delta_uplink_OWD=$( call_awk "${uplink_OWD} - ${prev_uplink_baseline}" )
 		delta_downlink_OWD=$( call_awk "${downlink_OWD} - ${prev_downlink_baseline}" )
+
+        	if [ $enable_verbose_output -eq 1 ]; then
+                	printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $reflector $prev_downlink_baseline $downlink_OWD $delta_downlink_OWD $prev_uplink_baseline $uplink_OWD $delta_uplink_OWD 
+        	fi
+
 
 		if awk "BEGIN {exit !($delta_uplink_OWD >= 0)}"; then
         	        cur_uplink_baseline=$( call_awk "( 1 - ${alpha_OWD_increase} ) * ${prev_uplink_baseline} + ${alpha_OWD_increase} * ${uplink_OWD} " )
@@ -234,7 +244,7 @@ prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
 
 if [ $enable_verbose_output -eq 1 ]; then
-        printf "%25s;%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "log_time" "rx_load" "tx_load" "min_downlink_delta" "min_uplink_delta" "cur_dl_rate" "cur_ul_rate"
+        printf "%25s;%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "log_time" "rx_load" "tx_load" "min_dl_delta" "min_ul_delta" "cur_dl_rate" "cur_ul_rate"
 fi
 
 # main loop runs every tick_duration seconds
