@@ -1,10 +1,8 @@
-#!/bin/sh
-
-# automatically adjust bandwidth for CAKE in dependence on detected load and RTT
+# Automatically adjust bandwidth for CAKE in dependence on detected load and OWD
 
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
-# requires packages: iputils-ping, coreutils-date and coreutils-sleep
+# requires packages: hping3, iputils-ping, coreutils-date and coreutils-sleep
 
 debug=1
 
@@ -19,16 +17,16 @@ base_dl_rate=30000 # steady state bandwidth for download
 
 tick_duration=0.5 # seconds to wait between ticks
 
-alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
-alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
+alpha_OWD_increase=0.001 # how rapidly baseline OWD is allowed to increase
+alpha_OWD_decrease=0.9 # how rapidly baseline OWD is allowed to decrease
 
-rate_adjust_RTT_spike=0.01 # how rapidly to reduce bandwidth upon detection of bufferbloat
+rate_adjust_OWD_spike=0.01 # how rapidly to reduce bandwidth upon detection of bufferbloat
 rate_adjust_load_high=0.005 # how rapidly to increase bandwidth upon high load detected
 rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load detected
 
 load_thresh=0.5 # % of currently set bandwidth for detecting high load
 
-max_delta_RTT=15 # increase from baseline RTT for detection of bufferbloat
+max_delta_OWD=15 # increase from baseline OWD for detection of bufferbloat
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
@@ -63,24 +61,24 @@ fi
 
 # list of reflectors to use
 read -d '' reflectors << EOF
-1.1.1.1
-8.8.8.8
+9.9.9.9
+9.9.9.10
 EOF
 
-RTTs=$(mktemp)
+OWDs=$(mktemp)
+BASELINES_prev=$(mktemp)
+BASELINES_cur=$(mktemp)
 
-# get minimum RTT across entire set of reflectors
-get_RTT() {
-
+# get minimum OWDs across entire set of reflectors
+get_OWDs() {
+> $OWDs
 for reflector in $reflectors;
 do
-        echo $(/usr/bin/ping -i 0.00 -c 10 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 2) >> $RTTs&
+	# awk mastery by @_Failsafe (OpenWrt forum) 
+        echo $reflector $(hping3 $reflector --icmp --icmp-ts -i u1000 -c 3 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs
 done
 wait
-RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
-> $RTTs
 }
-
 
 call_awk() {
   printf '%s' "$(awk 'BEGIN {print '"${1}"'}')"
@@ -101,19 +99,19 @@ get_next_shaper_rate() {
     local cur_rate_decayed_down
     local cur_rate_decayed_up
 
-    cur_delta_RTT=$1
-    cur_max_delta_RTT=$2
+    cur_delta_OWD=$1
+    cur_max_delta_OWD=$2
     cur_rate=$3
     cur_base_rate=$4
     cur_load=$5
     cur_load_thresh=$6
-    cur_rate_adjust_RTT_spike=$7
+    cur_rate_adjust_OWD_spike=$7
     cur_rate_adjust_load_high=$8
     cur_rate_adjust_load_low=$9
 
-        # in case of supra-threshold RTT spikes decrease the rate so long as there is a load
-        if awk "BEGIN {exit !(($cur_delta_RTT >= $cur_max_delta_RTT))}"; then
-            next_rate=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_RTT_spike}) )" )
+        # in case of supra-threshold OWD spikes decrease the rate so long as there is a load
+        if awk "BEGIN {exit !(($cur_delta_OWD >= $cur_max_delta_OWD))}"; then
+            next_rate=$( call_awk "int( ${cur_rate}*(1-${cur_rate_adjust_OWD_spike}) )" )
         else
             # ... otherwise determine whether to increase or decrease the rate in dependence on load
             # high load, so we would like to increase the rate
@@ -155,68 +153,96 @@ function update_rates {
         prev_tx_bytes=$cur_tx_bytes
 
         # calculate the next rate for dl and ul
-        cur_dl_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_dl_rate" "$base_dl_rate" "$rx_load" "$load_thresh" "$rate_adjust_RTT_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
-        cur_ul_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_ul_rate" "$base_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_RTT_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
+        cur_dl_rate=$( get_next_shaper_rate "$min_downlink_delta" "$max_delta_OWD" "$cur_dl_rate" "$base_dl_rate" "$rx_load" "$load_thresh" "$rate_adjust_OWD_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
+        cur_ul_rate=$( get_next_shaper_rate "$min_uplink_delta" "$max_delta_OWD" "$cur_ul_rate" "$base_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_OWD_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
 
         if [ $enable_verbose_output -eq 1 ]; then
-                printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $( date "+%Y%m%dT%H%M%S.%N" ) $rx_load $tx_load $baseline_RTT $RTT $delta_RTT $cur_dl_rate $cur_ul_rate
+                printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $( date "+%Y%m%dT%H%M%S.%N" ) $rx_load $tx_load $min_downlink_delta $min_uplink_delta $cur_dl_rate $cur_ul_rate
         fi
 }
 
-get_baseline_RTT() {
-    local cur_RTT
-    local cur_delta_RTT
-    local last_baseline_RTT
-    local cur_alpha_RTT_increase
-    local cur_alpha_RTT_decrease
+get_min_OWD_deltas() {
 
-    local cur_baseline_RTT
+	local reflector
+	local prev_uplink_baseline
+	local prev_downlink_baseline
+	local cur_uplink_baseline
+	local cur_downlink_baseline
+	local reflector_OWDs
+	
+	min_uplink_delta=10000
+	min_downlink_delta=10000
 
-    cur_RTT=$1
-    cur_delta_RTT=$2
-    last_baseline_RTT=$3
-    cur_alpha_RTT_increase=$4
-    cur_alpha_RTT_decrease=$5
-        if awk "BEGIN {exit !($cur_delta_RTT >= 0)}"; then
-                cur_baseline_RTT=$( call_awk "( 1 - ${cur_alpha_RTT_increase} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_increase} * ${cur_RTT} " )
-        else
-                cur_baseline_RTT=$( call_awk "( 1 - ${cur_alpha_RTT_decrease} ) * ${last_baseline_RTT} + ${cur_alpha_RTT_decrease} * ${cur_RTT} " )
-        fi
+	> $BASELINES_cur
 
-    echo "${cur_baseline_RTT}"
+	cat $BASELINES_prev
+
+	while IFS= read -r reflector_line; do
+		reflector=$(echo $reflector_line | awk '{print $1}')
+		prev_uplink_baseline=$(echo $reflector_line | awk '{print $2}')
+		prev_downlink_baseline=$(echo $reflector_line | awk '{print $3}')
+
+		reflector_OWDs=$(awk '/'$reflector'/' $OWDs)
+		uplink_OWD=$(echo $reflector_OWDs | awk '{print $2}')
+		downlink_OWD=$(echo $reflector_OWDs | awk '{print $3}')
+
+		delta_uplink_OWD=$( call_awk "${uplink_OWD} - ${prev_uplink_baseline}" )
+		delta_downlink_OWD=$( call_awk "${downlink_OWD} - ${prev_downlink_baseline}" )
+
+		if awk "BEGIN {exit !($delta_uplink_OWD >= 0)}"; then
+        	        cur_uplink_baseline=$( call_awk "( 1 - ${alpha_OWD_increase} ) * ${prev_uplink_baseline} + ${alpha_OWD_increase} * ${uplink_OWD} " )
+	        else
+        	        cur_uplink_baseline=$( call_awk "( 1 - ${alpha_OWD_decrease} ) * ${prev_uplink_baseline} + ${alpha_OWD_decrease} * ${uplink_OWD} " )
+	        fi
+		
+		if awk "BEGIN {exit !($delta_downlink_OWD >= 0)}"; then
+        	        cur_downlink_baseline=$( call_awk "( 1 - ${alpha_OWD_increase} ) * ${prev_downlink_baseline} + ${alpha_OWD_increase} * ${downlink_OWD} " )
+	        else
+        	        cur_downlink_baseline=$( call_awk "( 1 - ${alpha_OWD_decrease} ) * ${prev_downlink_baseline} + ${alpha_OWD_decrease} * ${downlink_OWD} " )
+	        fi
+		echo $reflector $cur_uplink_baseline $cur_downlink_baseline >> $BASELINES_cur
+
+		if awk "BEGIN {exit !($delta_uplink_OWD < $min_uplink_delta)}"; then
+			min_uplink_delta=$delta_uplink_OWD
+		fi
+
+		if awk "BEGIN {exit !($delta_downlink_OWD < $min_downlink_delta)}"; then
+			min_downlink_delta=$delta_downlink_OWD
+		fi
+
+	done < $BASELINES_prev
+
+	mv $BASELINES_cur $BASELINES_prev
+
 }
-
-
 
 # set initial values for first run
 
-get_RTT
-
-baseline_RTT=$RTT;
+get_OWDs
+cp $OWDs $BASELINES_prev
 
 cur_dl_rate=$base_dl_rate
 cur_ul_rate=$base_ul_rate
 # set the next different from the cur_XX_rates so that on the first round we are guaranteed to call tc
 last_dl_rate=0
 last_ul_rate=0
-
-
+min_uplink_delta=0
+min_downlink_delta=0
 t_prev_bytes=$(date +%s.%N)
 
 prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
 
 if [ $enable_verbose_output -eq 1 ]; then
-        printf "%25s;%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "log_time" "rx_load" "tx_load" "baseline_RTT" "RTT" "delta_RTT" "cur_dl_rate" "cur_ul_rate"
+        printf "%25s;%14s;%14s;%14s;%14s;%14s;%14s;%14s;\n" "log_time" "rx_load" "tx_load" "min_downlink_delta" "min_uplink_delta" "cur_dl_rate" "cur_ul_rate"
 fi
 
 # main loop runs every tick_duration seconds
 while true
 do
         t_start=$(date +%s.%N)
-        get_RTT
-        delta_RTT=$( call_awk "${RTT} - ${baseline_RTT}" )
-        baseline_RTT=$( get_baseline_RTT "$RTT" "$delta_RTT" "$baseline_RTT" "$alpha_RTT_increase" "$alpha_RTT_decrease" )
+        get_OWDs
+        get_min_OWD_deltas
         update_rates
 
         # only fire up tc if there are rates to change...
