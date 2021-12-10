@@ -11,9 +11,9 @@ enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines show
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
 
-base_ul_rate=30000 # steady state bandwidth for upload
+base_ul_rate=60000 # steady state bandwidth for upload
 
-base_dl_rate=30000 # steady state bandwidth for download
+base_dl_rate=60000 # steady state bandwidth for download
 
 tick_duration=0.5 # seconds to wait between ticks
 
@@ -61,8 +61,18 @@ fi
 
 # list of reflectors to use
 read -d '' reflectors << EOF
+46.227.200.54
+46.227.200.55
+194.242.2.2
+194.242.2.3
+149.112.112.10
+149.112.112.11
+149.112.112.112
+193.19.108.2
+193.19.108.3
 9.9.9.9
 9.9.9.10
+9.9.9.11
 EOF
 
 OWDs=$(mktemp)
@@ -75,7 +85,7 @@ get_OWDs() {
 for reflector in $reflectors;
 do
 	# awk mastery by @_Failsafe (OpenWrt forum) 
-        echo $reflector $(hping3 $reflector --icmp --icmp-ts -i u1000 -c 3 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs
+        echo $reflector $(hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs&
 done
 wait
 }
@@ -197,7 +207,6 @@ get_min_OWD_deltas() {
         	if [ $enable_verbose_output -eq 1 ]; then
                 	printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $reflector $prev_downlink_baseline $downlink_OWD $delta_downlink_OWD $prev_uplink_baseline $uplink_OWD $delta_uplink_OWD 
         	fi
-
 
 		if awk "BEGIN {exit !($delta_uplink_OWD >= 0)}"; then
         	        cur_uplink_baseline=$( call_awk "( 1 - ${alpha_OWD_increase} ) * ${prev_uplink_baseline} + ${alpha_OWD_increase} * ${uplink_OWD} " )
