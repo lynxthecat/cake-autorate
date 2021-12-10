@@ -197,7 +197,13 @@ get_min_OWD_deltas() {
 		prev_uplink_baseline=$(echo $reflector_line | awk '{print $2}')
 		prev_downlink_baseline=$(echo $reflector_line | awk '{print $3}')
 
+		# Check to see whether we have new OWDs for given reflector for this tick
+		# If not, then just continue to next reflector
 		reflector_OWDs=$(awk '/'$reflector'/' $OWDs)
+		if [ -z "$reflector_OWDs" ]; then
+			continue
+		fi
+
 		uplink_OWD=$(echo $reflector_OWDs | awk '{print $2}')
 		downlink_OWD=$(echo $reflector_OWDs | awk '{print $3}')
 
