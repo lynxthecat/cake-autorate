@@ -205,7 +205,7 @@ get_min_OWD_deltas() {
 		delta_downlink_OWD=$( call_awk "${downlink_OWD} - ${prev_downlink_baseline}" )
 
         	if [ $enable_verbose_output -eq 1 ]; then
-                	printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $reflector $prev_downlink_baseline $downlink_OWD $delta_downlink_OWD $prev_uplink_baseline $uplink_OWD $delta_uplink_OWD 
+                	printf "%25s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $reflector $prev_downlink_baseline $downlink_OWD $delta_downlink_OWD $prev_uplink_baseline $uplink_OWD $delta_uplink_OWD 
         	fi
 
 		if awk "BEGIN {exit !($delta_uplink_OWD >= 0)}"; then
