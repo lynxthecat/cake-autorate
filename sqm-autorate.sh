@@ -20,7 +20,7 @@ tick_duration=0.5 # seconds to wait between ticks
 alpha_OWD_increase=0.001 # how rapidly baseline OWD is allowed to increase
 alpha_OWD_decrease=0.9 # how rapidly baseline OWD is allowed to decrease
 
-rate_adjust_OWD_spike=0.01 # how rapidly to reduce bandwidth upon detection of bufferbloat
+rate_adjust_OWD_spike=0.05 # how rapidly to reduce bandwidth upon detection of bufferbloat
 rate_adjust_load_high=0.005 # how rapidly to increase bandwidth upon high load detected
 rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load detected
 
@@ -85,7 +85,7 @@ get_OWDs() {
 for reflector in $reflectors;
 do
 	# awk mastery by @_Failsafe (OpenWrt forum) 
-        echo $reflector $(hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs&
+        echo $reflector $(timeout 0.3 hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs&
 done
 wait
 }
@@ -197,17 +197,19 @@ get_min_OWD_deltas() {
 		prev_uplink_baseline=$(echo $reflector_line | awk '{print $2}')
 		prev_downlink_baseline=$(echo $reflector_line | awk '{print $3}')
 
-		# Check to see whether we have new OWDs for given reflector for this tick
-		# If not, then just continue to next reflector
-		# This is only necessary if we do not 'wait' and just sleep in the owd get loop
-		# Since in that loop we will always output someting for each reflector as long as we wait
 		reflector_OWDs=$(awk '/'$reflector'/' $OWDs)
-		if [ -z "$reflector_OWDs" ]; then
-			continue
-		fi
-
 		uplink_OWD=$(echo $reflector_OWDs | awk '{print $2}')
 		downlink_OWD=$(echo $reflector_OWDs | awk '{print $3}')
+
+		# Check for any bad OWD values for reflector and if found just 
+		# maintain previous baseline for reflector and continue to next reflector
+		if [ "$uplink_OWD" = "999999999" ] || [ "$downlink_OWD" = "999999999" ]; then
+			echo $reflector $prev_uplink_baseline $prev_downlink_baseline >> $BASELINES_cur 
+        		if [ $enable_verbose_output -eq 1 ]; then
+                		echo $reflector "No Response. Skipping this reflector."
+        		fi
+			continue
+		fi
 
 		delta_uplink_OWD=$( call_awk "${uplink_OWD} - ${prev_uplink_baseline}" )
 		delta_downlink_OWD=$( call_awk "${downlink_OWD} - ${prev_downlink_baseline}" )
