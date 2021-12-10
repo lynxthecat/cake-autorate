@@ -199,6 +199,8 @@ get_min_OWD_deltas() {
 
 		# Check to see whether we have new OWDs for given reflector for this tick
 		# If not, then just continue to next reflector
+		# This is only necessary if we do not 'wait' and just sleep in the owd get loop
+		# Since in that loop we will always output someting for each reflector as long as we wait
 		reflector_OWDs=$(awk '/'$reflector'/' $OWDs)
 		if [ -z "$reflector_OWDs" ]; then
 			continue
