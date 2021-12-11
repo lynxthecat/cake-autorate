@@ -11,11 +11,11 @@ enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines show
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
 
-base_ul_rate=60000 # steady state bandwidth for upload
+base_ul_rate=30000 # steady state bandwidth for upload
 
-base_dl_rate=60000 # steady state bandwidth for download
+base_dl_rate=30000 # steady state bandwidth for download
 
-tick_duration=0.5 # seconds to wait between ticks
+tick_duration=1.0 # seconds to wait between ticks
 
 alpha_OWD_increase=0.001 # how rapidly baseline OWD is allowed to increase
 alpha_OWD_decrease=0.9 # how rapidly baseline OWD is allowed to decrease
@@ -79,13 +79,20 @@ OWDs=$(mktemp)
 BASELINES_prev=$(mktemp)
 BASELINES_cur=$(mktemp)
 
+
+if [ $enable_verbose_output -eq 1 ]; then
+	RED='\033[0;31m'
+	NC='\033[0m' # No Color
+fi
+
+
 # get minimum OWDs for each reflector
 get_OWDs() {
 > $OWDs
 for reflector in $reflectors;
 do
 	# awk mastery by @_Failsafe (OpenWrt forum) 
-        echo $reflector $(timeout 0.3 hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs&
+        echo $reflector $(timeout 0.8 hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs&
 done
 wait
 }
@@ -167,7 +174,7 @@ function update_rates {
         cur_ul_rate=$( get_next_shaper_rate "$min_uplink_delta" "$max_delta_OWD" "$cur_ul_rate" "$base_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_OWD_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
 
         if [ $enable_verbose_output -eq 1 ]; then
-                printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $( date "+%Y%m%dT%H%M%S.%N" ) $rx_load $tx_load $min_downlink_delta $min_uplink_delta $cur_dl_rate $cur_ul_rate
+                printf "${RED} %s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;${NC}\n" $( date "+%Y%m%dT%H%M%S.%N" ) $rx_load $tx_load $min_downlink_delta $min_uplink_delta $cur_dl_rate $cur_ul_rate
         fi
 }
 
