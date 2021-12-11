@@ -8,7 +8,7 @@ This is the history of changes.
 
 ## 2021-12-11
 
-- Modified tick durationt to 1s and timeout duration to 0.8 seconds in 'owd' code
+- Modified tick duration to 1s and timeout duration to 0.8 seconds in 'owd' code
 - This seems to give an owd routine that mostly works
 - Tested how 'owd' codes under independent upload and ownload saturations and it seems to work well
 - Much optimisation still needed
