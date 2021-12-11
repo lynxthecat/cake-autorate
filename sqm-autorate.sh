@@ -91,8 +91,8 @@ get_OWDs() {
 > $OWDs
 for reflector in $reflectors;
 do
-	# awk mastery by @_Failsafe (OpenWrt forum) 
-        echo $reflector $(timeout 0.8 hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | tail -n+2 |./hping_parser.awk) >> $OWDs&
+    # awk mastery by @_Failsafe (OpenWrt forum) 
+    echo $reflector $(timeout 0.8 hping3 $reflector --icmp --icmp-ts -i u1000 -c 1 2> /dev/null | ./hping_parser.awk) >> $OWDs&
 done
 wait
 }
