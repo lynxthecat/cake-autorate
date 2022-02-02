@@ -125,6 +125,7 @@ in LuCi or by examining the output of `tc qdisc ls`.
 to the minimum bandwidth you expect.
   - Set maximum bandwidth (`max_ul_rate` and `max_dl_rate`)
 to the maximum bandwidth you expect your connection could obtain from your ISP.
+  - Set `max_delta_RTT=` to desired value for your connection/location. See RTT in https://man7.org/linux/man-pages/man8/tc-cake.8.html for more information.
   - Save the changes and exit the editor
   
 ## Manual testing
