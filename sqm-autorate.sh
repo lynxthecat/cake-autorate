@@ -6,6 +6,8 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: iputils-ping, coreutils-date and coreutils-sleep
 
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+
 debug=1
 
 enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
@@ -17,7 +19,7 @@ base_ul_rate=30000 # steady state bandwidth for upload
 
 base_dl_rate=30000 # steady state bandwidth for download
 
-tick_duration=0.5 # seconds to wait between ticks
+tick_duration=0.1 # seconds to wait between ticks
 
 alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
@@ -65,25 +67,29 @@ fi
 read -d '' reflectors << EOF
 1.1.1.1
 8.8.8.8
+9.9.9.9
 EOF
+
+no_reflectors=$(echo "$reflectors" | wc -l)
 
 RTTs=$(mktemp)
 
-# get minimum RTT across entire set of reflectors
-get_RTT() {
-
-for reflector in $reflectors;
-do
-        echo $(/usr/bin/ping -i 0.00 -c 10 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 2) >> $RTTs&
-done
-wait
-RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
-> $RTTs
-}
-
-
 call_awk() {
   printf '%s' "$(awk 'BEGIN {print '"${1}"'}')"
+}
+
+# get minimum RTT across entire set of reflectors
+get_RTTs() {
+
+sleep_duration=$( call_awk "${tick_duration}/${no_reflectors}" )
+while true
+do
+        for reflector in $reflectors;
+        do
+                echo $(/usr/bin/ping -i 0.00 -c 5 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 2) >> $RTTs&
+                sleep $sleep_duration
+        done
+done
 }
 
 get_next_shaper_rate() {
@@ -190,7 +196,11 @@ get_baseline_RTT() {
 
 # set initial values for first run
 
-get_RTT
+get_RTTs&
+
+sleep 1s
+RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
+> $RTTs
 
 baseline_RTT=$RTT;
 
@@ -199,7 +209,6 @@ cur_ul_rate=$base_ul_rate
 # set the next different from the cur_XX_rates so that on the first round we are guaranteed to call tc
 last_dl_rate=0
 last_ul_rate=0
-
 
 t_prev_bytes=$(date +%s.%N)
 
@@ -214,7 +223,12 @@ fi
 while true
 do
         t_start=$(date +%s.%N)
-        get_RTT
+
+        # read off available minimum RTTs from file and reset file
+        RTT=$(echo $(cat $RTTs) | awk 'min=="" || $1 < min {min=$1} END {print min}')
+        if [ -z $RTT ]; then continue; fi
+        > $RTTs
+
         delta_RTT=$( call_awk "${RTT} - ${baseline_RTT}" )
         baseline_RTT=$( get_baseline_RTT "$RTT" "$delta_RTT" "$baseline_RTT" "$alpha_RTT_increase" "$alpha_RTT_decrease" )
         update_rates
