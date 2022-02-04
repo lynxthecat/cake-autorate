@@ -72,6 +72,7 @@ read -d '' reflectors << EOF
 1.1.1.1
 8.8.8.8
 9.9.9.9
+9.9.9.10
 EOF
 
 no_reflectors=$(echo "$reflectors" | wc -l)
