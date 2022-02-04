@@ -15,9 +15,13 @@ enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines show
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
 
-base_ul_rate=30000 # steady state bandwidth for upload
-
+min_dl_rate=25000 # minimum bandwidth for download
 base_dl_rate=30000 # steady state bandwidth for download
+max_dl_rate=70000 # maximum bandwidth for download
+
+min_ul_rate=25000 # minimum bandwidth for upload
+base_ul_rate=30000 # steady state bandwidth for upload
+max_ul_rate=35000 # maximum bandwidth for upload
 
 tick_duration=0.1 # seconds to wait between ticks
 
@@ -96,7 +100,9 @@ get_next_shaper_rate() {
     local cur_delta_RTT
     local cur_max_delta_RTT
     local cur_rate
+    local cur_min_rate
     local cur_base_rate
+    local cur_max_rate
     local cur_load
     local cur_load_thresh
     local cur_rate_adjust_RTT_spike
@@ -110,12 +116,14 @@ get_next_shaper_rate() {
     cur_delta_RTT=$1
     cur_max_delta_RTT=$2
     cur_rate=$3
-    cur_base_rate=$4
-    cur_load=$5
-    cur_load_thresh=$6
-    cur_rate_adjust_RTT_spike=$7
-    cur_rate_adjust_load_high=$8
-    cur_rate_adjust_load_low=$9
+    cur_min_rate=$4
+    cur_base_rate=$5
+    cur_max_rate=$6
+    cur_load=$7
+    cur_load_thresh=$8
+    cur_rate_adjust_RTT_spike=$9
+    cur_rate_adjust_load_high=${10}
+    cur_rate_adjust_load_low=${11}
 
         # in case of supra-threshold RTT spikes decrease the rate so long as there is a load
         if awk "BEGIN {exit !(($cur_delta_RTT >= $cur_max_delta_RTT))}"; then
@@ -143,6 +151,15 @@ get_next_shaper_rate() {
         fi
         fi
 
+        # make sure to only return rates between cur_min_rate and cur_max_rate
+        if awk "BEGIN {exit !($next_rate < $cur_min_rate)}"; then
+            next_rate=$cur_min_rate;
+        fi
+
+        if awk "BEGIN {exit !($next_rate > $cur_max_rate)}"; then
+            next_rate=$cur_max_rate;
+        fi
+
         echo "${next_rate}"
 }
 
@@ -161,8 +178,8 @@ function update_rates {
         prev_tx_bytes=$cur_tx_bytes
 
         # calculate the next rate for dl and ul
-        cur_dl_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_dl_rate" "$base_dl_rate" "$rx_load" "$load_thresh" "$rate_adjust_RTT_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
-        cur_ul_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_ul_rate" "$base_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_RTT_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
+        cur_dl_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_dl_rate" "$min_dl_rate" "$base_dl_rate" "$max_dl_rate" "$rx_load" "$load_thresh" "$rate_adjust_RTT_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
+        cur_ul_rate=$( get_next_shaper_rate "$delta_RTT" "$max_delta_RTT" "$cur_ul_rate" "$min_ul_rate" "$base_ul_rate" "$max_ul_rate" "$tx_load" "$load_thresh" "$rate_adjust_RTT_spike" "$rate_adjust_load_high" "$rate_adjust_load_low")
 
         if [ $enable_verbose_output -eq 1 ]; then
                 printf "%s;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;%14.2f;\n" $( date "+%Y%m%dT%H%M%S.%N" ) $rx_load $tx_load $baseline_RTT $RTT $delta_RTT $cur_dl_rate $cur_ul_rate
