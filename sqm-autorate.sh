@@ -90,7 +90,7 @@ while true
 do
         for reflector in $reflectors;
         do
-                echo $(/usr/bin/ping -i 0.00 -c 5 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 2) >> $RTTs&
+                echo $(/usr/bin/ping -i 0.00 -c 5 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 1) >> $RTTs&
                 sleep $sleep_duration
         done
 done
