@@ -101,6 +101,8 @@ tick_trigger()
 	done
 }
 
+[ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
+
 for reflector in "${reflectors[@]}"
 do
 	echo $reflector
