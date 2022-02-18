@@ -8,9 +8,11 @@
 
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
-. ./defaults.sh
-. ./functions.sh
-. ./monitor_reflector_path.sh
+install_dir="/root/CAKE-autorate/"
+
+. $install_dir"defaults.sh"
+. $install_dir"functions.sh"
+. $install_dir"monitor_reflector_path.sh"
 
 get_next_shaper_rate() 
 {
