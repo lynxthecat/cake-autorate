@@ -46,7 +46,7 @@ update_OWD_baseline()
 		OWD_baseline=$(( ( (1000-$(x1000 $alpha_OWD_decrease))*$OWD_baseline+$(x1000 $alpha_OWD_decrease)*$OWD )/1000 ))
 	fi
 
-	echo "${OWD_baseline}"
+	echo $OWD_baseline
 }
 
 detect_path_delay()
@@ -95,10 +95,15 @@ monitor_reflector_path()
 		ul_OWD=$(echo $OWDs | awk '{print $1}')
 		dl_OWD=$(echo $OWDs | awk '{print $2}')
 
+		if (($ul_OWD==0 || $dl_OWD==0)); then
+			t_end=$(date +%s%N)
+			sleep_remaining_tick_time $t_start $t_end $monitor_reflector_path_tick_duration
+			continue
+		fi	
+
 		ul_OWD_delta=$(( $ul_OWD-$ul_OWD_baseline ))
 		dl_OWD_delta=$(( $dl_OWD-$dl_OWD_baseline ))
 
-	
 		ul_OWD_deltas+=($ul_OWD_delta)
 		unset 'ul_OWD_deltas[0]'
 		ul_OWD_deltas=(${ul_OWD_deltas[*]})
