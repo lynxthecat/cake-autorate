@@ -76,8 +76,6 @@ monitor_reflector_path()
 	reflector_ul_path_delayed_file="/tmp/CAKE-autorate/${reflector}_ul_path_delayed"
 	reflector_dl_path_delayed_file="/tmp/CAKE-autorate/${reflector}_dl_path_delayed"
 
-	[ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
-
         OWDs=$(get_OWDs 8.8.8.8)
 
         ul_OWD=$(echo $OWDs | awk '{print $1}')
