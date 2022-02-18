@@ -17,10 +17,11 @@ get_OWDs()
 	RTT=$(/usr/bin/ping -c 1 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 1)
 
 	# If no response whatsoever, just set RTT=0
-	if ! [[ $RTT =~ '^[0-9]+([.][0-9]+)?$' ]] ; then
+	re='^[0-9]+([.][0-9]+)?$'
+	if ! [[ $RTT =~ $re ]] ; then
 		RTT=0
 	fi
-
+	
 	#convert RTT to microseconds
 	RTT=$(x1000 $RTT)
  	ul_OWD=$(( $RTT / 2 ))
@@ -127,5 +128,3 @@ monitor_reflector_path()
 		sleep_remaining_tick_time $t_start $t_end $monitor_reflector_path_tick_duration
 done
 }
-
-
