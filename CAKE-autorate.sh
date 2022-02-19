@@ -6,7 +6,14 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: bash, iputils-ping, coreutils-date, coreutils-sleep, inotifywait
 
-trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+trap cleanup_and_killall SIGINT SIGTERM EXIT
+
+cleanup_and_killall()
+{
+	echo "Cleaning up tmp files and killing all background processes."
+	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
+	trap - SIGTERM && kill 0
+}
 
 install_dir="/root/CAKE-autorate/"
 
@@ -107,20 +114,19 @@ tick_trigger()
 
 for reflector in "${reflectors[@]}"
 do
-	echo $reflector
 	monitor_reflector_path $reflector&
 done
 
 tick_trigger&
 
-cur_dl_rate=$base_dl_rate
 cur_ul_rate=$base_ul_rate
+cur_dl_rate=$base_dl_rate
 
-last_dl_rate=$cur_dl_rate
 last_ul_rate=$cur_ul_rate
+last_dl_rate=$cur_dl_rate
 
-prev_rx_bytes=$(cat $rx_bytes_path)
 prev_tx_bytes=$(cat $tx_bytes_path)
+prev_rx_bytes=$(cat $rx_bytes_path)
 t_prev_bytes=$(date +%s%N)
 
 t_prev_ul_rate_set=$t_prev_bytes
@@ -134,8 +140,8 @@ do
 	t_start=$(date +%s%N)
 
 	update_loads
-	no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
 	no_ul_delays=$(ls /tmp/CAKE-autorate/*ul_path_delayed 2>/dev/null | wc -l)
+	no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
 
         t_elapsed_ul_rate_set=$(($t_start-$t_prev_ul_rate_set))	
         t_elapsed_dl_rate_set=$(($t_start-$t_prev_dl_rate_set))	
@@ -149,13 +155,17 @@ do
  	cur_dl_rate=$(get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_high_load $dl_bufferbloat_detected $t_elapsed_dl_rate_set)
 
         if [ "$last_ul_rate" -ne "$cur_ul_rate" ] ; then
-         	#echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
+         	if [ "$enable_verbose_output" ]; then
+			echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
+		fi
             	tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
 		t_prev_ul_rate_set=$(date +%s%N)
         fi
         # only fire up tc if there are rates to change...
 	if [ "$last_dl_rate" -ne "$cur_dl_rate" ] ; then
-          	echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
+          	if [ "$enable_verbose_output" ] ; then
+			echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
+		fi
             	tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
 		t_prev_dl_rate_set=$(date +%s%N)
         fi
