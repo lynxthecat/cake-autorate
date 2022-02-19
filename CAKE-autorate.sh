@@ -12,7 +12,7 @@ cleanup_and_killall()
 {
 	echo "Cleaning up tmp files and killing all background processes."
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
-	trap - SIGTERM && kill 0
+	trap - SIGTERM && kill -- -$$
 }
 
 install_dir="/root/CAKE-autorate/"
