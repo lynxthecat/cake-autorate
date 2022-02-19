@@ -9,10 +9,14 @@ exec &> /tmp/cake-autorate.log
 START=97
 STOP=4
 
-start() {
+start() 
+{
         bash /root/CAKE-autorate/CAKE-autorate.sh&
+	echo "PID="$! > /tmp/CAKE-autorate-PID
 }
 
-stop() {
-        ps | grep CAKE-autorate.sh | grep -v grep | awk '{print $1}' | xargs kill
+stop()
+{
+	. /tmp/CAKE-autorate-PID
+	kill $PID
 }
