@@ -35,8 +35,6 @@ update_OWD_baseline()
 	local OWD=$1
 	local OWD_delta=$2
 	local OWD_baseline=$3
-	local alpha_OWD_increase=$4
-	local alpha_OWD_decrease=$5
 
 	local OWD_baseline
 
@@ -52,8 +50,8 @@ update_OWD_baseline()
 detect_path_delay()
 {
 	local -n OWD_deltas=$1
-	local delay_thr=$2
-	local detection_thr=$3
+	
+	local detection_cnt
 
 	detection_cnt=0
 
@@ -112,16 +110,16 @@ monitor_reflector_path()
 
 		#echo "ul_OWD_baseline" $ul_OWD_baseline "ul_OWD=" $ul_OWD "ul_OWD_deltas=" ${ul_OWD_deltas[@]}
 
-		ul_OWD_baseline=$(update_OWD_baseline $ul_OWD $ul_OWD_delta $ul_OWD_baseline 0.001 0.9)
-		dl_OWD_baseline=$(update_OWD_baseline $dl_OWD $dl_OWD_delta $dl_OWD_baseline 0.001 0.9)
+		ul_OWD_baseline=$(update_OWD_baseline $ul_OWD $ul_OWD_delta $ul_OWD_baseline)
+		dl_OWD_baseline=$(update_OWD_baseline $dl_OWD $dl_OWD_delta $dl_OWD_baseline)
 
-		if detect_path_delay ul_OWD_deltas $delay_thr $detection_thr; then
+		if detect_path_delay ul_OWD_deltas; then
 			touch $reflector_ul_path_delayed_file
 		elif [ -f $reflector_ul_path_delayed_file ]; then
 			rm $reflector_ul_path_delayed_file
 		fi
 	
-		if detect_path_delay dl_OWD_deltas $delay_thr $detection_thr; then
+		if detect_path_delay dl_OWD_deltas; then
 			touch $reflector_dl_path_delayed_file
 		elif [ -f $reflector_dl_path_delayed_file ]; then
 			rm $reflector_dl_path_delayed_file
