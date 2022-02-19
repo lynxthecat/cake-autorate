@@ -17,6 +17,9 @@ start()
 
 stop()
 {
-	. /tmp/CAKE-autorate-PID
-	kill $PID
+	if [[ -f "/tmp/CAKE-autorate-PID" ]]; then
+		. /tmp/CAKE-autorate-PID
+		kill $PID
+		rm "/tmp/CAKE-autorate-PID"
+	fi
 }
