@@ -12,7 +12,7 @@
 alpha_OWD_increase=0.001 # how rapidly baseline OWD is allowed to increase
 alpha_OWD_decrease=0.9 # how rapidly baseline OWD is allowed to decrease
 
-debug=1
+debug=0
 
 enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
@@ -21,7 +21,7 @@ dl_if=veth-lan # download interface
 
 min_dl_rate=25000 # minimum bandwidth for download
 base_dl_rate=30000 # steady state bandwidth for download
-max_dl_rate=70000 # maximum bandwidth for download
+max_dl_rate=80000 # maximum bandwidth for download
 
 min_ul_rate=25000 # minimum bandwidth for upload
 base_ul_rate=30000 # steady state bandwidth for upload
