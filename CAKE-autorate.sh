@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and OWD/RTT
 
@@ -6,14 +6,16 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: bash, iputils-ping, coreutils-date, coreutils-sleep, inotifywait
 
-trap cleanup_and_killall SIGINT SIGTERM EXIT
+trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
 {
-	echo "Cleaning up tmp files and killing all background processes."
+	echo "Killing all background processes and cleaning up /tmp files."
+	trap - TERM && kill -- ${bg_PIDs[@]}
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
-	trap - SIGTERM && kill -- -$$
 }
+
+exec &> /tmp/cake-autorate.log
 
 install_dir="/root/CAKE-autorate/"
 
@@ -115,9 +117,11 @@ tick_trigger()
 for reflector in "${reflectors[@]}"
 do
 	monitor_reflector_path $reflector&
+	bg_PIDs+=($!)
 done
 
 tick_trigger&
+bg_PIDs+=($!)
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
