@@ -11,7 +11,7 @@ trap cleanup_and_killall INT TERM EXIT
 cleanup_and_killall()
 {
 	echo "Killing all background processes and cleaning up /tmp files."
-	trap - TERM && kill -- ${bg_PIDs[@]}
+	trap - INT && trap - TERM && trap - EXIT && kill -- ${bg_PIDs[@]}
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
