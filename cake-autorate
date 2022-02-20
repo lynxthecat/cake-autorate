@@ -1,31 +1,13 @@
 #!/bin/sh /etc/rc.common
-# Copyright (C) 2007 OpenWrt.org
-
-export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-export HOME=/root
-
-exec &> /tmp/cake-autorate.log
-
+ 
 START=97
 STOP=4
-
-start() 
-{
-	# Do not allow multiple running instances
-	if [[ -f "/tmp/CAKE-autorate-PID" ]]; then
-		. /tmp/CAKE-autorate-PID
-		kill $PID
-		rm "/tmp/CAKE-autorate-PID"
-	fi
-        bash /root/CAKE-autorate/CAKE-autorate.sh&
-	echo "PID="$! > /tmp/CAKE-autorate-PID
-}
-
-stop()
-{
-	if [[ -f "/tmp/CAKE-autorate-PID" ]]; then
-		. /tmp/CAKE-autorate-PID
-		kill $PID
-		rm "/tmp/CAKE-autorate-PID"
-	fi
+USE_PROCD=1
+ 
+start_service() {
+        procd_open_instance
+        procd_set_param command /root/CAKE-autorate/CAKE-autorate.sh &> /tmp/cake-autorate.log
+        # uncomment if you want procd to restart your script if it terminated for whatever reason
+        #procd_set_param respawn   
+        procd_close_instance
 }
