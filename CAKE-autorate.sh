@@ -16,8 +16,6 @@ cleanup_and_killall()
 	exit
 }
 
-exec &> /tmp/cake-autorate.log
-
 install_dir="/root/CAKE-autorate/"
 
 . $install_dir"defaults.sh"
@@ -130,6 +128,9 @@ cur_dl_rate=$base_dl_rate
 last_ul_rate=$cur_ul_rate
 last_dl_rate=$cur_dl_rate
 
+tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+
 prev_tx_bytes=$(cat $tx_bytes_path)
 prev_rx_bytes=$(cat $rx_bytes_path)
 t_prev_bytes=$(date +%s%N)
@@ -141,7 +142,7 @@ while true
 do
 	# skeep util tick trigger or bufferbloat delay event
 	inotifywait -e create -e attrib /tmp/CAKE-autorate/ -q -q
-
+	
 	t_start=$(date +%s%N)
 
 	update_loads
@@ -151,11 +152,11 @@ do
         t_elapsed_ul_rate_set=$(($t_start-$t_prev_ul_rate_set))	
         t_elapsed_dl_rate_set=$(($t_start-$t_prev_dl_rate_set))	
 	
-        ul_bufferbloat_detected=$(($no_ul_delays > $reflector_thr))
+        ul_bufferbloat_detected=$(($no_ul_delays >= $reflector_thr))
 	ul_high_load=$(($tx_load > $high_load_thr))
  	cur_ul_rate=$(get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_high_load $ul_bufferbloat_detected $t_elapsed_ul_rate_set)
         
-	dl_bufferbloat_detected=$(($no_dl_delays > $reflector_thr))
+	dl_bufferbloat_detected=$(($no_dl_delays >= $reflector_thr))
 	dl_high_load=$(($rx_load > $high_load_thr))
  	cur_dl_rate=$(get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_high_load $dl_bufferbloat_detected $t_elapsed_dl_rate_set)
 
