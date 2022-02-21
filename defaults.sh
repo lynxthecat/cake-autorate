@@ -78,5 +78,5 @@ if [ "$debug" ] ; then
 fi
 
 # list of reflectors to use
-reflectors=("1.1.1.1" "8.8.8.8" "9.9.9.9" "9.9.9.10")
+reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.8.4")
 
