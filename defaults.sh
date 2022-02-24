@@ -14,7 +14,7 @@ alpha_OWD_decrease=0.9 # how rapidly baseline OWD is allowed to decrease
 
 debug=0
 
-enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
+enable_verbose_output=0 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
@@ -42,7 +42,7 @@ detection_thr=2 # Number of offences within window to classify reflector path de
 reflector_thr=2 # Number of reflectors that need to be delayed to classify bufferbloat
 
 monitor_reflector_path_tick_duration=0.1
-main_loop_tick_duration=0.1
+main_loop_tick_duration=0.5
 
 rate_down_bufferbloat_refractory_period=0.5
 rate_down_decay_refractory_period=0.5
