@@ -22,6 +22,10 @@ install_dir="/root/CAKE-autorate/"
 . $install_dir"functions.sh"
 . $install_dir"monitor_reflector_path.sh"
 
+
+# test if stdout is a tty (terminal)
+[[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
+
 get_next_shaper_rate() 
 {
     	local cur_rate=$1
@@ -135,6 +139,7 @@ prev_tx_bytes=$(cat $tx_bytes_path)
 prev_rx_bytes=$(cat $rx_bytes_path)
 t_prev_bytes=$(date +%s%N)
 
+t_start=$(date +%s%N)
 t_prev_ul_rate_set=$t_prev_bytes
 t_prev_dl_rate_set=$t_prev_bytes
 
@@ -142,10 +147,11 @@ while true
 do
 	# skeep util tick trigger or bufferbloat delay event
 	inotifywait -e create -e attrib /tmp/CAKE-autorate/ -q -q
-	
+
 	t_start=$(date +%s%N)
 
 	update_loads
+
 	no_ul_delays=$(ls /tmp/CAKE-autorate/*ul_path_delayed 2>/dev/null | wc -l)
 	no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
 
