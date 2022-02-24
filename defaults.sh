@@ -31,7 +31,7 @@ alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
 
 rate_adjust_OWD_spike=0.05 # how rapidly to reduce bandwidth upon detection of bufferbloat
-rate_adjust_load_high=0.005 # how rapidly to increase bandwidth upon high load detected
+rate_adjust_load_high=0.01 # how rapidly to increase bandwidth upon high load detected
 rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load detected
 
 high_load_thr=75 # % of currently set bandwidth for detecting high load
