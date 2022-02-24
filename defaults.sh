@@ -34,7 +34,7 @@ rate_adjust_OWD_spike=0.05 # how rapidly to reduce bandwidth upon detection of b
 rate_adjust_load_high=0.005 # how rapidly to increase bandwidth upon high load detected
 rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load detected
 
-high_load_thr=50 # % of currently set bandwidth for detecting high load
+high_load_thr=75 # % of currently set bandwidth for detecting high load
 
 delay_buffer_len=4 # Size of delay detection window
 delay_thr=10 # Extent of delay to classify as an offence
