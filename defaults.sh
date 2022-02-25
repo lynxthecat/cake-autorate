@@ -9,12 +9,12 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: iputils-ping, coreutils-date and coreutils-sleep
 
-alpha_OWD_increase=0.001 # how rapidly baseline OWD is allowed to increase
-alpha_OWD_decrease=0.9 # how rapidly baseline OWD is allowed to decrease
+alpha_OWD_increase=1 # how rapidly baseline OWD is allowed to increase (integer /1000)
+alpha_OWD_decrease=900 # how rapidly baseline OWD is allowed to decrease (integer /1000)
 
 debug=0
 
-enable_verbose_output=0 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
+enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
@@ -27,25 +27,25 @@ min_ul_rate=25000 # minimum bandwidth for upload
 base_ul_rate=30000 # steady state bandwidth for upload
 max_ul_rate=35000 # maximum bandwidth for upload
 
-alpha_RTT_increase=0.001 # how rapidly baseline RTT is allowed to increase
-alpha_RTT_decrease=0.9 # how rapidly baseline RTT is allowed to decrease
+alpha_OWD_increase=1 # how rapidly baseline RTT is allowed to increase (integer /1000)
+alpha_OWD_decrease=900 # how rapidly baseline RTT is allowed to decrease (integer /1000)
 
-rate_adjust_OWD_spike=0.05 # how rapidly to reduce bandwidth upon detection of bufferbloat
-rate_adjust_load_high=0.01 # how rapidly to increase bandwidth upon high load detected
-rate_adjust_load_low=0.0025 # how rapidly to return to base rate upon low load detected
+rate_adjust_OWD_spike=50 # how rapidly to reduce bandwidth upon detection of bufferbloat (integer /1000)
+rate_adjust_load_high=10 # how rapidly to increase bandwidth upon high load detected (integer /1000)
+rate_adjust_load_low=25 # how rapidly to return to base rate upon low load detected (integer /1000)
 
-high_load_thr=75 # % of currently set bandwidth for detecting high load
+high_load_thr=75 # % of currently set bandwidth for detecting high load (integer /100)
 
-delay_buffer_len=4 # Size of delay detection window
-delay_thr=10 # Extent of delay to classify as an offence
-detection_thr=2 # Number of offences within window to classify reflector path delayed
-reflector_thr=2 # Number of reflectors that need to be delayed to classify bufferbloat
+delay_buffer_len=4 # size of delay detection window
+delay_thr=10 # extent of delay to classify as an offence 
+detection_thr=2 # number of offences within window to classify reflector path delayed
+reflector_thr=2 # number of reflectors that need to be delayed to classify bufferbloat
 
-monitor_reflector_path_tick_duration=0.1
-main_loop_tick_duration=0.5
+monitor_reflector_path_tick_duration=100 # (milliseconds)
+main_loop_tick_duration=5000 # (milliseconds)
 
-rate_down_bufferbloat_refractory_period=0.5
-rate_down_decay_refractory_period=0.5
+rate_down_bufferbloat_refractory_period=500 # (milliseconds)
+rate_down_decay_refractory_period=500 # (milliseconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
@@ -72,11 +72,11 @@ case "${ul_if}" in
         ;;
 esac
 
-if [ "$debug" ] ; then
+if (( $debug )) ; then
     echo "rx_bytes_path: $rx_bytes_path"
     echo "tx_bytes_path: $tx_bytes_path"
 fi
 
 # list of reflectors to use
-reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.8.4")
+reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
