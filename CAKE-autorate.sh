@@ -42,8 +42,8 @@ get_next_shaper_rate()
 
  	# in case of supra-threshold OWD spikes decrease the rate so long as there is a load and elapsed time > refractory period
         if (( bufferbloat_detected )); then
-		if (($t_elapsed_rate_set > (10**6)*$(x1000 $rate_down_bufferbloat_refractory_period))); then
-        		next_rate=$(( $cur_rate*(1000-$(x1000 $rate_adjust_OWD_spike))/1000 ))
+		if (($t_elapsed_rate_set > (10**6)*$rate_down_bufferbloat_refractory_period)); then
+        		next_rate=$(( $cur_rate*(1000-$rate_adjust_OWD_spike)/1000 ))
 		else
 			next_rate=$cur_rate
 		fi
@@ -51,13 +51,13 @@ get_next_shaper_rate()
             # ... otherwise determine whether to increase or decrease the rate in dependence on load
             # high load, so we would like to increase the rate
             if (($high_load)); then
-                next_rate=$(($cur_rate*(1000+$(x1000 $rate_adjust_load_high))/1000 ))
+                next_rate=$(($cur_rate*(1000+$rate_adjust_load_high)/1000 ))
             else
-		if (($t_elapsed_rate_set > (10**6)*$(x1000 $rate_down_decay_refractory_period))); then
+		if (($t_elapsed_rate_set > (10**6)*$rate_down_decay_refractory_period)); then
 		
 			 # low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-	                cur_rate_decayed_down=$(($cur_rate*(1000-$(x1000 $rate_adjust_load_low))/1000))
-        	        cur_rate_decayed_up=$(($cur_rate*(1000+$(x1000 $rate_adjust_load_low))/1000))
+	                cur_rate_decayed_down=$(($cur_rate*(1000-$rate_adjust_load_low)/1000))
+        	        cur_rate_decayed_up=$(($cur_rate*(1000+$rate_adjust_load_low)/1000))
 
                 	# gently decrease to steady state rate
 	                if (($cur_rate_decayed_down > $cur_base_rate)); then
@@ -157,7 +157,7 @@ do
 
         t_elapsed_ul_rate_set=$(($t_start-$t_prev_ul_rate_set))	
         t_elapsed_dl_rate_set=$(($t_start-$t_prev_dl_rate_set))	
-	
+
         ul_bufferbloat_detected=$(($no_ul_delays >= $reflector_thr))
 	ul_high_load=$(($tx_load > $high_load_thr))
  	cur_ul_rate=$(get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_high_load $ul_bufferbloat_detected $t_elapsed_ul_rate_set)
