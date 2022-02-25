@@ -166,16 +166,16 @@ do
 	dl_high_load=$(($rx_load > $high_load_thr))
  	cur_dl_rate=$(get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_high_load $dl_bufferbloat_detected $t_elapsed_dl_rate_set)
 
-        if [ "$last_ul_rate" -ne "$cur_ul_rate" ] ; then
-         	if [ "$enable_verbose_output" ]; then
+        if (( $last_ul_rate != $cur_ul_rate )); then
+         	if (( $enable_verbose_output )); then
 			echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
 		fi
             	tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
 		t_prev_ul_rate_set=$(date +%s%N)
         fi
         # only fire up tc if there are rates to change...
-	if [ "$last_dl_rate" -ne "$cur_dl_rate" ] ; then
-          	if [ "$enable_verbose_output" ] ; then
+	if (( $last_dl_rate != $cur_dl_rate)); then
+          	if (($enable_verbose_output)); then
 			echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
 		fi
             	tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
