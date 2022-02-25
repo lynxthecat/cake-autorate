@@ -14,7 +14,7 @@ get_OWDs()
 	local reflector
 	reflector=$1
 
-	RTT=$(/usr/bin/ping -c 1 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 1)
+ 	RTT=$(/usr/bin/ping -c 1 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 1)
 
 	# If no response whatsoever, just set RTT=0
 	re='^[0-9]+([.][0-9]+)?$'
@@ -39,9 +39,9 @@ update_OWD_baseline()
 	local OWD_baseline
 
 	if (( $OWD_delta >= 0 )); then
-		OWD_baseline=$(( ( (1000-$(x1000 $alpha_OWD_increase))*$OWD_baseline+$(x1000 $alpha_OWD_increase)*$OWD )/1000 ))
+		OWD_baseline=$(( ( (1000-$alpha_OWD_increase)*$OWD_baseline+$alpha_OWD_increase*$OWD )/1000 ))
 	else
-		OWD_baseline=$(( ( (1000-$(x1000 $alpha_OWD_decrease))*$OWD_baseline+$(x1000 $alpha_OWD_decrease)*$OWD )/1000 ))
+		OWD_baseline=$(( ( (1000-$alpha_OWD_decrease)*$OWD_baseline+$alpha_OWD_decrease*$OWD )/1000 ))
 	fi
 
 	echo $OWD_baseline
@@ -57,7 +57,7 @@ detect_path_delay()
 
 	for delta in "${OWD_deltas[@]}"
 	do
-		if (( $delta > $(x1000 $delay_thr) )); then ((detection_cnt+=1)); fi
+		if (( $delta > (1000*$delay_thr) )); then ((detection_cnt+=1)); fi
 	done
 
 	(( $detection_cnt >= $detection_thr ))
