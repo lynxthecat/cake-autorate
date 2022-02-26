@@ -4,7 +4,7 @@
 
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
-# requires packages: bash, iputils-ping, coreutils-date, coreutils-sleep, inotifywait
+# requires packages: bash, iputils-ping, coreutils-date, coreutils-sleep
 
 trap cleanup_and_killall INT TERM EXIT
 
@@ -103,18 +103,6 @@ update_loads()
 
 }
 
-# touch file to update timestamp and trigger tick
-tick_trigger()
-{
-	while true
-	do
-		t_start=$(date +%s%N)
-		touch "/tmp/CAKE-autorate/tick_trigger"
-		t_end=$(date +%s%N)
-		sleep_remaining_tick_time $t_start $t_end $main_loop_tick_duration
-	done
-}
-
 [ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
 
 for reflector in "${reflectors[@]}"
@@ -122,9 +110,6 @@ do
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
 done
-
-tick_trigger&
-bg_PIDs+=($!)
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
@@ -145,9 +130,6 @@ t_prev_dl_rate_set=$t_prev_bytes
 
 while true
 do
-	# skeep util tick trigger or bufferbloat delay event
-	inotifywait -e create -e attrib /tmp/CAKE-autorate/ -q -q
-
 	t_start=$(date +%s%N)
 
 	update_loads
@@ -185,4 +167,7 @@ do
 	# remember the last rates
         last_dl_rate=$cur_dl_rate
         last_ul_rate=$cur_ul_rate
+
+	t_end=$(date +%s%N)
+	sleep_remaining_tick_time $t_start $t_end $main_loop_tick_duration	
 done
