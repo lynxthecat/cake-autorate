@@ -61,8 +61,8 @@ monitor_reflector_path()
         ul_OWD_baseline=$ul_OWD
         dl_OWD_baseline=$dl_OWD
 
-	/usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output& 
-	sleep 0.1
+	touch /tmp/CAKE-autorate/${reflector}_ping_output
+	/usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output&
 	tail -f /tmp/CAKE-autorate/${reflector}_ping_output | while read ping_line
 	do
 		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
@@ -92,14 +92,19 @@ monitor_reflector_path()
 
 
 		if detect_path_delay ul_OWD_deltas; then
-			touch $reflector_ul_path_delayed_file
+			if [ ! -f $reflector_ul_path_delayed_file ]; then
+				touch $reflector_ul_path_delayed_file
+			#	echo $reflector "Upload path is delayed! Deltas ="  "${ul_OWD_deltas[@]}"
+			fi
 		elif [ -f $reflector_ul_path_delayed_file ]; then
 			rm $reflector_ul_path_delayed_file
 		fi
 	
 		if detect_path_delay dl_OWD_deltas; then
-			touch $reflector_dl_path_delayed_file
-			echo $reflector "delayed! Deltas ="  "${dl_OWD_deltas[@]}"
+			if [ ! -f $reflector_dl_path_delayed_file ]; then
+				touch $reflector_dl_path_delayed_file
+			#	echo $reflector "Download path is delayed! Deltas ="  "${dl_OWD_deltas[@]}"
+			fi
 		elif [ -f $reflector_dl_path_delayed_file ]; then
 			rm $reflector_dl_path_delayed_file
 		fi
