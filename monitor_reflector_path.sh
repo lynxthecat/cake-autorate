@@ -9,27 +9,6 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: iputils-ping, coreutils-date and coreutils-sleep
 
-get_OWDs()
-{
-	local reflector
-	reflector=$1
-
- 	RTT=$(/usr/bin/ping -c 1 $reflector | tail -1 | awk '{print $4}' | cut -d '/' -f 1)
-
-	# If no response whatsoever, just set RTT=0
-	re='^[0-9]+([.][0-9]+)?$'
-	if ! [[ $RTT =~ $re ]] ; then
-		RTT=0
-	fi
-	
-	#convert RTT to microseconds
-	RTT=$(x1000 $RTT)
- 	ul_OWD=$(( $RTT / 2 ))
-	dl_OWD=$ul_OWD	
-
-	echo $ul_OWD $dl_OWD
-}
-
 update_OWD_baseline() 
 {
 	local OWD=$1
@@ -74,29 +53,27 @@ monitor_reflector_path()
 	reflector_ul_path_delayed_file="/tmp/CAKE-autorate/${reflector}_ul_path_delayed"
 	reflector_dl_path_delayed_file="/tmp/CAKE-autorate/${reflector}_dl_path_delayed"
 
-        OWDs=$(get_OWDs 8.8.8.8)
-
-        ul_OWD=$(echo $OWDs | awk '{print $1}')
-        dl_OWD=$(echo $OWDs | awk '{print $2}')
+	RTT=$(/usr/bin/ping -c 1 $reflector | awk -Ftime= 'NF>1{print 1000*($2+0)}')
+	#convert RTT to microseconds
+ 	ul_OWD=$(( $RTT / 2 ))
+	dl_OWD=$ul_OWD	
 
         ul_OWD_baseline=$ul_OWD
         dl_OWD_baseline=$dl_OWD
 
-	while true; do
+	/usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output& 
+	sleep 0.1
+	tail -f /tmp/CAKE-autorate/${reflector}_ping_output | while read ping_line
+	do
+		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
+		[ -z "$RTT" ] && continue
 		
-		t_start=$(date +%s%N)
+		#echo $ping_line
 
-		OWDs=$(get_OWDs $reflector)
-	
-		ul_OWD=$(echo $OWDs | awk '{print $1}')
-		dl_OWD=$(echo $OWDs | awk '{print $2}')
-
-		if (($ul_OWD==0 || $dl_OWD==0)); then
-			t_end=$(date +%s%N)
-			sleep_remaining_tick_time $t_start $t_end $monitor_reflector_path_tick_duration
-			continue
-		fi	
-
+		#convert RTT to microseconds
+ 		ul_OWD=$(( $RTT / 2 ))
+		dl_OWD=$ul_OWD	
+		
 		ul_OWD_delta=$(( $ul_OWD-$ul_OWD_baseline ))
 		dl_OWD_delta=$(( $dl_OWD-$dl_OWD_baseline ))
 
@@ -113,6 +90,7 @@ monitor_reflector_path()
 		ul_OWD_baseline=$(update_OWD_baseline $ul_OWD $ul_OWD_delta $ul_OWD_baseline)
 		dl_OWD_baseline=$(update_OWD_baseline $dl_OWD $dl_OWD_delta $dl_OWD_baseline)
 
+
 		if detect_path_delay ul_OWD_deltas; then
 			touch $reflector_ul_path_delayed_file
 		elif [ -f $reflector_ul_path_delayed_file ]; then
@@ -121,11 +99,10 @@ monitor_reflector_path()
 	
 		if detect_path_delay dl_OWD_deltas; then
 			touch $reflector_dl_path_delayed_file
+			echo $reflector "delayed! Deltas ="  "${dl_OWD_deltas[@]}"
 		elif [ -f $reflector_dl_path_delayed_file ]; then
 			rm $reflector_dl_path_delayed_file
 		fi
-	
-		t_end=$(date +%s%N)
-		sleep_remaining_tick_time $t_start $t_end $monitor_reflector_path_tick_duration
-done
+		> /tmp/CAKE-autorate/${reflector}_ping_output
+	done
 }
