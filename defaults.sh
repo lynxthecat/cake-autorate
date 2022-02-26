@@ -13,7 +13,6 @@ alpha_OWD_increase=1 # how rapidly baseline OWD is allowed to increase (integer 
 alpha_OWD_decrease=900 # how rapidly baseline OWD is allowed to decrease (integer /1000)
 
 debug=0
-
 enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
 ul_if=wan # upload interface
@@ -41,10 +40,10 @@ delay_thr=10 # extent of delay to classify as an offence
 detection_thr=2 # number of offences within window to classify reflector path delayed
 reflector_thr=2 # number of reflectors that need to be delayed to classify bufferbloat
 
-monitor_reflector_path_tick_duration=100 # (milliseconds)
-main_loop_tick_duration=5000 # (milliseconds)
+ping_reflector_interval=0.1 # (milliseconds)
+main_loop_tick_duration=100 # (milliseconds)
 
-rate_down_bufferbloat_refractory_period=500 # (milliseconds)
+rate_down_bufferbloat_refractory_period=250 # (milliseconds)
 rate_down_decay_refractory_period=500 # (milliseconds)
 
 # verify these are correct using 'cat /sys/class/...'
