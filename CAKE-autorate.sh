@@ -32,49 +32,60 @@ get_next_shaper_rate()
 	local cur_min_rate=$2
 	local cur_base_rate=$3
 	local cur_max_rate=$4
-    	local high_load=$5
-	local bufferbloat_detected=$6
-	local t_elapsed_rate_set=$7
+	local load_condition=$5
+	local t_next_rate=$6
+	local -n t_last_bufferbloat=$7
+	local -n t_last_decay=$8
 
     	local next_rate
 	local cur_rate_decayed_down
  	local cur_rate_decayed_up
 
- 	# in case of supra-threshold OWD spikes decrease the rate so long as there is a load and elapsed time > refractory period
-        if (( bufferbloat_detected )); then
-		if (($t_elapsed_rate_set > (10**6)*$rate_down_bufferbloat_refractory_period)); then
-        		next_rate=$(( $cur_rate*(1000-$rate_adjust_OWD_spike)/1000 ))
-		else
-			next_rate=$cur_rate
-		fi
-        else
-            # ... otherwise determine whether to increase or decrease the rate in dependence on load
-            # high load, so we would like to increase the rate
-            if (($high_load)); then
-                next_rate=$(($cur_rate*(1000+$rate_adjust_load_high)/1000 ))
-            else
-		if (($t_elapsed_rate_set > (10**6)*$rate_down_decay_refractory_period)); then
+	case $load_condition in
+
+ 		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
+		bufferbloat)
+			if (( $t_next_rate > ($t_last_bufferbloat+(10**6)*$bufferbloat_refractory_period) )); then
+        			next_rate=$(( $cur_rate*(1000-$rate_adjust_OWD_spike)/1000 ))
+				t_last_bufferbloat=$(date +%s%N)
+			else
+				next_rate=$cur_rate
+			fi
+			;;
+           	# ... otherwise determine whether to increase or decrease the rate in dependence on load
+            	# high load, so increase rate providing not inside bufferbloat refractory period 
+		high_load)	
+			if (( $t_next_rate > ($t_last_bufferbloat+(10**6)*$bufferbloat_refractory_period) )); then
+                		next_rate=$(($cur_rate*(1000+$rate_adjust_load_high)/1000 ))
+			
+			else
+				next_rate=$cur_rate
+			fi
+			;;
+		# low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
+		low_load)
+			if (($t_next_rate > ($t_last_decay+(10**6)*$decay_refractory_period) )); then
 		
-			 # low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-	                cur_rate_decayed_down=$(($cur_rate*(1000-$rate_adjust_load_low)/1000))
-        	        cur_rate_decayed_up=$(($cur_rate*(1000+$rate_adjust_load_low)/1000))
+	                	cur_rate_decayed_down=$(($cur_rate*(1000-$rate_adjust_load_low)/1000))
+        	        	cur_rate_decayed_up=$(($cur_rate*(1000+$rate_adjust_load_low)/1000))
 
-                	# gently decrease to steady state rate
-	                if (($cur_rate_decayed_down > $cur_base_rate)); then
-        	                next_rate=$cur_rate_decayed_down
-                	# gently increase to steady state rate
-	                elif (($cur_rate_decayed_up < $cur_base_rate)); then
-        	                next_rate=$cur_rate_decayed_up
-                	# steady state has been reached
-	                else
-        	                next_rate=$cur_base_rate
-        		fi
-		else
-			next_rate=$cur_rate
-		fi
-        fi
-        fi
+                		# gently decrease to steady state rate
+	                	if (($cur_rate_decayed_down > $cur_base_rate)); then
+        	                	next_rate=$cur_rate_decayed_down
+                		# gently increase to steady state rate
+	                	elif (($cur_rate_decayed_up < $cur_base_rate)); then
+        	                	next_rate=$cur_rate_decayed_up
+                		# steady state has been reached
+	               		else
+					next_rate=$cur_base_rate
+				fi
 
+				t_last_decay=$(date +%s%N)
+			else
+				next_rate=$cur_rate
+			fi
+			;;
+	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
         if (($next_rate < $cur_min_rate)); then
             next_rate=$cur_min_rate;
@@ -127,6 +138,10 @@ t_prev_bytes=$(date +%s%N)
 t_start=$(date +%s%N)
 t_prev_ul_rate_set=$t_prev_bytes
 t_prev_dl_rate_set=$t_prev_bytes
+t_ul_last_bufferbloat=$t_prev_bytes
+t_ul_last_decay=$t_prev_bytes
+t_dl_last_bufferbloat=$t_prev_bytes
+t_dl_last_decay=$t_prev_bytes
 
 while true
 do
@@ -137,16 +152,16 @@ do
 	no_ul_delays=$(ls /tmp/CAKE-autorate/*ul_path_delayed 2>/dev/null | wc -l)
 	no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
 
-        t_elapsed_ul_rate_set=$(($t_start-$t_prev_ul_rate_set))	
-        t_elapsed_dl_rate_set=$(($t_start-$t_prev_dl_rate_set))	
 
-        ul_bufferbloat_detected=$(($no_ul_delays >= $reflector_thr))
-	ul_high_load=$(($tx_load > $high_load_thr))
- 	cur_ul_rate=$(get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_high_load $ul_bufferbloat_detected $t_elapsed_ul_rate_set)
+	ul_load_condition="low_load"
+	(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
+        (($no_ul_delays >= $reflector_thr)) && ul_load_condition="bufferbloat"
+ 	cur_ul_rate=$(get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay)
         
-	dl_bufferbloat_detected=$(($no_dl_delays >= $reflector_thr))
-	dl_high_load=$(($rx_load > $high_load_thr))
- 	cur_dl_rate=$(get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_high_load $dl_bufferbloat_detected $t_elapsed_dl_rate_set)
+	dl_load_condition="low_load"
+	(($rx_load > $high_load_thr)) && dl_load_condition="high_load"
+        (($no_dl_delays >= $reflector_thr)) && dl_load_condition="bufferbloat" 
+ 	cur_dl_rate=$(get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay)
 
         if (( $last_ul_rate != $cur_ul_rate )); then
          	if (( $enable_verbose_output )); then
