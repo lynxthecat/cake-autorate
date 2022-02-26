@@ -22,7 +22,7 @@ sleep_remaining_tick_time()
 	local tick_duration=$3
 
 	sleep_duration=$(( $tick_duration*(10**6) - $t_end + $t_start))
-        #echo $(($sleep_duration/(10**6)))
+#        echo $(($sleep_duration/(10**6)))
         if (($sleep_duration > 0 )); then
                 sleep $sleep_duration"e-9"
         fi
