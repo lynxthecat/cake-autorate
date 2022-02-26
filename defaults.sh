@@ -13,7 +13,7 @@ alpha_OWD_increase=1 # how rapidly baseline OWD is allowed to increase (integer 
 alpha_OWD_decrease=900 # how rapidly baseline OWD is allowed to decrease (integer /1000)
 
 debug=0
-enable_verbose_output=1 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
+enable_verbose_output=0 # enable (1) or disable (0) output monitoring lines showing bandwidth changes
 
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
@@ -33,7 +33,7 @@ rate_adjust_OWD_spike=50 # how rapidly to reduce bandwidth upon detection of buf
 rate_adjust_load_high=10 # how rapidly to increase bandwidth upon high load detected (integer /1000)
 rate_adjust_load_low=25 # how rapidly to return to base rate upon low load detected (integer /1000)
 
-high_load_thr=75 # % of currently set bandwidth for detecting high load (integer /100)
+high_load_thr=50 # % of currently set bandwidth for detecting high load (integer /100)
 
 delay_buffer_len=4 # size of delay detection window
 delay_thr=10 # extent of delay to classify as an offence 
@@ -41,10 +41,10 @@ detection_thr=2 # number of offences within window to classify reflector path de
 reflector_thr=2 # number of reflectors that need to be delayed to classify bufferbloat
 
 ping_reflector_interval=0.1 # (milliseconds)
-main_loop_tick_duration=100 # (milliseconds)
+main_loop_tick_duration=200 # (milliseconds)
 
-rate_down_bufferbloat_refractory_period=250 # (milliseconds)
-rate_down_decay_refractory_period=500 # (milliseconds)
+bufferbloat_refractory_period=250 # (milliseconds)
+decay_refractory_period=250 # (milliseconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
