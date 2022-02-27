@@ -118,9 +118,13 @@ update_loads()
 
 for reflector in "${reflectors[@]}"
 do
+	ping_reflector $reflector&
+	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
 done
+
+echo "PIDs=" "${bg_PIDs[@]}"
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
