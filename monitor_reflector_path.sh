@@ -9,6 +9,13 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: iputils-ping, coreutils-date and coreutils-sleep
 
+ping_reflector()
+{
+	local reflector=$1
+
+	/usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output
+}
+
 update_OWD_baseline() 
 {
 	local OWD=$1
@@ -61,8 +68,6 @@ monitor_reflector_path()
         ul_OWD_baseline=$ul_OWD
         dl_OWD_baseline=$dl_OWD
 
-	touch /tmp/CAKE-autorate/${reflector}_ping_output
-	/usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output&
 	tail -f /tmp/CAKE-autorate/${reflector}_ping_output | while read ping_line
 	do
 		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
