@@ -68,7 +68,7 @@ monitor_reflector_path()
         ul_OWD_baseline=$ul_OWD
         dl_OWD_baseline=$dl_OWD
 
-	tail -f /tmp/CAKE-autorate/${reflector}_ping_output | while read ping_line
+	(tail -f /tmp/CAKE-autorate/${reflector}_ping_output & echo $! >&3) 3> /tmp/CAKE-autorate/${reflector}_tail_PID | while read ping_line
 	do
 		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
 		[ -z "$RTT" ] && continue
