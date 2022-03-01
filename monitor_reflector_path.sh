@@ -13,7 +13,7 @@ ping_reflector()
 {
 	local reflector=$1
 
-	/usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output
+	exec /usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output
 }
 
 update_OWD_baseline() 
