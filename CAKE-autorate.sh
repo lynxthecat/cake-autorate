@@ -122,9 +122,11 @@ do
 	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
+	sleep 1
+	bg_PIDs+=("`cat /tmp/CAKE-autorate/${reflector}_tail_PID`")
 done
 
-echo "PIDs=" "${bg_PIDs[@]}"
+# echo "PIDs=" "${bg_PIDs[@]}"
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
