@@ -44,7 +44,7 @@ ping_reflector_interval=0.1 # (milliseconds)
 main_loop_tick_duration=200 # (milliseconds)
 
 bufferbloat_refractory_period=300 # (milliseconds)
-decay_refractory_period=250 # (milliseconds)
+decay_refractory_period=5000 # (milliseconds)
 
 ping_sleep_thr=60 # time threshold to put pingers to sleep on sustained ul and dl base rate (seconds)
 
