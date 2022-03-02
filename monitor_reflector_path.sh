@@ -90,7 +90,7 @@ monitor_reflector_path()
 		unset 'dl_OWD_deltas[0]'
 		dl_OWD_deltas=(${dl_OWD_deltas[*]})
 
-		#echo "ul_OWD_baseline" $ul_OWD_baseline "ul_OWD=" $ul_OWD "ul_OWD_deltas=" ${ul_OWD_deltas[@]}
+		# echo "ul_OWD_baseline" $ul_OWD_baseline "ul_OWD=" $ul_OWD "ul_OWD_deltas=" ${ul_OWD_deltas[@]}
 
 		ul_OWD_baseline=$(update_OWD_baseline $ul_OWD $ul_OWD_delta $ul_OWD_baseline)
 		dl_OWD_baseline=$(update_OWD_baseline $dl_OWD $dl_OWD_delta $dl_OWD_baseline)
