@@ -30,6 +30,7 @@ install_dir="/root/CAKE-autorate/"
 
 get_next_shaper_rate() 
 {
+
     	local cur_rate=$1
 	local cur_min_rate=$2
 	local cur_base_rate=$3
@@ -38,8 +39,8 @@ get_next_shaper_rate()
 	local t_next_rate=$6
 	local -n t_last_bufferbloat=$7
 	local -n t_last_decay=$8
+    	local -n next_rate=$9
 
-    	local next_rate
 	local cur_rate_decayed_down
  	local cur_rate_decayed_up
 
@@ -81,7 +82,6 @@ get_next_shaper_rate()
 	               		else
 					next_rate=$cur_base_rate
 				fi
-
 				t_last_decay=$(date +%s%N)
 			else
 				next_rate=$cur_rate
@@ -97,7 +97,6 @@ get_next_shaper_rate()
             next_rate=$cur_max_rate;
         fi
 
-        echo "${next_rate}"
 }
 
 # update download and upload rates for CAKE
@@ -168,12 +167,12 @@ do
 	ul_load_condition="low_load"
 	(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
         (($no_ul_delays >= $reflector_thr)) && ul_load_condition="bufferbloat"
- 	cur_ul_rate=$(get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay)
+ 	get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
         
 	dl_load_condition="low_load"
 	(($rx_load > $high_load_thr)) && dl_load_condition="high_load"
         (($no_dl_delays >= $reflector_thr)) && dl_load_condition="bufferbloat" 
- 	cur_dl_rate=$(get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay)
+ 	get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
 
 	# put pingers to sleep if base_rate sustained > ping_sleep_thr
 	if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
