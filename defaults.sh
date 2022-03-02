@@ -18,8 +18,8 @@ enable_verbose_output=0 # enable (1) or disable (0) output monitoring lines show
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
 
-min_dl_rate=25000 # minimum bandwidth for download
-base_dl_rate=30000 # steady state bandwidth for download
+min_dl_rate=20000 # minimum bandwidth for download
+base_dl_rate=25000 # steady state bandwidth for download
 max_dl_rate=80000 # maximum bandwidth for download
 
 min_ul_rate=25000 # minimum bandwidth for upload
@@ -36,15 +36,17 @@ rate_adjust_load_low=25 # how rapidly to return to base rate upon low load detec
 high_load_thr=50 # % of currently set bandwidth for detecting high load (integer /100)
 
 delay_buffer_len=4 # size of delay detection window
-delay_thr=10 # extent of delay to classify as an offence 
+delay_thr=15 # extent of delay to classify as an offence 
 detection_thr=2 # number of offences within window to classify reflector path delayed
 reflector_thr=2 # number of reflectors that need to be delayed to classify bufferbloat
 
 ping_reflector_interval=0.1 # (milliseconds)
 main_loop_tick_duration=200 # (milliseconds)
 
-bufferbloat_refractory_period=250 # (milliseconds)
+bufferbloat_refractory_period=300 # (milliseconds)
 decay_refractory_period=250 # (milliseconds)
+
+ping_sleep_thr=60 # time threshold to put pingers to sleep on sustained ul and dl base rate (seconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
