@@ -119,13 +119,14 @@ update_loads()
 
 for reflector in "${reflectors[@]}"
 do
+	mkfifo /tmp/CAKE-autorate/${reflector}_pipe
 	ping_reflector $reflector&
 	bg_PIDs+=($!)
 	ping_PIDs+=($!)
+	cat /tmp/CAKE-autorate/${reflector}_pipe > /dev/null&
+	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
-	sleep 1
-	bg_PIDs+=("`cat /tmp/CAKE-autorate/${reflector}_tail_PID`")
 done
 
 # echo "PIDs=" "${bg_PIDs[@]}"
