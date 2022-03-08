@@ -12,8 +12,7 @@
 ping_reflector()
 {
 	local reflector=$1
-
-	exec /usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_ping_output
+	exec /usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_pipe
 }
 
 update_OWD_baseline() 
@@ -68,9 +67,9 @@ monitor_reflector_path()
         ul_OWD_baseline=$ul_OWD
         dl_OWD_baseline=$dl_OWD
 
-	(tail -f /tmp/CAKE-autorate/${reflector}_ping_output & echo $! >&3) 3> /tmp/CAKE-autorate/${reflector}_tail_PID | while read ping_line
+	while true
 	do
-		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
+		RTT=$(head -1 /tmp/CAKE-autorate/${reflector}_pipe | awk -Ftime= 'NF>1{print 1000*($2+0)}')
 		[ -z "$RTT" ] && continue
 		
 		#echo $ping_line
@@ -90,7 +89,7 @@ monitor_reflector_path()
 		unset 'dl_OWD_deltas[0]'
 		dl_OWD_deltas=(${dl_OWD_deltas[*]})
 
-		# echo "ul_OWD_baseline" $ul_OWD_baseline "ul_OWD=" $ul_OWD "ul_OWD_deltas=" ${ul_OWD_deltas[@]}
+ 	#	echo "ul_OWD_baseline" $ul_OWD_baseline "ul_OWD=" $ul_OWD "ul_OWD_deltas=" ${ul_OWD_deltas[@]}
 
 		ul_OWD_baseline=$(update_OWD_baseline $ul_OWD $ul_OWD_delta $ul_OWD_baseline)
 		dl_OWD_baseline=$(update_OWD_baseline $dl_OWD $dl_OWD_delta $dl_OWD_baseline)
