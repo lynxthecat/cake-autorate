@@ -69,11 +69,11 @@ monitor_reflector_path()
 
 	while true
 	do
-		RTT=$(head -1 /tmp/CAKE-autorate/${reflector}_pipe | awk -Ftime= 'NF>1{print 1000*($2+0)}')
+		ping_line=$(head -1 /tmp/CAKE-autorate/${reflector}_pipe)
+	# 	echo "Ping line=" $ping_line
+		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
 		[ -z "$RTT" ] && continue
 		
-		#echo $ping_line
-
 		#convert RTT to microseconds
  		ul_OWD=$(( $RTT / 2 ))
 		dl_OWD=$ul_OWD	
@@ -112,6 +112,5 @@ monitor_reflector_path()
 		elif [ -f $reflector_dl_path_delayed_file ]; then
 			rm $reflector_dl_path_delayed_file
 		fi
-		> /tmp/CAKE-autorate/${reflector}_ping_output
 	done
 }
