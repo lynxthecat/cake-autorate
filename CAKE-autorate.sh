@@ -162,51 +162,66 @@ do
 
 	update_loads
 
-	no_ul_delays=$(ls /tmp/CAKE-autorate/*ul_path_delayed 2>/dev/null | wc -l)
-	no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
-
 	ul_load_condition="low_load"
 	(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
-        (($no_ul_delays >= $reflector_thr)) && ul_load_condition="bufferbloat"
- 	get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
-        
+
 	dl_load_condition="low_load"
 	(($rx_load > $high_load_thr)) && dl_load_condition="high_load"
-        (($no_dl_delays >= $reflector_thr)) && dl_load_condition="bufferbloat" 
- 	get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
 
-	# put pingers to sleep if base_rate sustained > ping_sleep_thr
-	if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
-		((t_sustained_base_rate+=$(($t_start-$t_end))))
-		if (($t_sustained_base_rate > (10**9)*$ping_sleep_thr && $ping_sleep==0)); then 
-			kill -STOP -- ${ping_PIDs[@]}
-			ping_sleep=1
-		fi
-	else
-		t_sustained_base_rate=0
-		
-		# resuming from ping sleep, so just restart pingers and continue on to next loop without changing rates
-		if (( $ping_sleep==1 )); then
-			kill -CONT -- ${ping_PIDs[@]}
-			ping_sleep=0
+	if ! [[ $ping_sleep == 1 && $ul_load_condition == "low_load" && $dl_load_condition == "low_load" ]]; then
+	
+		no_ul_delays=$(ls /tmp/CAKE-autorate/*ul_path_delayed 2>/dev/null | wc -l)
+	        (($no_ul_delays >= $reflector_thr)) && ul_load_condition="bufferbloat"
+	 	get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
+        
+		no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
+	        (($no_dl_delays >= $reflector_thr)) && dl_load_condition="bufferbloat" 
+	 	get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
 
-		# pingers active, so safe to change rates if there are rates to change	
-		else
-		        # fire up tc if there are rates to change
-		        if (( $cur_ul_rate != $last_ul_rate )); then
-		         	(( $enable_verbose_output )) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
+		# put pingers to sleep if base_rate sustained > ping_sleep_thr
+		if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
+			((t_sustained_base_rate+=$(($t_start-$t_end))))
+			if (($t_sustained_base_rate > (10**9)*$ping_sleep_thr && $ping_sleep==0)); then 
+				kill -STOP -- ${ping_PIDs[@]}
+				ping_sleep=1
+				# Conservatively set ul/dl rates to hard minimum
+				cur_ul_rate=$min_ul_rate
             			tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
-				t_prev_ul_rate_set=$(date +%s%N)
-        		fi
-			if (( $cur_dl_rate != $last_dl_rate)); then
-          			(($enable_verbose_output)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
-	            		tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
-				t_prev_dl_rate_set=$(date +%s$N)
+				cur_dl_rate=$min_dl_rate
+        	    		tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+				# remember the last rates
+			        last_ul_rate=$cur_ul_rate
+		        	last_dl_rate=$cur_dl_rate
 			fi
-			# remember the last rates
-		        last_ul_rate=$cur_ul_rate
-		        last_dl_rate=$cur_dl_rate
+		else
+			t_sustained_base_rate=0
+		
+			# resuming from ping sleep, so just restart pingers and continue on to next loop without changing rates
+			if (( $ping_sleep==1 )); then
+				kill -CONT -- ${ping_PIDs[@]}
+				ping_sleep=0
+				cur_ul_rate=$min_ul_rate
+				cur_dl_rate=$min_dl_rate
+
+			# pingers active, so safe to change rates if there are rates to change	
+			else
+		        	# fire up tc if there are rates to change
+			        if (( $cur_ul_rate != $last_ul_rate )); then
+			         	(( $enable_verbose_output )) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
+            				tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+					t_prev_ul_rate_set=$(date +%s%N)
+	        		fi
+				if (( $cur_dl_rate != $last_dl_rate)); then
+          				(($enable_verbose_output)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
+	            			tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+					t_prev_dl_rate_set=$(date +%s$N)
+				fi
+				# remember the last rates
+			        last_ul_rate=$cur_ul_rate
+		        	last_dl_rate=$cur_dl_rate
+			fi
 		fi
+
 	fi
 
 	t_end=$(date +%s%N)
