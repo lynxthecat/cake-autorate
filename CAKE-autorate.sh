@@ -123,7 +123,7 @@ do
 	ping_reflector $reflector&
 	bg_PIDs+=($!)
 	ping_PIDs+=($!)
-	cat /tmp/CAKE-autorate/${reflector}_pipe > /dev/null&
+ 	exec 3<> /tmp/CAKE-autorate/${reflector}_pipe	
 	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
