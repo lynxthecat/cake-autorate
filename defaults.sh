@@ -40,7 +40,7 @@ delay_thr=15 # extent of delay to classify as an offence
 detection_thr=2 # number of offences within window to classify reflector path delayed
 reflector_thr=2 # number of reflectors that need to be delayed to classify bufferbloat
 
-ping_reflector_interval=0.1 # (milliseconds)
+ping_reflector_interval=0.1 # (seconds, e.g. 0.1s)
 main_loop_tick_duration=200 # (milliseconds)
 
 bufferbloat_refractory_period=300 # (milliseconds)
