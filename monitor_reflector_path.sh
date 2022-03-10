@@ -12,7 +12,7 @@
 ping_reflector()
 {
 	local reflector=$1
-	exec /usr/bin/ping -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_pipe
+	exec /usr/bin/ping -D -i $ping_reflector_interval $reflector > /tmp/CAKE-autorate/${reflector}_pipe
 }
 
 update_OWD_baseline() 
@@ -70,7 +70,7 @@ monitor_reflector_path()
 	while true
 	do
 		ping_line=$(head -1 /tmp/CAKE-autorate/${reflector}_pipe)
-	# 	echo "Ping line=" $ping_line
+	 	echo $ping_line
 		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
 		[ -z "$RTT" ] && continue
 		
@@ -112,5 +112,6 @@ monitor_reflector_path()
 		elif [ -f $reflector_dl_path_delayed_file ]; then
 			rm $reflector_dl_path_delayed_file
 		fi
+		continue
 	done
 }
