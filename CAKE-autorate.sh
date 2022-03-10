@@ -20,7 +20,7 @@ cleanup_and_killall()
 
 install_dir="/root/CAKE-autorate/"
 
-. $install_dir"defaults.sh"
+. $install_dir"config.sh"
 . $install_dir"functions.sh"
 . $install_dir"monitor_reflector_path.sh"
 
@@ -119,6 +119,7 @@ update_loads()
 
 for reflector in "${reflectors[@]}"
 do
+	t_start=$(date +%s%N)
 	mkfifo /tmp/CAKE-autorate/${reflector}_pipe
 	ping_reflector $reflector&
 	bg_PIDs+=($!)
@@ -127,6 +128,9 @@ do
 	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
+	t_end=$(date +%s%N)
+	# Space out pings by ping interval / number of reflectors
+	sleep_remaining_tick_time $t_start $t_end $((((10**6)*$(x1000 $ping_reflector_interval)) /$no_reflectors))
 done
 
 # echo "PIDs=" "${bg_PIDs[@]}"
@@ -225,5 +229,5 @@ do
 	fi
 
 	t_end=$(date +%s%N)
-	sleep_remaining_tick_time $t_start $t_end $main_loop_tick_duration	
+	sleep_remaining_tick_time $t_start $t_end $(((10**6)*$main_loop_tick_duration))
 done
