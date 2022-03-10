@@ -70,7 +70,7 @@ monitor_reflector_path()
 	while true
 	do
 		ping_line=$(head -1 /tmp/CAKE-autorate/${reflector}_pipe)
-	 	echo $ping_line
+	 	# echo $ping_line
 		RTT=$(echo $ping_line | awk -Ftime= 'NF>1{print 1000*($2+0)}')
 		[ -z "$RTT" ] && continue
 		
