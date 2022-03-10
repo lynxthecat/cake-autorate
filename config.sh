@@ -81,3 +81,4 @@ fi
 # list of reflectors to use
 reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
+no_reflectors=${#reflectors[@]}
