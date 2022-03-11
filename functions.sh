@@ -17,13 +17,13 @@ x1000()
 
 sleep_remaining_tick_time()
 {
-	local t_start=$1
-	local t_end=$2
-	local tick_duration=$3
+	local t_start=$1 # (microseconds)
+	local t_end=$2 # (microseconds)
+	local tick_duration=$3 # (microseconds)
 
-	sleep_duration=$(( $tick_duration*(10**6) - $t_end + $t_start))
+	sleep_duration=$(( $tick_duration - $t_end + $t_start))
         # echo $(($sleep_duration/(10**6)))
         if (($sleep_duration > 0 )); then
-                sleep $sleep_duration"e-9"
+                sleep $sleep_duration"e-6"
         fi
 }
