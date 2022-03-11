@@ -122,15 +122,19 @@ do
 	t_start=${EPOCHREALTIME/./}
 	mkfifo /tmp/CAKE-autorate/${reflector}_pipe
 	ping_reflector $reflector&
-	bg_PIDs+=($!)
-	ping_PIDs+=($!)
  	exec 3<> /tmp/CAKE-autorate/${reflector}_pipe	
-	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
 	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
 	sleep_remaining_tick_time $t_start $t_end $((((10**3)*$(x1000 $ping_reflector_interval)) /$no_reflectors))
+done
+
+for reflector in "${reflectors[@]}"
+do
+	read ping_pid < /tmp/CAKE-autorate/${reflector}_ping_pid
+	bg_PIDs+=($ping_pid)
+	ping_PIDs+=($ping_pid)
 done
 
 # echo "PIDs=" "${bg_PIDs[@]}"
