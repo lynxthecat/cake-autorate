@@ -48,9 +48,9 @@ get_next_shaper_rate()
 
  		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
 		bufferbloat)
-			if (( $t_next_rate > ($t_last_bufferbloat+(10**6)*$bufferbloat_refractory_period) )); then
+			if (( $t_next_rate > ($t_last_bufferbloat+(10**3)*$bufferbloat_refractory_period) )); then
         			next_rate=$(( $cur_rate*(1000-$rate_adjust_OWD_spike)/1000 ))
-				t_last_bufferbloat=$(date +%s%N)
+				t_last_bufferbloat=${EPOCHREALTIME/./}
 			else
 				next_rate=$cur_rate
 			fi
@@ -58,7 +58,7 @@ get_next_shaper_rate()
            	# ... otherwise determine whether to increase or decrease the rate in dependence on load
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high_load)	
-			if (( $t_next_rate > ($t_last_bufferbloat+(10**6)*$bufferbloat_refractory_period) )); then
+			if (( $t_next_rate > ($t_last_bufferbloat+(10**3)*$bufferbloat_refractory_period) )); then
                 		next_rate=$(($cur_rate*(1000+$rate_adjust_load_high)/1000 ))
 			
 			else
@@ -67,7 +67,7 @@ get_next_shaper_rate()
 			;;
 		# low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		low_load)
-			if (($t_next_rate > ($t_last_decay+(10**6)*$decay_refractory_period) )); then
+			if (($t_next_rate > ($t_last_decay+(10**3)*$decay_refractory_period) )); then
 		
 	                	cur_rate_decayed_down=$(($cur_rate*(1000-$rate_adjust_load_low)/1000))
         	        	cur_rate_decayed_up=$(($cur_rate*(1000+$rate_adjust_load_low)/1000))
@@ -82,7 +82,7 @@ get_next_shaper_rate()
 	               		else
 					next_rate=$cur_base_rate
 				fi
-				t_last_decay=$(date +%s%N)
+				t_last_decay=${EPOCHREALTIME/./}
 			else
 				next_rate=$cur_rate
 			fi
@@ -104,7 +104,7 @@ update_loads()
 {
         cur_rx_bytes=$(cat $rx_bytes_path)
         cur_tx_bytes=$(cat $tx_bytes_path)
-        t_cur_bytes=$(date +%s%N)
+        t_cur_bytes=${EPOCHREALTIME/./}
 
         rx_load=$(( ( (8*10**8*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_dl_rate  ))
         tx_load=$(( ( (8*10**8*($cur_tx_bytes - $prev_tx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_ul_rate  ))
@@ -119,7 +119,7 @@ update_loads()
 
 for reflector in "${reflectors[@]}"
 do
-	t_start=$(date +%s%N)
+	t_start=${EPOCHREALTIME/./}
 	mkfifo /tmp/CAKE-autorate/${reflector}_pipe
 	ping_reflector $reflector&
 	bg_PIDs+=($!)
@@ -128,9 +128,9 @@ do
 	bg_PIDs+=($!)
 	monitor_reflector_path $reflector&
 	bg_PIDs+=($!)
-	t_end=$(date +%s%N)
+	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
-	sleep_remaining_tick_time $t_start $t_end $((((10**6)*$(x1000 $ping_reflector_interval)) /$no_reflectors))
+	sleep_remaining_tick_time $t_start $t_end $((((10**3)*$(x1000 $ping_reflector_interval)) /$no_reflectors))
 done
 
 # echo "PIDs=" "${bg_PIDs[@]}"
@@ -146,10 +146,10 @@ tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
 
 prev_tx_bytes=$(cat $tx_bytes_path)
 prev_rx_bytes=$(cat $rx_bytes_path)
-t_prev_bytes=$(date +%s%N)
+t_prev_bytes=${EPOCHREALTIME/./}
 
-t_start=$(date +%s%N)
-t_end=$(date +%s%N)
+t_start=${EPOCHREALTIME/./}
+t_end=${EPOCHREALTIME/./}
 t_prev_ul_rate_set=$t_prev_bytes
 t_prev_dl_rate_set=$t_prev_bytes
 t_ul_last_bufferbloat=$t_prev_bytes
@@ -162,7 +162,7 @@ ping_sleep=0
 
 while true
 do
-	t_start=$(date +%s%N)
+	t_start=${EPOCHREALTIME/./}
 
 	update_loads
 
@@ -185,7 +185,7 @@ do
 		# put pingers to sleep if base_rate sustained > ping_sleep_thr
 		if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
 			((t_sustained_base_rate+=$(($t_start-$t_end))))
-			if (($t_sustained_base_rate > (10**9)*$ping_sleep_thr && $ping_sleep==0)); then 
+			if (($t_sustained_base_rate > (10**6)*$ping_sleep_thr && $ping_sleep==0)); then 
 				kill -STOP -- ${ping_PIDs[@]}
 				ping_sleep=1
 				# Conservatively set ul/dl rates to hard minimum
@@ -213,12 +213,12 @@ do
 			        if (( $cur_ul_rate != $last_ul_rate )); then
 			         	(( $enable_verbose_output )) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
             				tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
-					t_prev_ul_rate_set=$(date +%s%N)
+					t_prev_ul_rate_set=${EPOCHREALTIME/./}
 	        		fi
 				if (( $cur_dl_rate != $last_dl_rate)); then
           				(($enable_verbose_output)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
 	            			tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
-					t_prev_dl_rate_set=$(date +%s$N)
+					t_prev_dl_rate_set=${EPOCHREALTIME/./}
 				fi
 				# remember the last rates
 			        last_ul_rate=$cur_ul_rate
@@ -228,6 +228,6 @@ do
 
 	fi
 
-	t_end=$(date +%s%N)
-	sleep_remaining_tick_time $t_start $t_end $(((10**6)*$main_loop_tick_duration))
+	t_end=${EPOCHREALTIME/./}
+	sleep_remaining_tick_time $t_start $t_end $(((10**3)*$main_loop_tick_duration))
 done
