@@ -12,7 +12,7 @@
 ping_reflector()
 {
 	local reflector=$1
-	exec /usr/bin/ping -D -i $ping_reflector_interval $reflector | awk -Ftime= 'NF>1{print 1000*($2+0)}' > /tmp/CAKE-autorate/${reflector}_pipe
+	(ping -D -i $ping_reflector_interval $reflector & echo $! >/tmp/CAKE-autorate/${reflector}_ping_pid) | awk -Ftime= 'NF>1{print 1000*($2+0)}' > /tmp/CAKE-autorate/${reflector}_pipe
 }
 
 update_OWD_baseline() 
