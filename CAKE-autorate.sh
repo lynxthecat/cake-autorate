@@ -12,8 +12,8 @@ cleanup_and_killall()
 {
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
-	kill -CONT -- ${ping_PIDs[@]}
-	trap - INT && trap - TERM && trap - EXIT && kill -- ${bg_PIDs[@]}
+	kill -CONT -- ${ping_pids[@]}
+	trap - INT && trap - TERM && trap - EXIT && kill -- ${sleep_pids[@]} && kill -- ${ping_pids[@]} && kill -- ${monitor_pids[@]}
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
@@ -122,9 +122,10 @@ do
 	t_start=${EPOCHREALTIME/./}
 	mkfifo /tmp/CAKE-autorate/${reflector}_pipe
 	ping_reflector $reflector&
- 	exec 3<> /tmp/CAKE-autorate/${reflector}_pipe	
+ 	sleep inf >/tmp/CAKE-autorate/${reflector}_pipe&
+	sleep_pids+=($!)
 	monitor_reflector_path $reflector&
-	bg_PIDs+=($!)
+	monitor_pids+=($!)
 	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
 	sleep_remaining_tick_time $t_start $t_end $((((10**3)*$(x1000 $ping_reflector_interval)) /$no_reflectors))
@@ -133,11 +134,8 @@ done
 for reflector in "${reflectors[@]}"
 do
 	read ping_pid < /tmp/CAKE-autorate/${reflector}_ping_pid
-	bg_PIDs+=($ping_pid)
-	ping_PIDs+=($ping_pid)
+	ping_pids+=($ping_pid)
 done
-
-# echo "PIDs=" "${bg_PIDs[@]}"
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
@@ -190,7 +188,7 @@ do
 		if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
 			((t_sustained_base_rate+=$(($t_start-$t_end))))
 			if (($t_sustained_base_rate > (10**6)*$ping_sleep_thr && $ping_sleep==0)); then 
-				kill -STOP -- ${ping_PIDs[@]}
+				kill -STOP -- ${ping_pids[@]}
 				ping_sleep=1
 				# Conservatively set ul/dl rates to hard minimum
 				cur_ul_rate=$min_ul_rate
@@ -206,7 +204,7 @@ do
 		
 			# resuming from ping sleep, so just restart pingers and continue on to next loop without changing rates
 			if (( $ping_sleep==1 )); then
-				kill -CONT -- ${ping_PIDs[@]}
+				kill -CONT -- ${ping_pids[@]}
 				ping_sleep=0
 				cur_ul_rate=$min_ul_rate
 				cur_dl_rate=$min_dl_rate
