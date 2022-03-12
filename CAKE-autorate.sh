@@ -106,8 +106,8 @@ update_loads()
         cur_tx_bytes=$(cat $tx_bytes_path)
         t_cur_bytes=${EPOCHREALTIME/./}
 
-        rx_load=$(( ( (8*10**8*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_dl_rate  ))
-        tx_load=$(( ( (8*10**8*($cur_tx_bytes - $prev_tx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_ul_rate  ))
+        rx_load=$(( ( (8*10**5*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_dl_rate  ))
+        tx_load=$(( ( (8*10**5*($cur_tx_bytes - $prev_tx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_ul_rate  ))
 
         t_prev_bytes=$t_cur_bytes
         prev_rx_bytes=$cur_rx_bytes
