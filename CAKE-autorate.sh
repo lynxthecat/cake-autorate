@@ -4,7 +4,7 @@
 
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
-# requires packages: bash, iputils-ping, coreutils-date, coreutils-sleep
+# requires packages: bash, iputils-ping and coreutils-sleep
 
 trap cleanup_and_killall INT TERM EXIT
 
