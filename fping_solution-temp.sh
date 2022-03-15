@@ -3,6 +3,8 @@
 export LC_ALL=C
 export TZ=UTC
 
+ping_interval=100
+
 dl_if=veth-lan
 ul_if=wan
 
@@ -168,7 +170,7 @@ delays=( $(printf ' 0%.0s' $(seq $delay_period)) )
 
 echo "${delays[*]}"
 
-fping --timestamp --loop -p 100 -t 500 1.1.1.1 8.8.8.8 1.0.0.1 8.8.4.4 | while read -r timestamp reflector _ seq timeout _ RTT _ _
+fping --timestamp --loop -p $ping_interval -t 500 1.1.1.1 8.8.8.8 1.0.0.1 8.8.4.4 | while read -r timestamp reflector _ seq timeout _ RTT _ _
 do 
 	[[ $timeout -eq "timed" ]] && continue
 
