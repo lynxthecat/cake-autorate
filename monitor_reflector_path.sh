@@ -7,7 +7,7 @@
 
 # inspired by @moeller0 (OpenWrt forum)
 # initial sh implementation by @Lynx (OpenWrt forum)
-# requires packages: iputils-ping, coreutils-date and coreutils-sleep
+# requires packages: iputils-ping and coreutils-sleep
 
 ping_reflector()
 {
