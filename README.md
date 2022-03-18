@@ -2,7 +2,7 @@
 
 **THIS README NEEDS UPDATING FOR THIS NEW BRANCH!**
 
-**autorate.sh** is a script that automatically adapts
+**CAKE-autorate** is a script that automatically adapts
 [CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
 bandwidth settings by measuring traffic load and RTT times.
 This is designed for variable bandwidth connections such as LTE,
