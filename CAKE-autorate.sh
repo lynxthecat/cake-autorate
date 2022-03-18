@@ -6,6 +6,10 @@
 # initial sh implementation by @Lynx (OpenWrt forum)
 # requires packages: bash, iputils-ping and coreutils-sleep
 
+# Possible performance improvement
+export LC_ALL=C
+export TZ=UTC
+
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -13,7 +17,7 @@ cleanup_and_killall()
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
 	kill -CONT -- ${ping_pids[@]}
-	trap - INT && trap - TERM && trap - EXIT && kill -- ${sleep_pids[@]} && kill -- ${ping_pids[@]} && kill -- ${monitor_pids[@]}
+	trap - INT && trap - TERM && trap - EXIT && kill $sleep_pid && kill -- ${ping_pids[@]} && kill -- ${monitor_pids[@]}
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
@@ -21,9 +25,6 @@ cleanup_and_killall()
 install_dir="/root/CAKE-autorate/"
 
 . $install_dir"config.sh"
-. $install_dir"functions.sh"
-. $install_dir"monitor_reflector_path.sh"
-
 
 # test if stdout is a tty (terminal)
 [[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
@@ -49,7 +50,7 @@ get_next_shaper_rate()
  		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
 		bufferbloat)
 			if (( $t_next_rate > ($t_last_bufferbloat+(10**3)*$bufferbloat_refractory_period) )); then
-        			next_rate=$(( $cur_rate*(1000-$rate_adjust_OWD_spike)/1000 ))
+        			next_rate=$(( $cur_rate*(1000-$rate_adjust_bufferbloat)/1000 ))
 				t_last_bufferbloat=${EPOCHREALTIME/./}
 			else
 				next_rate=$cur_rate
@@ -102,8 +103,8 @@ get_next_shaper_rate()
 # update download and upload rates for CAKE
 update_loads()
 {
-        cur_rx_bytes=$(cat $rx_bytes_path)
-        cur_tx_bytes=$(cat $tx_bytes_path)
+        read -r cur_rx_bytes < "$rx_bytes_path"
+        read -r cur_tx_bytes < "$tx_bytes_path"
         t_cur_bytes=${EPOCHREALTIME/./}
 
         rx_load=$(( ( (8*10**5*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_dl_rate  ))
@@ -115,21 +116,73 @@ update_loads()
 
 }
 
+# ping reflector, maintain baseline and output deltas to a common fifo
+monitor_reflector_path() 
+{
+	local reflector=$1
+
+	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]];
+
+	rtt_baseline=$(printf %.0f\\n "${BASH_REMATCH[1]}e3")
+
+	while read -r  timestamp _ _ _ reflector seq_rtt
+	do
+		
+		[[ $seq_rtt =~ time=+([0-9.]*)[[:space:]]+ms+ ]]; rtt=${BASH_REMATCH[1]}
+		
+		# If output line of ping does not contain any RTT then skip onto the next one
+		[ -z "$rtt" ] && continue
+
+		[[ $seq_rtt =~ icmp_seq=([0-9]*) ]]; seq=${BASH_REMATCH[1]}
+
+		reflector=${reflector//:/}
+
+		rtt=$(printf %.0f\\n "${rtt}e3")
+		
+		rtt_delta=$(( $rtt-$rtt_baseline ))
+
+		if (( $rtt_delta >= 0 )); then
+			rtt_baseline=$(( ( (1000-$alpha_baseline_increase)*$rtt_baseline+$alpha_baseline_increase*$rtt )/1000 ))
+		else
+			rtt_baseline=$(( ( (1000-$alpha_baseline_decrease)*$rtt_baseline+$alpha_baseline_decrease*$rtt )/1000 ))
+		fi
+
+		echo $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta > /tmp/CAKE-autorate/ping_fifo
+	done< <(ping -D -i $reflector_ping_interval $reflector & echo $! >/tmp/CAKE-autorate/${reflector}_ping_pid)
+}
+
+sleep_remaining_tick_time()
+{
+	local t_start=$1 # (microseconds)
+	local t_end=$2 # (microseconds)
+	local tick_duration=$3 # (microseconds)
+
+	sleep_duration=$(( $tick_duration - $t_end + $t_start))
+        # echo $(($sleep_duration/(10**6)))
+        if (($sleep_duration > 0 )); then
+                sleep $sleep_duration"e-6"
+        fi
+}
+
 [ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
+
+mkfifo /tmp/CAKE-autorate/ping_fifo
+
+sleep inf > /tmp/CAKE-autorate/ping_fifo&
+
+sleep_pid=$!
 
 for reflector in "${reflectors[@]}"
 do
 	t_start=${EPOCHREALTIME/./}
-	mkfifo /tmp/CAKE-autorate/${reflector}_pipe
-	ping_reflector $reflector&
- 	sleep inf >/tmp/CAKE-autorate/${reflector}_pipe&
-	sleep_pids+=($!)
 	monitor_reflector_path $reflector&
-	monitor_pids+=($!)
+	monitor_pids+=($!)	
 	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
-	sleep_remaining_tick_time $t_start $t_end $((((10**3)*$(x1000 $ping_reflector_interval)) /$no_reflectors))
+	sleep_remaining_tick_time $t_start $t_end $(( (10**3)*$(printf %.0f\\n "${reflector_ping_interval}e3")/ $no_reflectors ))
 done
+
+sleep 1
 
 for reflector in "${reflectors[@]}"
 do
@@ -162,74 +215,93 @@ t_dl_last_decay=$t_prev_bytes
 t_sustained_base_rate=0
 ping_sleep=0
 
+delays=( $(printf ' 0%.0s' $(seq $bufferbloat_detection_window)) )
+
 while true
 do
-	t_start=${EPOCHREALTIME/./}
+	while read -r timestamp reflector seq rtt_baseline rtt rtt_delta
+	do 
+		t_start=${EPOCHREALTIME/./}
+		((($t_start - "${timestamp//[[\[\].]}")>500000)) && echo "WARNING: encountered response from [" $reflector "] that is > 500ms old. Skipping." && continue
 
-	update_loads
-
-	ul_load_condition="low_load"
-	(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
-
-	dl_load_condition="low_load"
-	(($rx_load > $high_load_thr)) && dl_load_condition="high_load"
-
-	if ! [[ $ping_sleep == 1 && $ul_load_condition == "low_load" && $dl_load_condition == "low_load" ]]; then
+		unset 'delays[0]'
 	
-		no_ul_delays=$(ls /tmp/CAKE-autorate/*ul_path_delayed 2>/dev/null | wc -l)
-	        (($no_ul_delays >= $reflector_thr)) && ul_load_condition="bufferbloat"
-	 	get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
-        
-		no_dl_delays=$(ls /tmp/CAKE-autorate/*dl_path_delayed 2>/dev/null | wc -l)
-	        (($no_dl_delays >= $reflector_thr)) && dl_load_condition="bufferbloat" 
-	 	get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
+		if (($rtt_delta > (1000*$delay_thr))); then 
+			delays+=(1)
+		else 
+			delays+=(0)
+		fi	
 
-		# put pingers to sleep if base_rate sustained > ping_sleep_thr
-		if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
-			((t_sustained_base_rate+=$(($t_start-$t_end))))
-			if (($t_sustained_base_rate > (10**6)*$ping_sleep_thr && $ping_sleep==0)); then 
-				kill -STOP -- ${ping_pids[@]}
-				ping_sleep=1
-				# Conservatively set ul/dl rates to hard minimum
-				cur_ul_rate=$min_ul_rate
-            			tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
-				cur_dl_rate=$min_dl_rate
-        	    		tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
-				# remember the last rates
-			        last_ul_rate=$cur_ul_rate
-		        	last_dl_rate=$cur_dl_rate
-			fi
-		else
-			t_sustained_base_rate=0
+		delays=(${delays[*]})
+
+		update_loads
+
+		dl_load_condition="low_load"
+		(($rx_load > $high_load_thr)) && dl_load_condition="high_load"
+
+		ul_load_condition="low_load"
+		(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
+	
+		sum_delays=$(IFS=+; echo "$((${delays[*]}))")
+
+		(($sum_delays>$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
+
+		get_next_shaper_rate $cur_dl_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
+		get_next_shaper_rate $cur_ul_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
+
+		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_load $tx_load $cur_dl_rate $cur_ul_rate $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta
+
+       		# fire up tc if there are rates to change
+		if (( $cur_dl_rate != $last_dl_rate)); then
+       			(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
+       			tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+			t_prev_dl_rate_set=${EPOCHREALTIME/./}
+		fi
+       		if (( $cur_ul_rate != $last_ul_rate )); then
+         		(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
+       			tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+			t_prev_ul_rate_set=${EPOCHREALTIME/./}
+		fi
 		
-			# resuming from ping sleep, so just restart pingers and continue on to next loop without changing rates
-			if (( $ping_sleep==1 )); then
-				kill -CONT -- ${ping_pids[@]}
-				ping_sleep=0
-				cur_ul_rate=$min_ul_rate
-				cur_dl_rate=$min_dl_rate
-
-			# pingers active, so safe to change rates if there are rates to change	
-			else
-		        	# fire up tc if there are rates to change
-			        if (( $cur_ul_rate != $last_ul_rate )); then
-			         	(( $enable_verbose_output )) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
-            				tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
-					t_prev_ul_rate_set=${EPOCHREALTIME/./}
-	        		fi
-				if (( $cur_dl_rate != $last_dl_rate)); then
-          				(($enable_verbose_output)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
-	            			tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
-					t_prev_dl_rate_set=${EPOCHREALTIME/./}
-				fi
-				# remember the last rates
-			        last_ul_rate=$cur_ul_rate
-		        	last_dl_rate=$cur_dl_rate
-			fi
+		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
+		if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
+			((t_sustained_base_rate+=$((${EPOCHREALTIME/./}-$t_end))))
+			(($t_sustained_base_rate>(10**6*$sustained_base_rate_sleep_thr))) && break
+		else
+			# reset timer
+			t_sustained_base_rate=0
 		fi
 
-	fi
+		# remember the last rates
+       		last_dl_rate=$cur_dl_rate
+       		last_ul_rate=$cur_ul_rate
 
-	t_end=${EPOCHREALTIME/./}
-	sleep_remaining_tick_time $t_start $t_end $(((10**3)*$main_loop_tick_duration))
+		t_end=${EPOCHREALTIME/./}
+
+	done</tmp/CAKE-autorate/ping_fifo
+
+	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
+	cur_dl_rate=$min_dl_rate
+        tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+	cur_ul_rate=$min_ul_rate
+        tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+	# remember the last rates
+	last_ul_rate=$cur_ul_rate
+	last_dl_rate=$cur_dl_rate
+
+	# Pause ping processes
+	kill -STOP $ping_pids
+
+	# wait until load increases again
+	while true
+	do
+		t_start=${EPOCHREALTIME/./}	
+		update_loads
+		(($rx_load>$high_load_thr || $tx_load>$high_load_thr)) && break 
+		t_end=${EPOCHREALTIME/./}
+		sleep $(($t_end-$t_start))"e-6"
+	done
+
+	# Continue ping processes
+	kill -CONT $ping_pids
 done
