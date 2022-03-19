@@ -303,7 +303,7 @@ do
 	last_dl_rate=$cur_dl_rate
 
 	# Pause ping processes
-	kill -STOP $ping_pids
+	kill -STOP -- ${ping_pids[@]}
 
 	# wait until load increases again
 	while true
@@ -316,5 +316,5 @@ do
 	done
 
 	# Continue ping processes
-	kill -CONT $ping_pids
+	kill -CONT -- ${ping_pids[@]}
 done
