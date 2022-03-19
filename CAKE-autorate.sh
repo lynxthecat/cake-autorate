@@ -72,7 +72,7 @@ get_next_shaper_rate()
 			if (($t_next_rate > ($t_last_decay+(10**3)*$decay_refractory_period) )); then
 		
 	                	cur_rate_decayed_down=$(( ($cur_rate*$rate_adjust_load_low)/1000 ))
-        	        	cur_rate_decayed_up=$(( ($cur_rate*$rate_adjust_load_low)/1000 ))
+        	        	cur_rate_decayed_up=$(( ((2000-$rate_adjust_load_low)*$cur_rate)/1000 ))
 
                 		# gently decrease to steady state rate
 	                	if (($cur_rate_decayed_down > $cur_base_rate)); then
