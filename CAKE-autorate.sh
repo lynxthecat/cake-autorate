@@ -235,7 +235,10 @@ do
 	while read -r timestamp reflector seq rtt_baseline rtt rtt_delta
 	do 
 		t_start=${EPOCHREALTIME/./}
-		((($t_start - "${timestamp//[[\[\].]}")>500000)) && echo "WARNING: encountered response from [" $reflector "] that is > 500ms old. Skipping." && continue
+		if ((($t_start - "${timestamp//[[\[\].]}")>500000)); then
+			(($debug)) && echo "WARNING: encountered response from [" $reflector "] that is > 500ms old. Skipping." 
+			continue
+		fi
 
 		unset 'delays[0]'
 	
