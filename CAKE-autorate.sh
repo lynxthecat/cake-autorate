@@ -221,8 +221,8 @@ do
 	sleep_remaining_tick_time $t_start $t_end $(( (10**3)*$(printf %.0f\\n "${reflector_ping_interval}e3")/ $no_reflectors ))
 done
 
-# Allow time for the ping_pids to get written out
-sleep 0.5
+# Allow sufficient time for the ping_pids to get written out
+sleep 1
 
 for reflector in "${reflectors[@]}"
 do
