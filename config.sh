@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# defaults.sh sets up defaults for CAKE-autorate
+# config.sh sets up defaults for CAKE-autorate
 
 # config.sh is a part of CAKE-autorate
 # CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and RTT
