@@ -14,14 +14,13 @@ The **CAKE-autorate.sh** script periodically measures the load and Round-Trip-Ti
 
 ## Theory of Operation
 
-The `CAKE-autorate.sh` script runs regularly and adjusts the bandwidth settings of the CAKE SQM algorithm to reflect the current conditions on the bottleneck link.
-(The script adjusts the upload and download settings independently each time it runs.) The script is typically configured to run once per second and make the following adjustments:
+`CAKE-autorate.sh` monitors load (rx and tx) and ping respones from one or more reflectors, and adjusts the download and upload bandwidth for CAKE.
 
-- When traffic is low, the bandwidth setting decays
-toward a minimum configured value
-- When traffic is high, the bandwidth setting is incrementally increased
-until an RTT spike is detected or until the setting reaches the maximum configured value
-- Upon detecting an RTT spike, the bandwidth setting is decreased
+![image of CAKE-autorat rate control](./CAKE-autorate-rate-control.png)
+
+- with low load, decay rate back to base (and subject to refractory period)
+- with high load, increase rate subject to max
+- on bufferbloat, decrease rate subject to min (and subject to refractory period)
 
 **Setting the minimum value:** 
 Set the minimum value at, or slightly below, the lowest speed observed from the ISP during your testing. This setting will, in general, never result in
