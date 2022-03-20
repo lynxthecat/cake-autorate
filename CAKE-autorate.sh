@@ -152,9 +152,10 @@ rate_adjust_bufferbloat=$(printf %.0f\\n "${rate_adjust_bufferbloat}e3")
 rate_adjust_load_high=$(printf %.0f\\n "${rate_adjust_load_high}e3")
 rate_adjust_load_low=$(printf %.0f\\n "${rate_adjust_load_low}e3")
 high_load_thr=$(printf %.0f\\n "${high_load_thr}e2")
-reflector_ping_interval_us=$(( (10**3)*$(printf %.0f\\n "${reflector_ping_interval}e3") ))
-bufferbloat_refractory_period=$(((10**3)*$bufferbloat_refractory_period))
-decay_refractory_period=$(((10**3)*$decay_refractory_period))
+reflector_ping_interval_us=$(( 1000*$(printf %.0f\\n "${reflector_ping_interval}e3") ))
+bufferbloat_refractory_period=$(( 1000*$bufferbloat_refractory_period ))
+decay_refractory_period=$(( 1000*$decay_refractory_period ))
+delay_thr=$(( 1000*$delay_thr ))
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
@@ -182,6 +183,7 @@ t_sustained_base_rate=0
 ping_sleep=0
 
 delays=( $(printf ' 0%.0s' $(seq $bufferbloat_detection_window)) )
+sum_delays=0
 
 [ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
 
@@ -206,14 +208,10 @@ do
 	t_start=${EPOCHREALTIME/./}
 	$cur_base_rate
 	monitor_reflector_path $reflector ${rtt_baseline[$reflector]}&
-	monitor_pids+=($!)
 	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
 	sleep_remaining_tick_time $t_start $t_end $(( $reflector_ping_interval_us / $no_reflectors ))
 done
-
-# Allow sufficient time for the ping_pids to get written out
-sleep 1
 
 for reflector in "${reflectors[@]}"
 do
@@ -231,16 +229,13 @@ do
 			continue
 		fi
 
+		(( ${delays[0]} )) && ((sum_delays--))
 		unset 'delays[0]'
+		delay=0
+		(($rtt_delta > $delay_thr)) && delay=1 && ((sum_delays++))
+		delays+=($delay)
+	       	delays=(${delays[*]})
 	
-		if (($rtt_delta > (1000*$delay_thr))); then 
-			delays+=(1)
-		else 
-			delays+=(0)
-		fi	
-
-		delays=(${delays[*]})
-
 		update_loads
 
 		dl_load_condition="low_load"
@@ -249,14 +244,12 @@ do
 		ul_load_condition="low_load"
 		(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
 	
-		sum_delays=$(IFS=+; echo "$((${delays[*]}))")
-
-		(($sum_delays>$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
+		(($sum_delays>=$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
 
 		get_next_shaper_rate $rx_load $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
 		get_next_shaper_rate $tx_load $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
 
-		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_load $tx_load $cur_dl_rate $cur_ul_rate $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $dl_load_condition $ul_load_condition
+		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_load $tx_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $cur_dl_rate $cur_ul_rate
 
        		# fire up tc if there are rates to change
 		if (( $cur_dl_rate != $last_dl_rate)); then
