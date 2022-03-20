@@ -182,7 +182,7 @@ t_dl_last_decay=$t_prev_bytes
 t_sustained_base_rate=0
 ping_sleep=0
 
-delays=( $(printf ' 0%.0s' $(seq $bufferbloat_detection_window)) )
+declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
 delays_idx=0
 sum_delays=0
 
