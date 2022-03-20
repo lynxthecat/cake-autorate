@@ -183,6 +183,7 @@ t_sustained_base_rate=0
 ping_sleep=0
 
 delays=( $(printf ' 0%.0s' $(seq $bufferbloat_detection_window)) )
+delays_idx=0
 sum_delays=0
 
 [ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
@@ -229,12 +230,11 @@ do
 			continue
 		fi
 
-		(( ${delays[0]} )) && ((sum_delays--))
-		unset 'delays[0]'
+		(( ${delays[$delays_idx]} )) && ((sum_delays--))
 		delay=0
 		(($rtt_delta > $delay_thr)) && delay=1 && ((sum_delays++))
-		delays+=($delay)
-	       	delays=(${delays[*]})
+		delays[$delays_idx]=$delay
+		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
 		update_loads
 
