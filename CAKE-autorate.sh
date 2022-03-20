@@ -17,7 +17,8 @@ cleanup_and_killall()
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
 	kill -CONT -- ${ping_pids[@]}
-	trap - INT && trap - TERM && trap - EXIT && kill $sleep_pid && kill -- ${ping_pids[@]} && kill -- ${monitor_pids[@]}
+	trap - INT && trap - TERM && trap - EXIT && 
+	kill $sleep_pid && kill -- ${ping_pids[@]} 
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
@@ -31,17 +32,15 @@ install_dir="/root/CAKE-autorate/"
 
 get_next_shaper_rate() 
 {
-
-    	local cur_rate=$1
-	local load=$2
-	local cur_min_rate=$3
-	local cur_base_rate=$4
-	local cur_max_rate=$5
-	local load_condition=$6
-	local t_next_rate=$7
-	local -n t_last_bufferbloat=$8
-	local -n t_last_decay=$9
-    	local -n next_rate=${10}
+	local load=$1
+	local cur_min_rate=$2
+	local cur_base_rate=$3
+	local cur_max_rate=$4
+	local load_condition=$5
+	local t_next_rate=$6
+	local -n t_last_bufferbloat=$7
+	local -n t_last_decay=$8
+    	local -n cur_rate=$9
 
 	local cur_rate_decayed_down
  	local cur_rate_decayed_up
@@ -50,55 +49,39 @@ get_next_shaper_rate()
 
  		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
 		bufferbloat)
-			if (( $t_next_rate > ($t_last_bufferbloat+(10**3)*$bufferbloat_refractory_period) )); then
-        			next_rate=$(( ($rx_load*$cur_rate*$rate_adjust_bufferbloat)/100000 ))
+			(( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )) && 
+				cur_rate=$(( ($load*$cur_rate*$rate_adjust_bufferbloat)/100000 )) && 
 				t_last_bufferbloat=${EPOCHREALTIME/./}
-			else
-				next_rate=$cur_rate
-			fi
 			;;
            	# ... otherwise determine whether to increase or decrease the rate in dependence on load
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high_load)	
-			if (( $t_next_rate > ($t_last_bufferbloat+(10**3)*$bufferbloat_refractory_period) )); then
-                		next_rate=$(( ($cur_rate*$rate_adjust_load_high)/1000 ))
-			
-			else
-				next_rate=$cur_rate
-			fi
+			(( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )) && 
+				cur_rate=$(( ($cur_rate*$rate_adjust_load_high)/1000 ))
 			;;
 		# low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		low_load)
-			if (($t_next_rate > ($t_last_decay+(10**3)*$decay_refractory_period) )); then
+			if (($t_next_rate > ($t_last_decay+$decay_refractory_period) )); then
 		
 	                	cur_rate_decayed_down=$(( ($cur_rate*$rate_adjust_load_low)/1000 ))
         	        	cur_rate_decayed_up=$(( ((2000-$rate_adjust_load_low)*$cur_rate)/1000 ))
 
-                		# gently decrease to steady state rate
-	                	if (($cur_rate_decayed_down > $cur_base_rate)); then
-        	                	next_rate=$cur_rate_decayed_down
-                		# gently increase to steady state rate
-	                	elif (($cur_rate_decayed_up < $cur_base_rate)); then
-        	                	next_rate=$cur_rate_decayed_up
+				# Default to base rate
+				cur_rate=$cur_base_rate
+
+                		# If base rate not reached, gently decrease to steady state rate
+	                	(($cur_rate_decayed_down > $cur_base_rate)) && next_rate=$cur_rate_decayed_down
+                		# If base rate not reached, gently increase to steady state rate
+	                	(($cur_rate_decayed_up < $cur_base_rate)) && next_rate=$cur_rate_decayed_up
                 		# steady state has been reached
-	               		else
-					next_rate=$cur_base_rate
-				fi
 				t_last_decay=${EPOCHREALTIME/./}
-			else
-				next_rate=$cur_rate
 			fi
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
-        if (($next_rate < $cur_min_rate)); then
-            next_rate=$cur_min_rate;
-        fi
+        (($cur_rate < $cur_min_rate)) && cur_rate=$cur_min_rate;
 
-        if (($next_rate > $cur_max_rate)); then
-            next_rate=$cur_max_rate;
-        fi
-
+        (($cur_rate > $cur_max_rate)) && cur_rate=$cur_max_rate;
 }
 
 # update download and upload rates for CAKE
@@ -114,17 +97,13 @@ update_loads()
         t_prev_bytes=$t_cur_bytes
         prev_rx_bytes=$cur_rx_bytes
         prev_tx_bytes=$cur_tx_bytes
-
 }
 
 # ping reflector, maintain baseline and output deltas to a common fifo
 monitor_reflector_path() 
 {
 	local reflector=$1
-
-	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]];
-
-	rtt_baseline=$(printf %.0f\\n "${BASH_REMATCH[1]}e3")
+	local rtt_baseline=$2
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
@@ -160,9 +139,7 @@ sleep_remaining_tick_time()
 
 	sleep_duration=$(( $tick_duration - $t_end + $t_start))
         # echo $(($sleep_duration/(10**6)))
-        if (($sleep_duration > 0 )); then
-                sleep $sleep_duration"e-6"
-        fi
+        (($sleep_duration > 0 )) && sleep $sleep_duration"e-6"
 }
 
 
@@ -175,6 +152,9 @@ rate_adjust_bufferbloat=$(printf %.0f\\n "${rate_adjust_bufferbloat}e3")
 rate_adjust_load_high=$(printf %.0f\\n "${rate_adjust_load_high}e3")
 rate_adjust_load_low=$(printf %.0f\\n "${rate_adjust_load_low}e3")
 high_load_thr=$(printf %.0f\\n "${high_load_thr}e2")
+reflector_ping_interval_us=$(( (10**3)*$(printf %.0f\\n "${reflector_ping_interval}e3") ))
+bufferbloat_refractory_period=$(((10**3)*$bufferbloat_refractory_period))
+decay_refractory_period=$(((10**3)*$decay_refractory_period))
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
@@ -211,14 +191,25 @@ sleep inf > /tmp/CAKE-autorate/ping_fifo&
 
 sleep_pid=$!
 
+declare -A rtt_baseline
+
+# Get initial rtt_baselines for each reflector
+for reflector in "${reflectors[@]}"
+do
+	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]];
+	rtt_baseline[$reflector]=$(printf %.0f\\n "${BASH_REMATCH[1]}e3")
+done
+
+# Initiate pingers
 for reflector in "${reflectors[@]}"
 do
 	t_start=${EPOCHREALTIME/./}
-	monitor_reflector_path $reflector&
-	monitor_pids+=($!)	
+	$cur_base_rate
+	monitor_reflector_path $reflector ${rtt_baseline[$reflector]}&
+	monitor_pids+=($!)
 	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
-	sleep_remaining_tick_time $t_start $t_end $(( (10**3)*$(printf %.0f\\n "${reflector_ping_interval}e3")/ $no_reflectors ))
+	sleep_remaining_tick_time $t_start $t_end $(( $reflector_ping_interval_us / $no_reflectors ))
 done
 
 # Allow sufficient time for the ping_pids to get written out
@@ -262,8 +253,8 @@ do
 
 		(($sum_delays>$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
 
-		get_next_shaper_rate $cur_dl_rate $rx_load $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
-		get_next_shaper_rate $cur_ul_rate $tx_load $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
+		get_next_shaper_rate $rx_load $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
+		get_next_shaper_rate $tx_load $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
 
 		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_load $tx_load $cur_dl_rate $cur_ul_rate $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $dl_load_condition $ul_load_condition
 
@@ -316,6 +307,7 @@ do
 		(($rx_load>$high_load_thr || $tx_load>$high_load_thr)) && break 
 		t_end=${EPOCHREALTIME/./}
 		sleep $(($t_end-$t_start))"e-6"
+		sleep_remaining_tick_time $t_start $t_end $reflector_ping_interval_us
 	done
 
 	# Continue ping processes
