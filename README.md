@@ -107,4 +107,4 @@ WARNING: Disabling output by setting **output_processing_stats** to '0' when not
 
 ## A Request to Testers
 
-If you use this script I have just one ask. Please post your experience on this [OpenWrt Forum thread.](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/312). Your feedback will help improve the script for the benefit of others.  
+If you use this script I have just one ask. Please post your experience on this [OpenWrt Forum thread](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/312). Your feedback will help improve the script for the benefit of others.  
