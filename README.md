@@ -102,7 +102,8 @@ and start/enable it:
 
    ```bash
    cd /etc/init.d
-   wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/cake-autorate 
+   wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/cake-autorate
+   chmod +x cake-autorate
    service CAKE-autorate enable
    service CAKE-autorate start
    ```
