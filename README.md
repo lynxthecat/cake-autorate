@@ -59,6 +59,7 @@ and make it executable:
    opkg update; opkg install bash iputils-ping coreutils-sleep
    cd /root
    mkdir CAKE-autorate
+   cd CAKE-autorate
    wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/CAKE-autorate.sh
    wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/config.sh
    chmod +x ./CAKE-autorate.sh
