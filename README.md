@@ -4,7 +4,7 @@
 
 CAKE is an algorithm that manages the buffering of data being sent/received by an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
-## CAKE forces users of variable bandwidth connections to make a horrible compromise
+## CAKE on variable connections forces an unpalatable compromise
 
 The CAKE algorithm always uses fixed upload and download bandwidth settings to manage its queues. Variable bandwidth connections present a challenge because the actual bandwidth at any given moment is not known. 
 
