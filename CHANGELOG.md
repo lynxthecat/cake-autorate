@@ -9,6 +9,7 @@ This is the history of changes.
 ## 2022-03-21
 
 - Huge reworking of CAKE-autorate. Now individual processes ping a reflector, maintain a baseline, and write out result lines to a common FIFO that is read in by a main loop and processed. Several optimisations have been effected to reduce CPU load. Sleep functionality has been added to put the pinging processes to sleep when the connection is not being used and to wake back up when the connection is used again - this saves unecessary CPU cycles and issuing pings throughout the 'wee' hours of the night.
+- This script seems to be working very well on the author's LTE conneciton. The author personally uses it as a service 24/7 now. 
 
 ## 2022-02-18
 
