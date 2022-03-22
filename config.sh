@@ -8,20 +8,21 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
+# *** OUTPUT OPTIONS ***
+
 output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
 output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
 debug=0			  # enable (1) or disable (0) out of debug lines
 
+# *** STANDARD CONFIGURATION OPTIONS ***
+
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
-
-# *** STANDARD CONFIGURATION OPTIONS ***
 
 reflector_ping_interval=0.1 # (seconds)
 
 # list of reflectors to use
 reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
-no_reflectors=${#reflectors[@]}
 
 delay_thr=25 # extent of RTT increase to classify as a delay
 
