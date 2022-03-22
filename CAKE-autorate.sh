@@ -32,7 +32,7 @@ install_dir="/root/CAKE-autorate/"
 
 get_next_shaper_rate() 
 {
-	local load=$1
+	local rate=$1
 	local cur_min_rate=$2
 	local cur_base_rate=$3
 	local cur_max_rate=$4
@@ -50,7 +50,7 @@ get_next_shaper_rate()
  		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
 		bufferbloat)
 			(( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )) && 
-				cur_rate=$(( ($load*$cur_rate*$rate_adjust_bufferbloat)/100000 )) && 
+				cur_rate=$(( ($rate*$rate_adjust_bufferbloat)/1000 )) && 
 				t_last_bufferbloat=${EPOCHREALTIME/./}
 			;;
            	# ... otherwise determine whether to increase or decrease the rate in dependence on load
@@ -91,8 +91,11 @@ update_loads()
         read -r cur_tx_bytes < "$tx_bytes_path"
         t_cur_bytes=${EPOCHREALTIME/./}
 
-        rx_load=$(( ( (8*10**5*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_dl_rate  ))
-        tx_load=$(( ( (8*10**5*($cur_tx_bytes - $prev_tx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) / $cur_ul_rate  ))
+        rx_rate=$(( ((8*1000*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) ))
+        tx_rate=$(( ((8*1000*($cur_tx_bytes - $prev_tx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) ))
+
+	rx_load=$(((100*$rx_rate)/$cur_dl_rate))
+	tx_load=$(((100*$tx_rate)/$cur_ul_rate))
 
         t_prev_bytes=$t_cur_bytes
         prev_rx_bytes=$cur_rx_bytes
@@ -107,7 +110,6 @@ monitor_reflector_path()
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
-		
 		[[ $seq_rtt =~ time=+([0-9.]*)[[:space:]]+ms+ ]]; rtt=${BASH_REMATCH[1]}
 		
 		# If output line of ping does not contain any RTT then skip onto the next one
@@ -121,11 +123,10 @@ monitor_reflector_path()
 
 		rtt_delta=$(( $rtt-$rtt_baseline ))
 
-		if (( $rtt_delta >= 0 )); then
-			rtt_baseline=$(( ( (1000-$alpha_baseline_increase)*$rtt_baseline+$alpha_baseline_increase*$rtt )/1000 ))
-		else
-			rtt_baseline=$(( ( (1000-$alpha_baseline_decrease)*$rtt_baseline+$alpha_baseline_decrease*$rtt )/1000 ))
-		fi
+		alpha=$alpha_baseline_decrease
+		(( $rtt_delta >=0 )) && alpha=$alpha_baseline_increase
+
+		rtt_baseline=$(( ( (1000-$alpha)*$rtt_baseline+$alpha*$rtt )/1000 ))
 
 		echo $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta > /tmp/CAKE-autorate/ping_fifo
 	done< <(ping -D -i $reflector_ping_interval $reflector & echo $! >/tmp/CAKE-autorate/${reflector}_ping_pid)
@@ -156,6 +157,8 @@ reflector_ping_interval_us=$(( 1000*$(printf %.0f\\n "${reflector_ping_interval}
 bufferbloat_refractory_period=$(( 1000*$bufferbloat_refractory_period ))
 decay_refractory_period=$(( 1000*$decay_refractory_period ))
 delay_thr=$(( 1000*$delay_thr ))
+
+no_reflectors=${#reflectors[@]} 
 
 cur_ul_rate=$base_ul_rate
 cur_dl_rate=$base_dl_rate
@@ -246,10 +249,10 @@ do
 	
 		(($sum_delays>=$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
 
-		get_next_shaper_rate $rx_load $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
-		get_next_shaper_rate $tx_load $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
+		get_next_shaper_rate $rx_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
+		get_next_shaper_rate $tx_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
 
-		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_load $tx_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $cur_dl_rate $cur_ul_rate
+		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_rate $tx_rate $rx_load $tx_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $cur_dl_rate $cur_ul_rate
 
        		# fire up tc if there are rates to change
 		if (( $cur_dl_rate != $last_dl_rate)); then
