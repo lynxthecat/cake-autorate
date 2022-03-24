@@ -80,7 +80,6 @@ get_next_shaper_rate()
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
         (($cur_rate < $cur_min_rate)) && cur_rate=$cur_min_rate;
-
         (($cur_rate > $cur_max_rate)) && cur_rate=$cur_max_rate;
 }
 
@@ -91,8 +90,10 @@ update_loads()
         read -r cur_tx_bytes < "$tx_bytes_path"
         t_cur_bytes=${EPOCHREALTIME/./}
 
-        rx_rate=$(( ((8*1000*($cur_rx_bytes - $prev_rx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) ))
-        tx_rate=$(( ((8*1000*($cur_tx_bytes - $prev_tx_bytes)) / ($t_cur_bytes - $t_prev_bytes)) ))
+	t_diff_bytes=$(($t_cur_bytes - $t_prev_bytes))
+
+        rx_rate=$(( ((8*1000*($cur_rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
+        tx_rate=$(( ((8*1000*($cur_tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
 
 	rx_load=$(((100*$rx_rate)/$cur_dl_rate))
 	tx_load=$(((100*$tx_rate)/$cur_ul_rate))
@@ -110,16 +111,19 @@ monitor_reflector_path()
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
-		[[ $seq_rtt =~ time=+([0-9.]*)[[:space:]]+ms+ ]]; rtt=${BASH_REMATCH[1]}
-		
+		[[ $seq_rtt =~ icmp_seq=([0-9]*).*time=([0-9]*)[.]*([0-9]*)[[:space:]]ms ]];
+
 		# If output line of ping does not contain any RTT then skip onto the next one
-		[ -z "$rtt" ] && continue
+		[ -z ${BASH_REMATCH[2]} ] && continue
+		
+		rtt=$((1000*${BASH_REMATCH[2]}))
+		
+		# If there is a fractional component then add it on
+		#[ -z ${BASH_REMATCH[3]} ] && ((rtt+=100*${BASH_REMATCH[3]}))
 
-		[[ $seq_rtt =~ icmp_seq=([0-9]*) ]]; seq=${BASH_REMATCH[1]}
-
+		seq=${BASH_REMATCH[1]}
+		
 		reflector=${reflector//:/}
-
-		rtt=$(printf %.0f\\n "${rtt}e3")
 
 		rtt_delta=$(( $rtt-$rtt_baseline ))
 
