@@ -111,17 +111,14 @@ monitor_reflector_path()
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
-		[[ $seq_rtt =~ icmp_seq=([0-9]*).*time=([0-9]*)[.]*([0-9]*)[[:space:]]ms ]];
-
-		# If output line of ping does not contain any RTT then skip onto the next one
-		[ -z ${BASH_REMATCH[2]} ] && continue
-		
-		rtt=$((1000*${BASH_REMATCH[2]}))
-		
-		# If there is a fractional component then add it on
-		#[ -z ${BASH_REMATCH[3]} ] && ((rtt+=100*${BASH_REMATCH[3]}))
+		# If no match then skip onto the next one
+		[[ $seq_rtt =~ icmp_seq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
 		seq=${BASH_REMATCH[1]}
+
+		rtt=${BASH_REMATCH[3]}000
+
+		rtt=$((${BASH_REMATCH[2]}000+${rtt:0:3}))
 		
 		reflector=${reflector//:/}
 
@@ -132,7 +129,8 @@ monitor_reflector_path()
 
 		rtt_baseline=$(( ( (1000-$alpha)*$rtt_baseline+$alpha*$rtt )/1000 ))
 
-		echo $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta > /tmp/CAKE-autorate/ping_fifo
+		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline" "$rtt" "$rtt_delta" > /tmp/CAKE-autorate/ping_fifo
+
 	done< <(ping -D -i $reflector_ping_interval $reflector & echo $! >/tmp/CAKE-autorate/${reflector}_ping_pid)
 }
 
@@ -151,13 +149,13 @@ sleep_remaining_tick_time()
 # Initialize variables
 
 # Convert human readable parameters to values that work with integer arithmetic
-alpha_baseline_increase=$(printf %.0f\\n "${alpha_baseline_increase}e3")
-alpha_baseline_decrease=$(printf %.0f\\n "${alpha_baseline_decrease}e3")   
-rate_adjust_bufferbloat=$(printf %.0f\\n "${rate_adjust_bufferbloat}e3")
-rate_adjust_load_high=$(printf %.0f\\n "${rate_adjust_load_high}e3")
-rate_adjust_load_low=$(printf %.0f\\n "${rate_adjust_load_low}e3")
-high_load_thr=$(printf %.0f\\n "${high_load_thr}e2")
-reflector_ping_interval_us=$(( 1000*$(printf %.0f\\n "${reflector_ping_interval}e3") ))
+printf -v alpha_baseline_increase %.0f\\n "${alpha_baseline_increase}e3"
+printf -v alpha_baseline_decrease %.0f\\n "${alpha_baseline_decrease}e3"   
+printf -v rate_adjust_bufferbloat %.0f\\n "${rate_adjust_bufferbloat}e3"
+printf -v rate_adjust_load_high %.0f\\n "${rate_adjust_load_high}e3"
+printf -v rate_adjust_load_low %.0f\\n "${rate_adjust_load_low}e3"
+printf -v high_load_thr %.0f\\n "${high_load_thr}e2"
+printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval}e6"
 bufferbloat_refractory_period=$(( 1000*$bufferbloat_refractory_period ))
 decay_refractory_period=$(( 1000*$decay_refractory_period ))
 delay_thr=$(( 1000*$delay_thr ))
@@ -207,7 +205,7 @@ declare -A rtt_baseline
 for reflector in "${reflectors[@]}"
 do
 	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]];
-	rtt_baseline[$reflector]=$(printf %.0f\\n "${BASH_REMATCH[1]}e3")
+	printf -v rtt_baseline[$reflector] %.0f\\n "${BASH_REMATCH[1]}e3"
 done
 
 # Initiate pingers
