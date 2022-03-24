@@ -16,9 +16,9 @@ cleanup_and_killall()
 {
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
-	kill -CONT -- ${ping_pids[@]}
-	trap - INT && trap - TERM && trap - EXIT && 
-	kill $sleep_pid && kill -- ${ping_pids[@]} 
+	trap - INT && trap - TERM && trap - EXIT
+	kill -CONT -- ${ping_pids[@]} 2> /dev/null
+	kill -- ${ping_pids[@]} 
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
@@ -92,8 +92,8 @@ update_loads()
 
 	t_diff_bytes=$(($t_cur_bytes - $t_prev_bytes))
 
-        rx_rate=$(( ((8*1000*($cur_rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
-        tx_rate=$(( ((8*1000*($cur_tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
+        rx_rate=$(( ((8000*($cur_rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
+        tx_rate=$(( ((8000*($cur_tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
 
 	rx_load=$(((100*$rx_rate)/$cur_dl_rate))
 	tx_load=$(((100*$tx_rate)/$cur_ul_rate))
@@ -195,9 +195,7 @@ sum_delays=0
 
 mkfifo /tmp/CAKE-autorate/ping_fifo
 
-sleep inf > /tmp/CAKE-autorate/ping_fifo&
-
-sleep_pid=$!
+exec 3<> /tmp/CAKE-autorate/ping_fifo
 
 declare -A rtt_baseline
 
