@@ -252,7 +252,7 @@ do
 		get_next_shaper_rate $rx_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
 		get_next_shaper_rate $tx_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
 
-		(($output_processing_stats)) && echo $EPOCHREALTIME $rx_rate $tx_rate $rx_load $tx_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $cur_dl_rate $cur_ul_rate
+		(($output_processing_stats)) && printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n' $EPOCHREALTIME $rx_rate $tx_rate $rx_load $tx_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $cur_dl_rate $cur_ul_rate
 
        		# fire up tc if there are rates to change
 		if (( $cur_dl_rate != $last_dl_rate)); then
