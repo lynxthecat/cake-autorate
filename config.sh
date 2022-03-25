@@ -49,7 +49,7 @@ rate_adjust_load_low=0.975   # how rapidly to return to base rate upon low load 
 high_load_thr=0.75 # % of currently set bandwidth for detecting high load
 
 bufferbloat_refractory_period=300 # (milliseconds)
-decay_refractory_period=5000 # (milliseconds)
+decay_refractory_period=1000 # (milliseconds)
 
 sustained_base_rate_sleep_thr=60 # time threshold to put pingers to sleep on sustained ul and dl base rate (seconds)
 
