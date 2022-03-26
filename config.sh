@@ -19,7 +19,7 @@ debug=0			  # enable (1) or disable (0) out of debug lines
 ul_if=wan # upload interface
 dl_if=veth-lan # download interface
 
-reflector_ping_interval=0.1 # (seconds)
+reflector_ping_interval=0.2 # (seconds)
 
 # list of reflectors to use
 reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
@@ -42,9 +42,9 @@ bufferbloat_detection_thr=2    # number of delayed samples for bufferbloat detec
 alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
 
-rate_adjust_bufferbloat=0.85 # how rapidly to reduce bandwidth upon detection of bufferbloat 
+rate_adjust_bufferbloat=0.9  # how rapidly to reduce bandwidth upon detection of bufferbloat 
 rate_adjust_load_high=1.01   # how rapidly to increase bandwidth upon high load detected 
-rate_adjust_load_low=0.975   # how rapidly to return to base rate upon low load detected 
+rate_adjust_load_low=0.98    # how rapidly to return to base rate upon low load detected 
 
 high_load_thr=0.75 # % of currently set bandwidth for detecting high load
 
