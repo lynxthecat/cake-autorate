@@ -70,9 +70,9 @@ get_next_shaper_rate()
 				cur_rate=$cur_base_rate
 
                 		# If base rate not reached, gently decrease to steady state rate
-	                	(($cur_rate_decayed_down > $cur_base_rate)) && next_rate=$cur_rate_decayed_down
+	                	(($cur_rate_decayed_down > $cur_base_rate)) && cur_rate=$cur_rate_decayed_down
                 		# If base rate not reached, gently increase to steady state rate
-	                	(($cur_rate_decayed_up < $cur_base_rate)) && next_rate=$cur_rate_decayed_up
+	                	(($cur_rate_decayed_up < $cur_base_rate)) && cur_rate=$cur_rate_decayed_up
                 		# steady state has been reached
 				t_last_decay=${EPOCHREALTIME/./}
 			fi
