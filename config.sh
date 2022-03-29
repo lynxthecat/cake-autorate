@@ -26,13 +26,13 @@ reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
 delay_thr=25 # extent of RTT increase to classify as a delay
 
-min_dl_rate=20000 # minimum bandwidth for download
-base_dl_rate=25000 # steady state bandwidth for download
-max_dl_rate=80000 # maximum bandwidth for download
+min_dl_shaper_rate=10000 # minimum bandwidth for download
+base_dl_shaper_rate=25000 # steady state bandwidth for download
+max_dl_shaper_rate=80000 # maximum bandwidth for download
 
-min_ul_rate=25000 # minimum bandwidth for upload
-base_ul_rate=30000 # steady state bandwidth for upload
-max_ul_rate=35000 # maximum bandwidth for upload
+min_ul_shaper_rate=25000 # minimum bandwidth for upload
+base_ul_shaper_rate=30000 # steady state bandwidth for upload
+max_ul_shaper_rate=35000 # maximum bandwidth for upload
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
@@ -42,9 +42,10 @@ bufferbloat_detection_thr=2    # number of delayed samples for bufferbloat detec
 alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
 
-rate_adjust_bufferbloat=0.9  # how rapidly to reduce bandwidth upon detection of bufferbloat 
-rate_adjust_load_high=1.01   # how rapidly to increase bandwidth upon high load detected 
-rate_adjust_load_low=0.98    # how rapidly to return to base rate upon low load detected 
+achieved_rate_adjust_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
+shaper_rate_adjust_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
+shaper_rate_adjust_load_high=1.01    # how rapidly to increase shaper rate upon high load detected 
+shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon low load detected 
 
 high_load_thr=0.75 # % of currently set bandwidth for detecting high load
 
