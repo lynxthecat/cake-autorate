@@ -32,58 +32,58 @@ install_dir="/root/CAKE-autorate/"
 
 get_next_shaper_rate() 
 {
-	local rate=$1
-	local cur_min_rate=$2
-	local cur_base_rate=$3
-	local cur_max_rate=$4
+	local min_shaper_rate=$1
+	local base_shaper_rate=$2
+	local max_shaper_rate=$3
+	local achieved_rate=$4
 	local load_condition=$5
 	local t_next_rate=$6
 	local -n t_last_bufferbloat=$7
 	local -n t_last_decay=$8
-    	local -n cur_rate=$9
+    	local -n shaper_rate=$9
 
-	local cur_rate_decayed_down
- 	local cur_rate_decayed_up
+	local shaper_rate_decayed_down
+ 	local shaper_rate_decayed_up
 
 	case $load_condition in
 
  		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
 		bufferbloat)
-			(( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )) && 
-				cur_rate=$(( ($rate*$rate_adjust_bufferbloat)/1000 )) && 
+			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
+				adjusted_achieved_rate=$(( ($achieved_rate*$achieved_rate_adjust_bufferbloat)/1000 )) 
+				adjusted_shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_bufferbloat)/1000 )) 
+				shaper_rate=$(( $adjusted_achieved_rate < $adjusted_shaper_rate ? $adjusted_achieved_rate : $adjusted_shaper_rate ))
 				t_last_bufferbloat=${EPOCHREALTIME/./}
+			fi
 			;;
            	# ... otherwise determine whether to increase or decrease the rate in dependence on load
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high_load)	
-			(( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )) && 
-				cur_rate=$(( ($cur_rate*$rate_adjust_load_high)/1000 ))
+			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
+				shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_load_high)/1000 ))
+			fi
 			;;
 		# low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		low_load)
 			if (($t_next_rate > ($t_last_decay+$decay_refractory_period) )); then
-		
-	                	cur_rate_decayed_down=$(( ($cur_rate*$rate_adjust_load_low)/1000 ))
-        	        	cur_rate_decayed_up=$(( ((2000-$rate_adjust_load_low)*$cur_rate)/1000 ))
-
-				# Default to base rate
-				cur_rate=$cur_base_rate
-
-                		# If base rate not reached, gently decrease to steady state rate
-	                	(($cur_rate_decayed_down > $cur_base_rate)) && cur_rate=$cur_rate_decayed_down
-                		# If base rate not reached, gently increase to steady state rate
-	                	(($cur_rate_decayed_up < $cur_base_rate)) && cur_rate=$cur_rate_decayed_up
-                		# steady state has been reached
+	                	if (($shaper_rate > $base_shaper_rate)); then
+					decayed_shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_load_low)/1000 ))
+					shaper_rate=$(( $decayed_shaper_rate > $base_shaper_rate ? $decayed_shaper_rate : $base_shaper_rate))
+				elif (($shaper_rate < $base_shaper_rate)); then
+        	        		decayed_shaper_rate=$(( ((2000-$shaper_rate_adjust_load_low)*$shaper_rate)/1000 ))
+					shaper_rate=$(( $decayed_shaper_rate < $base_shaper_rate ? $decayed_shaper_rate : $base_shaper_rate))
+                		fi
+				# steady state has been reached
 				t_last_decay=${EPOCHREALTIME/./}
 			fi
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
-        (($cur_rate < $cur_min_rate)) && cur_rate=$cur_min_rate;
-        (($cur_rate > $cur_max_rate)) && cur_rate=$cur_max_rate;
+        (($shaper_rate < $min_shaper_rate)) && shaper_rate=$min_shaper_rate;
+        (($shaper_rate > $max_shaper_rate)) && shaper_rate=$max_shaper_rate;
 }
 
-# update download and upload rates for CAKE
+# update load data
 update_loads()
 {
         read -r cur_rx_bytes < "$rx_bytes_path"
@@ -92,11 +92,11 @@ update_loads()
 
 	t_diff_bytes=$(($t_cur_bytes - $t_prev_bytes))
 
-        rx_rate=$(( ((8000*($cur_rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
-        tx_rate=$(( ((8000*($cur_tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
+        dl_achieved_rate=$(( ((8000*($cur_rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
+        ul_achieved_rate=$(( ((8000*($cur_tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
 
-	rx_load=$(((100*$rx_rate)/$cur_dl_rate))
-	tx_load=$(((100*$tx_rate)/$cur_ul_rate))
+	dl_load=$(((100*$dl_achieved_rate)/$dl_shaper_rate))
+	ul_load=$(((100*$ul_achieved_rate)/$ul_shaper_rate))
 
         t_prev_bytes=$t_cur_bytes
         prev_rx_bytes=$cur_rx_bytes
@@ -151,9 +151,10 @@ sleep_remaining_tick_time()
 # Convert human readable parameters to values that work with integer arithmetic
 printf -v alpha_baseline_increase %.0f\\n "${alpha_baseline_increase}e3"
 printf -v alpha_baseline_decrease %.0f\\n "${alpha_baseline_decrease}e3"   
-printf -v rate_adjust_bufferbloat %.0f\\n "${rate_adjust_bufferbloat}e3"
-printf -v rate_adjust_load_high %.0f\\n "${rate_adjust_load_high}e3"
-printf -v rate_adjust_load_low %.0f\\n "${rate_adjust_load_low}e3"
+printf -v achieved_rate_adjust_bufferbloat %.0f\\n "${achieved_rate_adjust_bufferbloat}e3"
+printf -v shaper_rate_adjust_bufferbloat %.0f\\n "${shaper_rate_adjust_bufferbloat}e3"
+printf -v shaper_rate_adjust_load_high %.0f\\n "${shaper_rate_adjust_load_high}e3"
+printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
 printf -v high_load_thr %.0f\\n "${high_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval}e6"
 bufferbloat_refractory_period=$(( 1000*$bufferbloat_refractory_period ))
@@ -162,14 +163,14 @@ delay_thr=$(( 1000*$delay_thr ))
 
 no_reflectors=${#reflectors[@]} 
 
-cur_ul_rate=$base_ul_rate
-cur_dl_rate=$base_dl_rate
+ul_shaper_rate=$base_ul_shaper_rate
+dl_shaper_rate=$base_dl_shaper_rate
 
-last_ul_rate=$cur_ul_rate
-last_dl_rate=$cur_dl_rate
+last_ul_shaper_rate=$ul_shaper_rate
+last_dl_shaper_rate=$dl_shaper_rate
 
-tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
-tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
+tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
 
 prev_tx_bytes=$(cat $tx_bytes_path)
 prev_rx_bytes=$(cat $rx_bytes_path)
@@ -210,7 +211,6 @@ done
 for reflector in "${reflectors[@]}"
 do
 	t_start=${EPOCHREALTIME/./}
-	$cur_base_rate
 	monitor_reflector_path $reflector ${rtt_baseline[$reflector]}&
 	t_end=${EPOCHREALTIME/./}
 	# Space out pings by ping interval / number of reflectors
@@ -241,33 +241,30 @@ do
 	
 		update_loads
 
-		dl_load_condition="low_load"
-		(($rx_load > $high_load_thr)) && dl_load_condition="high_load"
-
-		ul_load_condition="low_load"
-		(($tx_load > $high_load_thr)) && ul_load_condition="high_load"
+		(( $dl_load > $high_load_thr )) && dl_load_condition="high_load" || dl_load_condition="low_load"
+		(( $ul_load > $high_load_thr )) && ul_load_condition="high_load" || ul_load_condition="low_load"
 	
 		(($sum_delays>=$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
 
-		get_next_shaper_rate $rx_rate $min_dl_rate $base_dl_rate $max_dl_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay cur_dl_rate
-		get_next_shaper_rate $tx_rate $min_ul_rate $base_ul_rate $max_ul_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay cur_ul_rate
+		get_next_shaper_rate $min_dl_shaper_rate $base_dl_shaper_rate $max_dl_shaper_rate $dl_achieved_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay dl_shaper_rate
+		get_next_shaper_rate $min_ul_shaper_rate $base_ul_shaper_rate $max_ul_shaper_rate $ul_achieved_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay ul_shaper_rate
 
-		(($output_processing_stats)) && printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n' $EPOCHREALTIME $rx_rate $tx_rate $rx_load $tx_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $cur_dl_rate $cur_ul_rate
+		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %s %-6s %-6s %-6s %-6s %s %-12s %-12s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate $ul_achieved_rate $dl_load $ul_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate $ul_shaper_rate
 
        		# fire up tc if there are rates to change
-		if (( $cur_dl_rate != $last_dl_rate)); then
-       			(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit"
-       			tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+		if (( $dl_shaper_rate != $last_dl_shaper_rate)); then
+       			(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit"
+       			tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
 			t_prev_dl_rate_set=${EPOCHREALTIME/./}
 		fi
-       		if (( $cur_ul_rate != $last_ul_rate )); then
-         		(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit"
-       			tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+       		if (( $ul_shaper_rate != $last_ul_shaper_rate )); then
+         		(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit"
+       			tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 			t_prev_ul_rate_set=${EPOCHREALTIME/./}
 		fi
 		
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		if (( $cur_ul_rate == $base_ul_rate && $last_ul_rate == $base_ul_rate && $cur_dl_rate == $base_dl_rate && $last_dl_rate == $base_dl_rate )); then
+		if (( $ul_shaper_rate == $base_ul_shaper_rate && $last_ul_shaper_rate == $base_ul_shaper_rate && $dl_shaper_rate == $base_dl_shaper_rate && $last_dl_shaper_rate == $base_dl_shaper_rate )); then
 			((t_sustained_base_rate+=$((${EPOCHREALTIME/./}-$t_end))))
 			(($t_sustained_base_rate>(10**6*$sustained_base_rate_sleep_thr))) && break
 		else
@@ -276,21 +273,21 @@ do
 		fi
 
 		# remember the last rates
-       		last_dl_rate=$cur_dl_rate
-       		last_ul_rate=$cur_ul_rate
+       		last_dl_shaper_rate=$dl_shaper_rate
+       		last_ul_shaper_rate=$ul_shaper_rate
 
 		t_end=${EPOCHREALTIME/./}
 
 	done</tmp/CAKE-autorate/ping_fifo
 
 	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
-	cur_dl_rate=$min_dl_rate
+	dl_shaper_rate=$min_dl_shaper_rate
         tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
-	cur_ul_rate=$min_ul_rate
+	ul_shaper_rate=$min_ul_shaper_rate
         tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
 	# remember the last rates
-	last_ul_rate=$cur_ul_rate
-	last_dl_rate=$cur_dl_rate
+	last_ul_shaper_rate=$ul_shaper_rate
+	last_dl_shaper_rate=$dl_shaper_rate
 
 	# Pause ping processes
 	kill -STOP -- ${ping_pids[@]}
@@ -300,7 +297,7 @@ do
 	do
 		t_start=${EPOCHREALTIME/./}	
 		update_loads
-		(($rx_load>$high_load_thr || $tx_load>$high_load_thr)) && break 
+		(($dl_load>$high_load_thr || $ul_load>$high_load_thr)) && break 
 		t_end=${EPOCHREALTIME/./}
 		sleep $(($t_end-$t_start))"e-6"
 		sleep_remaining_tick_time $t_start $t_end $reflector_ping_interval_us
