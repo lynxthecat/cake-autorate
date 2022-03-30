@@ -237,7 +237,6 @@ do
 		delays[$delays_idx]=$(( $rtt_delta > $delay_thr ? 1 : 0 ))
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
-		echo ${delays[@]}		
 	
 		update_loads
 
