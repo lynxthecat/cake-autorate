@@ -86,21 +86,21 @@ get_next_shaper_rate()
 # update load data
 update_loads()
 {
-        read -r cur_rx_bytes < "$rx_bytes_path"
-        read -r cur_tx_bytes < "$tx_bytes_path"
-        t_cur_bytes=${EPOCHREALTIME/./}
+        read -r rx_bytes < "$rx_bytes_path"
+        read -r tx_bytes < "$tx_bytes_path"
+        t_bytes=${EPOCHREALTIME/./}
 
-	t_diff_bytes=$(($t_cur_bytes - $t_prev_bytes))
+	t_diff_bytes=$(($t_bytes - $t_prev_bytes))
 
-        dl_achieved_rate=$(( ((8000*($cur_rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
-        ul_achieved_rate=$(( ((8000*($cur_tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
+        dl_achieved_rate=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
+        ul_achieved_rate=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
 
 	dl_load=$(((100*$dl_achieved_rate)/$dl_shaper_rate))
 	ul_load=$(((100*$ul_achieved_rate)/$ul_shaper_rate))
 
-        t_prev_bytes=$t_cur_bytes
-        prev_rx_bytes=$cur_rx_bytes
-        prev_tx_bytes=$cur_tx_bytes
+        t_prev_bytes=$t_bytes
+        prev_rx_bytes=$rx_bytes
+        prev_tx_bytes=$tx_bytes
 }
 
 # ping reflector, maintain baseline and output deltas to a common fifo
@@ -163,17 +163,17 @@ delay_thr=$(( 1000*$delay_thr ))
 
 no_reflectors=${#reflectors[@]} 
 
-ul_shaper_rate=$base_ul_shaper_rate
 dl_shaper_rate=$base_dl_shaper_rate
+ul_shaper_rate=$base_ul_shaper_rate
 
-last_ul_shaper_rate=$ul_shaper_rate
 last_dl_shaper_rate=$dl_shaper_rate
+last_ul_shaper_rate=$ul_shaper_rate
 
-tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
+tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 
-prev_tx_bytes=$(cat $tx_bytes_path)
-prev_rx_bytes=$(cat $rx_bytes_path)
+read -r prev_rx_bytes < "$rx_bytes_path"
+read -r prev_tx_bytes < "$tx_bytes_path"
 t_prev_bytes=${EPOCHREALTIME/./}
 
 t_start=${EPOCHREALTIME/./}
@@ -234,8 +234,7 @@ do
 		fi
 
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
-		delay=0
-		(($rtt_delta > $delay_thr)) && delay=1 && ((sum_delays++))
+		(($rtt_delta > $delay_thr)) && delay=1 && ((sum_delays++)) || delay=0
 		delays[$delays_idx]=$delay
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
@@ -282,9 +281,9 @@ do
 
 	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate=$min_dl_shaper_rate
-        tc qdisc change root dev ${dl_if} cake bandwidth ${cur_dl_rate}Kbit
+        tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
 	ul_shaper_rate=$min_ul_shaper_rate
-        tc qdisc change root dev ${ul_if} cake bandwidth ${cur_ul_rate}Kbit
+        tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 	# remember the last rates
 	last_ul_shaper_rate=$ul_shaper_rate
 	last_dl_shaper_rate=$dl_shaper_rate
