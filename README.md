@@ -57,6 +57,7 @@ There is a detailed and fun discussion with plenty of sketches relating to the d
 - Install SQM (`luci-app-sqm`) and enable CAKE on the interface(s)
 as described in the
 [OpenWrt SQM documentation](https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm)
+- Alternatively, set up your own script to initiate CAKE. If you use WireGuard with PBR, then consider: https://github.com/lynxthecat/cake-wg-pbr
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
 - Run the following commands to place the script at `/root/CAKE-autorate/`
 and make it executable:
