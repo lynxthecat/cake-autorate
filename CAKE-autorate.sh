@@ -18,7 +18,7 @@ cleanup_and_killall()
 	# Resume pingers in case they are sleeping so they can be killed off
 	trap - INT && trap - TERM && trap - EXIT
 	kill -CONT -- ${ping_pids[@]} 2> /dev/null
-	kill -- ${ping_pids[@]} 
+	kill -- ${ping_pids[@]} 2> /dev/null
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
@@ -86,8 +86,11 @@ get_next_shaper_rate()
 # update load data
 update_loads()
 {
-        read -r rx_bytes < "$rx_bytes_path"
-        read -r tx_bytes < "$tx_bytes_path"
+	# If rx/tx bytes file exists, read it in, otherwise set to previous reading
+	# This addresses interfaces going down and back up
+        [ -f "$rx_bytes_path" ] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
+        [ -f "$tx_bytes_path" ] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
+
         t_bytes=${EPOCHREALTIME/./}
 
 	t_diff_bytes=$(($t_bytes - $t_prev_bytes))
@@ -163,6 +166,10 @@ delay_thr=$(( 1000*$delay_thr ))
 
 no_reflectors=${#reflectors[@]} 
 
+[ -f "$rx_bytes_path" ] && read -r prev_rx_bytes < "$rx_bytes_path" || { echo "Error: "$rx_bytes_path "does not exist. Exiting script." && exit; }
+[ -f "$tx_bytes_path" ] && read -r prev_tx_bytes < "$tx_bytes_path" || { echo "Error: "$tx_bytes_path "does not exist. Exiting script." && exit; }
+t_prev_bytes=${EPOCHREALTIME/./}
+
 dl_shaper_rate=$base_dl_shaper_rate
 ul_shaper_rate=$base_ul_shaper_rate
 
@@ -171,10 +178,6 @@ last_ul_shaper_rate=$ul_shaper_rate
 
 tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
 tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
-
-read -r prev_rx_bytes < "$rx_bytes_path"
-read -r prev_tx_bytes < "$tx_bytes_path"
-t_prev_bytes=${EPOCHREALTIME/./}
 
 t_start=${EPOCHREALTIME/./}
 t_end=${EPOCHREALTIME/./}
