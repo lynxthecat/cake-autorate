@@ -16,8 +16,8 @@ debug=0			  # enable (1) or disable (0) out of debug lines
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
-ul_if=wan # upload interface
-dl_if=veth-lan # download interface
+ul_if=wan        # upload interface
+dl_if=ifb-wg-pbr # download interface
 
 reflector_ping_interval=0.2 # (seconds)
 
