@@ -26,13 +26,13 @@ reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
 delay_thr=25 # extent of RTT increase to classify as a delay
 
-min_dl_shaper_rate=10000 # minimum bandwidth for download
-base_dl_shaper_rate=25000 # steady state bandwidth for download
-max_dl_shaper_rate=80000 # maximum bandwidth for download
+min_dl_shaper_rate=10000  # minimum bandwidth for download (Kbit/s)
+base_dl_shaper_rate=25000 # steady state bandwidth for download (Kbit/s)
+max_dl_shaper_rate=80000  # maximum bandwidth for download (Kbit/s)
 
-min_ul_shaper_rate=25000 # minimum bandwidth for upload
-base_ul_shaper_rate=30000 # steady state bandwidth for upload
-max_ul_shaper_rate=35000 # maximum bandwidth for upload
+min_ul_shaper_rate=25000  # minimum bandwidth for upload (Kbit/s)
+base_ul_shaper_rate=30000 # steady state bandwidth for upload (KBit/s)
+max_ul_shaper_rate=35000  # maximum bandwidth for upload (Kbit/s)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
@@ -47,12 +47,14 @@ shaper_rate_adjust_bufferbloat=0.9   # how rapidly to reduce shaper rate upon de
 shaper_rate_adjust_load_high=1.01    # how rapidly to increase shaper rate upon high load detected 
 shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon low load detected 
 
-high_load_thr=0.75 # % of currently set bandwidth for detecting high load
+medium_load_thr=0.25 # % of currently set bandwidth for detecting medium load
+high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
 bufferbloat_refractory_period=300 # (milliseconds)
 decay_refractory_period=1000 # (milliseconds)
 
-sustained_base_rate_sleep_thr=60 # time threshold to put pingers to sleep on sustained ul and dl base rate (seconds)
+connection_active_thr=5000  # threshold in Kbit/s below which dl/ul is considered idle
+sustained_idle_sleep_thr=60 # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
