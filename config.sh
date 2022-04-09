@@ -19,12 +19,12 @@ debug=0			  # enable (1) or disable (0) out of debug lines
 ul_if=wan        # upload interface
 dl_if=ifb-wg-pbr # download interface
 
-reflector_ping_interval=0.2 # (seconds)
+reflector_ping_interval=0.2 # (seconds, e.g. 0.2s or 2s)
 
 # list of reflectors to use
 reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
-delay_thr=25 # extent of RTT increase to classify as a delay
+delay_thr=50 # extent of RTT increase to classify as a delay
 
 min_dl_shaper_rate=10000  # minimum bandwidth for download (Kbit/s)
 base_dl_shaper_rate=25000 # steady state bandwidth for download (Kbit/s)
@@ -36,8 +36,8 @@ max_ul_shaper_rate=35000  # maximum bandwidth for upload (Kbit/s)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
-bufferbloat_detection_window=4 # number of delay samples to retain in detection window
-bufferbloat_detection_thr=2    # number of delayed samples for bufferbloat detection
+bufferbloat_detection_window=10 # number of delay samples to retain in detection window
+bufferbloat_detection_thr=5     # number of delayed samples for bufferbloat detection
 
 alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
@@ -53,7 +53,7 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 bufferbloat_refractory_period=300 # (milliseconds)
 decay_refractory_period=1000 # (milliseconds)
 
-connection_active_thr=5000  # threshold in Kbit/s below which dl/ul is considered idle
+connection_active_thr=100    # threshold in Kbit/s below which dl/ul is considered idle
 sustained_idle_sleep_thr=60 # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 # verify these are correct using 'cat /sys/class/...'
