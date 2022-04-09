@@ -47,7 +47,7 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
- 		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
+		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
 		bufferbloat)
 			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
 				adjusted_achieved_rate=$(( ($achieved_rate*$achieved_rate_adjust_bufferbloat)/1000 )) 
@@ -56,7 +56,7 @@ get_next_shaper_rate()
 				t_last_bufferbloat=${EPOCHREALTIME/./}
 			fi
 			;;
-           	# ... otherwise determine whether to increase or decrease the rate in dependence on load
+		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high_load)	
 			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
@@ -64,7 +64,7 @@ get_next_shaper_rate()
 			fi
 			;;
 		# low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-		low_load)
+		low_load|idle_load)
 			if (($t_next_rate > ($t_last_decay+$decay_refractory_period) )); then
 	                	if (($shaper_rate > $base_shaper_rate)); then
 					decayed_shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_load_low)/1000 ))
@@ -159,7 +159,9 @@ printf -v shaper_rate_adjust_bufferbloat %.0f\\n "${shaper_rate_adjust_bufferblo
 printf -v shaper_rate_adjust_load_high %.0f\\n "${shaper_rate_adjust_load_high}e3"
 printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
 printf -v high_load_thr %.0f\\n "${high_load_thr}e2"
+printf -v medium_load_thr %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval}e6"
+printf -v sustained_idle_sleep_thr %.0f\\n "${sustained_idle_sleep_thr}e6"
 bufferbloat_refractory_period=$(( 1000*$bufferbloat_refractory_period ))
 decay_refractory_period=$(( 1000*$decay_refractory_period ))
 delay_thr=$(( 1000*$delay_thr ))
@@ -188,7 +190,7 @@ t_ul_last_decay=$t_prev_bytes
 t_dl_last_bufferbloat=$t_prev_bytes
 t_dl_last_decay=$t_prev_bytes 
 
-t_sustained_base_rate=0
+t_sustained_connection_idle=0
 ping_sleep=0
 
 declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
@@ -243,15 +245,15 @@ do
 	
 		update_loads
 
-		(( $dl_load > $high_load_thr )) && dl_load_condition="high_load" || dl_load_condition="low_load"
-		(( $ul_load > $high_load_thr )) && ul_load_condition="high_load" || ul_load_condition="low_load"
+		(( $dl_load > $high_load_thr )) && dl_load_condition="high_load"  || { (( $dl_load > $medium_load_thr )) && dl_load_condition="medium_load"; } || { (( $dl_load > $connection_active_thr )) && dl_load_condition="low_load"; } || dl_load_condition="idle_load"
+		(( $ul_load > $high_load_thr )) && ul_load_condition="high_load"  || { (( $ul_load > $medium_load_thr )) && ul_load_condition="medium_load"; } || { (( $ul_load > $connection_active_thr )) && ul_load_condition="low_load"; } || ul_load_condition="idle_load"
 	
-		(($sum_delays>=$bufferbloat_detection_thr)) && ul_load_condition="bufferbloat" && dl_load_condition="bufferbloat"
+		(($sum_delays>=$bufferbloat_detection_thr)) && dl_load_condition="bufferbloat" && ul_load_condition="bufferbloat"
 
 		get_next_shaper_rate $min_dl_shaper_rate $base_dl_shaper_rate $max_dl_shaper_rate $dl_achieved_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay dl_shaper_rate
 		get_next_shaper_rate $min_ul_shaper_rate $base_ul_shaper_rate $max_ul_shaper_rate $ul_achieved_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay ul_shaper_rate
 
-		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %s %-6s %-6s %-6s %-6s %s %-12s %-12s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate $ul_achieved_rate $dl_load $ul_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate $ul_shaper_rate
+		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate $ul_achieved_rate $dl_load $ul_load $timestamp $reflector $seq $rtt_baseline $rtt $rtt_delta $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate $ul_shaper_rate
 
        		# fire up tc if there are rates to change
 		if (( $dl_shaper_rate != $last_dl_shaper_rate)); then
@@ -266,12 +268,12 @@ do
 		fi
 		
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		if (( $ul_shaper_rate == $base_ul_shaper_rate && $last_ul_shaper_rate == $base_ul_shaper_rate && $dl_shaper_rate == $base_dl_shaper_rate && $last_dl_shaper_rate == $base_dl_shaper_rate )); then
-			((t_sustained_base_rate+=$((${EPOCHREALTIME/./}-$t_end))))
-			(($t_sustained_base_rate>(10**6*$sustained_base_rate_sleep_thr))) && break
+		if [[ "$dl_load_condition" == "idle_load" && "$ul_load_condition" == "idle_load" ]]; then
+			((t_sustained_connection_idle+=$((${EPOCHREALTIME/./}-$t_end))))
+			(($t_sustained_connection_idle>$sustained_idle_sleep_thr)) && break
 		else
 			# reset timer
-			t_sustained_base_rate=0
+			t_sustained_connection_idle=0
 		fi
 
 		# remember the last rates
@@ -283,9 +285,9 @@ do
 	done</tmp/CAKE-autorate/ping_fifo
 
 	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
-	dl_shaper_rate=$min_dl_shaper_rate
+	dl_shaper_rate=$base_dl_shaper_rate
         tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
-	ul_shaper_rate=$min_ul_shaper_rate
+	ul_shaper_rate=$base_ul_shaper_rate
         tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 	# remember the last rates
 	last_ul_shaper_rate=$ul_shaper_rate
@@ -294,12 +296,15 @@ do
 	# Pause ping processes
 	kill -STOP -- ${ping_pids[@]}
 
+	# reset idle timer
+	t_sustained_connection_idle=0
+
 	# wait until load increases again
 	while true
 	do
 		t_start=${EPOCHREALTIME/./}	
 		update_loads
-		(($dl_load>$high_load_thr || $ul_load>$high_load_thr)) && break 
+		(($dl_load>$medium_load_thr || $ul_load>$medium_load_thr)) && break 
 		t_end=${EPOCHREALTIME/./}
 		sleep $(($t_end-$t_start))"e-6"
 		sleep_remaining_tick_time $t_start $t_end $reflector_ping_interval_us
