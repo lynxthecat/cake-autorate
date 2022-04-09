@@ -47,8 +47,8 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
-		# in case of supra-threshold OWD spikes decrease the rate providing not inside bufferbloat refractory period
-		bufferbloat)
+		# in case of supra-threshold RTT spikes and not idle decrease the rate providing not inside bufferbloat refractory period
+		high_delayed|medium_delayed|low_delayed)
 			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
 				adjusted_achieved_rate=$(( ($achieved_rate*$achieved_rate_adjust_bufferbloat)/1000 )) 
 				adjusted_shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_bufferbloat)/1000 )) 
@@ -58,13 +58,13 @@ get_next_shaper_rate()
 			;;
 		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
-		high_load)	
+		high)	
 			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
 				shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_load_high)/1000 ))
 			fi
 			;;
 		# low load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-		low_load|idle_load)
+		low|idle)
 			if (($t_next_rate > ($t_last_decay+$decay_refractory_period) )); then
 	                	if (($shaper_rate > $base_shaper_rate)); then
 					decayed_shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_load_low)/1000 ))
@@ -244,11 +244,11 @@ do
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
 		update_loads
-
-		(( $dl_load > $high_load_thr )) && dl_load_condition="high_load"  || { (( $dl_load > $medium_load_thr )) && dl_load_condition="medium_load"; } || { (( $dl_load > $connection_active_thr )) && dl_load_condition="low_load"; } || dl_load_condition="idle_load"
-		(( $ul_load > $high_load_thr )) && ul_load_condition="high_load"  || { (( $ul_load > $medium_load_thr )) && ul_load_condition="medium_load"; } || { (( $ul_load > $connection_active_thr )) && ul_load_condition="low_load"; } || ul_load_condition="idle_load"
+		
+		(( $dl_load > $high_load_thr )) && dl_load_condition="high"  || { (( $dl_load > $medium_load_thr )) && dl_load_condition="medium"; } || { (( $dl_achieved_rate > $connection_active_thr )) && dl_load_condition="low"; } || dl_load_condition="idle"
+		(( $ul_load > $high_load_thr )) && ul_load_condition="high"  || { (( $ul_load > $medium_load_thr )) && ul_load_condition="medium"; } || { (( $ul_achieved_rate > $connection_active_thr )) && ul_load_condition="low"; } || ul_load_condition="idle"
 	
-		(($sum_delays>=$bufferbloat_detection_thr)) && dl_load_condition="bufferbloat" && ul_load_condition="bufferbloat"
+		(($sum_delays>=$bufferbloat_detection_thr)) && dl_load_condition=$dl_load_condition"_delayed" && ul_load_condition=$ul_load_condition"_delayed"
 
 		get_next_shaper_rate $min_dl_shaper_rate $base_dl_shaper_rate $max_dl_shaper_rate $dl_achieved_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay dl_shaper_rate
 		get_next_shaper_rate $min_ul_shaper_rate $base_ul_shaper_rate $max_ul_shaper_rate $ul_achieved_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay ul_shaper_rate
