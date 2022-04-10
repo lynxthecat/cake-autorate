@@ -136,9 +136,8 @@ monitor_reflector_path()
 		seq=${BASH_REMATCH[1]}
 
 		rtt=${BASH_REMATCH[3]}000
+		rtt=$((${BASH_REMATCH[2]}000+10#${rtt:0:3}))
 
-		rtt=$((${BASH_REMATCH[2]}000+${rtt:0:3}))
-		
 		reflector=${reflector//:/}
 
 		rtt_delta=$(( $rtt-$rtt_baseline ))
