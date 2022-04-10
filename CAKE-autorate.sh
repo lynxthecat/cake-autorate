@@ -297,7 +297,7 @@ do
 		fi
 		
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		if [[ "$dl_load_condition" == "idle"* && "$ul_load_condition" == "idle"* ]]; then
+		(($enable_sleep_function)) && if [[ "$dl_load_condition" == "idle"* && "$ul_load_condition" == "idle"* ]]; then
 			((t_sustained_connection_idle+=$((${EPOCHREALTIME/./}-$t_end))))
 			(($t_sustained_connection_idle>$sustained_idle_sleep_thr)) && break
 		else
