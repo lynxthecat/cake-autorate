@@ -34,6 +34,12 @@ min_ul_shaper_rate=25000  # minimum bandwidth for upload (Kbit/s)
 base_ul_shaper_rate=30000 # steady state bandwidth for upload (KBit/s)
 max_ul_shaper_rate=35000  # maximum bandwidth for upload (Kbit/s)
 
+# sleep functionality saves unecessary pings and CPU cycles by
+# pausing all active pingers when connection is not in active use
+enable_sleep_function=1 # enable (1) or disable (0) sleep functonality 
+connection_active_thr=500   # threshold in Kbit/s below which dl/ul is considered idle
+sustained_idle_sleep_thr=60 # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
+
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
 monitor_achieved_rates_interval=100 # (milliseconds) 
@@ -54,9 +60,6 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
 bufferbloat_refractory_period=300 # (milliseconds)
 decay_refractory_period=1000 # (milliseconds)
-
-connection_active_thr=500   # threshold in Kbit/s below which dl/ul is considered idle
-sustained_idle_sleep_thr=60 # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
