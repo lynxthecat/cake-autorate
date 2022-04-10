@@ -17,6 +17,7 @@ cleanup_and_killall()
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
 	trap - INT && trap - TERM && trap - EXIT
+	kill $monitor_achieved_rates_pid
 	kill -CONT -- ${ping_pids[@]} 2> /dev/null
 	kill -- ${ping_pids[@]} 2> /dev/null
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
@@ -47,8 +48,8 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
-		# in case of supra-threshold RTT spikes and not idle decrease the rate providing not inside bufferbloat refractory period
-		high_delayed|medium_delayed|low_delayed)
+		# in case of supra-threshold RTT spikes decrease the rate providing not inside bufferbloat refractory period
+		*delayed)
 			if (( $t_next_rate > ($t_last_bufferbloat+$bufferbloat_refractory_period) )); then
 				adjusted_achieved_rate=$(( ($achieved_rate*$achieved_rate_adjust_bufferbloat)/1000 )) 
 				adjusted_shaper_rate=$(( ($shaper_rate*$shaper_rate_adjust_bufferbloat)/1000 )) 
@@ -83,27 +84,42 @@ get_next_shaper_rate()
         (($shaper_rate > $max_shaper_rate)) && shaper_rate=$max_shaper_rate;
 }
 
-# update load data
-update_loads()
+# track rx and tx bytes transferred and divide by time since last update
+# to determine achieved dl and ul transfer rates
+monitor_achieved_rates()
 {
-	# If rx/tx bytes file exists, read it in, otherwise set to previous reading
-	# This addresses interfaces going down and back up
-        [ -f "$rx_bytes_path" ] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
-        [ -f "$tx_bytes_path" ] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
+	local rx_bytes_path=$1
+	local tx_bytes_path=$2
+	local monitor_achieved_rates_interval=$3 # (microseconds)
 
-        t_bytes=${EPOCHREALTIME/./}
+	read -r prev_rx_bytes < "$rx_bytes_path" 
+	read -r prev_tx_bytes < "$tx_bytes_path" 
+	t_prev_bytes=${EPOCHREALTIME/./}
 
-	t_diff_bytes=$(($t_bytes - $t_prev_bytes))
+	while true
+	do
+        	t_start=${EPOCHREALTIME/./}
 
-        dl_achieved_rate=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $t_diff_bytes ) ))
-        ul_achieved_rate=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $t_diff_bytes ) ))
+		# If rx/tx bytes file exists, read it in, otherwise set to previous reading
+		# This addresses interfaces going down and back up
+       		[ -f "$rx_bytes_path" ] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
+       		[ -f "$tx_bytes_path" ] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
 
-	dl_load=$(((100*$dl_achieved_rate)/$dl_shaper_rate))
-	ul_load=$(((100*$ul_achieved_rate)/$ul_shaper_rate))
+        	dl_achieved_rate=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $monitor_achieved_rates_interval ) ))
+       		ul_achieved_rate=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $monitor_achieved_rates_interval ) ))
+	
+		{
+			flock -x 200
+			printf '%s %s' "$dl_achieved_rate" "$ul_achieved_rate" > /tmp/CAKE-autorate/achieved_rates
+		} 200> /tmp/CAKE-autorate/achieved_rates_lock
+       		t_prev_bytes=$t_bytes
+       		prev_rx_bytes=$rx_bytes
+       		prev_tx_bytes=$tx_bytes
 
-        t_prev_bytes=$t_bytes
-        prev_rx_bytes=$rx_bytes
-        prev_tx_bytes=$tx_bytes
+		t_end=${EPOCHREALTIME/./}
+
+		sleep_remaining_tick_time $t_start $t_end $monitor_achieved_rates_interval		
+	done
 }
 
 # ping reflector, maintain baseline and output deltas to a common fifo
@@ -148,6 +164,10 @@ sleep_remaining_tick_time()
         (($sleep_duration > 0 )) && sleep $sleep_duration"e-6"
 }
 
+# Sanity check the rx/tx paths
+	
+[ ! -f "$rx_bytes_path" ] && echo "Error: "$rx_bytes_path "does not exist. Exiting script." && exit
+[ ! -f "$tx_bytes_path" ] && echo "Error: "$tx_bytes_path "does not exist. Exiting script." && exit
 
 # Initialize variables
 
@@ -161,16 +181,13 @@ printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
 printf -v high_load_thr %.0f\\n "${high_load_thr}e2"
 printf -v medium_load_thr %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval}e6"
+printf -v monitor_achieved_rates_interval %.0f\\n "${monitor_achieved_rates_interval}e3"
 printf -v sustained_idle_sleep_thr %.0f\\n "${sustained_idle_sleep_thr}e6"
 bufferbloat_refractory_period=$(( 1000*$bufferbloat_refractory_period ))
 decay_refractory_period=$(( 1000*$decay_refractory_period ))
 delay_thr=$(( 1000*$delay_thr ))
 
 no_reflectors=${#reflectors[@]} 
-
-[ -f "$rx_bytes_path" ] && read -r prev_rx_bytes < "$rx_bytes_path" || { echo "Error: "$rx_bytes_path "does not exist. Exiting script." && exit; }
-[ -f "$tx_bytes_path" ] && read -r prev_tx_bytes < "$tx_bytes_path" || { echo "Error: "$tx_bytes_path "does not exist. Exiting script." && exit; }
-t_prev_bytes=${EPOCHREALTIME/./}
 
 dl_shaper_rate=$base_dl_shaper_rate
 ul_shaper_rate=$base_ul_shaper_rate
@@ -228,6 +245,12 @@ do
 	ping_pids+=($ping_pid)
 done
 
+# Initiate achived rate monitor
+monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval&
+monitor_achieved_rates_pid=$!
+
+sleep 1
+
 while true
 do
 	while read -r timestamp reflector seq rtt_baseline rtt rtt_delta
@@ -243,7 +266,13 @@ do
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
-		update_loads
+		# read in the dl/ul achived rates and determines the load
+		{
+			flock -x 200
+			read -r dl_achieved_rate ul_achieved_rate < "/tmp/CAKE-autorate/achieved_rates"
+		} 200>/tmp/CAKE-autorate/achieved_rates_lock
+		dl_load=$(((100*$dl_achieved_rate)/$dl_shaper_rate))
+		ul_load=$(((100*$ul_achieved_rate)/$ul_shaper_rate))
 		
 		(( $dl_load > $high_load_thr )) && dl_load_condition="high"  || { (( $dl_load > $medium_load_thr )) && dl_load_condition="medium"; } || { (( $dl_achieved_rate > $connection_active_thr )) && dl_load_condition="low"; } || dl_load_condition="idle"
 		(( $ul_load > $high_load_thr )) && ul_load_condition="high"  || { (( $ul_load > $medium_load_thr )) && ul_load_condition="medium"; } || { (( $ul_achieved_rate > $connection_active_thr )) && ul_load_condition="low"; } || ul_load_condition="idle"
@@ -268,7 +297,7 @@ do
 		fi
 		
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		if [[ "$dl_load_condition" == "idle_load" && "$ul_load_condition" == "idle_load" ]]; then
+		if [[ "$dl_load_condition" == "idle"* && "$ul_load_condition" == "idle"* ]]; then
 			((t_sustained_connection_idle+=$((${EPOCHREALTIME/./}-$t_end))))
 			(($t_sustained_connection_idle>$sustained_idle_sleep_thr)) && break
 		else
@@ -285,9 +314,9 @@ do
 	done</tmp/CAKE-autorate/ping_fifo
 
 	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
-	dl_shaper_rate=$base_dl_shaper_rate
+	dl_shaper_rate=$min_dl_shaper_rate
         tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
-	ul_shaper_rate=$base_ul_shaper_rate
+	ul_shaper_rate=$min_ul_shaper_rate
         tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 	# remember the last rates
 	last_ul_shaper_rate=$ul_shaper_rate
@@ -303,7 +332,12 @@ do
 	while true
 	do
 		t_start=${EPOCHREALTIME/./}	
-		update_loads
+		{
+			flock -x 200
+			read -r dl_achieved_rate ul_achieved_rate < /tmp/CAKE-autorate/achieved_rates
+		} 200>/tmp/CAKE-autorate/achieved_rates_lock
+		dl_load=$(((100*$dl_achieved_rate)/$dl_shaper_rate))
+		ul_load=$(((100*$ul_achieved_rate)/$ul_shaper_rate))
 		(($dl_load>$medium_load_thr || $ul_load>$medium_load_thr)) && break 
 		t_end=${EPOCHREALTIME/./}
 		sleep $(($t_end-$t_start))"e-6"
