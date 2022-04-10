@@ -16,7 +16,7 @@ cleanup_and_killall()
 {
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
-	trap - INT && trap - TERM && trap - EXIT
+	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid
 	kill -CONT -- ${ping_pids[@]} 2> /dev/null
 	kill -- ${ping_pids[@]} 2> /dev/null
@@ -112,6 +112,7 @@ monitor_achieved_rates()
 			flock -x 200
 			printf '%s %s' "$dl_achieved_rate" "$ul_achieved_rate" > /tmp/CAKE-autorate/achieved_rates
 		} 200> /tmp/CAKE-autorate/achieved_rates_lock
+
        		t_prev_bytes=$t_bytes
        		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
@@ -165,8 +166,8 @@ sleep_remaining_tick_time()
 
 # Sanity check the rx/tx paths	
 { [ ! -f "$rx_bytes_path" ] || [ ! -f "$tx_bytes_path" ]; } && sleep 10 # Give time for ifb's to come up
-[ ! -f "$rx_bytes_path" ] && echo "Error: "$rx_bytes_path "does not exist. Exiting script." && exit
-[ ! -f "$tx_bytes_path" ] && echo "Error: "$tx_bytes_path "does not exist. Exiting script." && exit
+[ ! -f "$rx_bytes_path" ] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
+[ ! -f "$tx_bytes_path" ] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
 # Initialize variables
 
@@ -194,7 +195,9 @@ ul_shaper_rate=$base_ul_shaper_rate
 last_dl_shaper_rate=$dl_shaper_rate
 last_ul_shaper_rate=$ul_shaper_rate
 
+(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit"
 tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
+(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit"
 tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 
 t_start=${EPOCHREALTIME/./}
@@ -276,7 +279,7 @@ do
 		(( $dl_load > $high_load_thr )) && dl_load_condition="high"  || { (( $dl_load > $medium_load_thr )) && dl_load_condition="medium"; } || { (( $dl_achieved_rate > $connection_active_thr )) && dl_load_condition="low"; } || dl_load_condition="idle"
 		(( $ul_load > $high_load_thr )) && ul_load_condition="high"  || { (( $ul_load > $medium_load_thr )) && ul_load_condition="medium"; } || { (( $ul_achieved_rate > $connection_active_thr )) && ul_load_condition="low"; } || ul_load_condition="idle"
 	
-		(($sum_delays>=$bufferbloat_detection_thr)) && dl_load_condition=$dl_load_condition"_delayed" && ul_load_condition=$ul_load_condition"_delayed"
+		(($sum_delays>=$bufferbloat_detection_thr)) && { dl_load_condition=$dl_load_condition"_delayed"; ul_load_condition=$ul_load_condition"_delayed"; }
 
 		get_next_shaper_rate $min_dl_shaper_rate $base_dl_shaper_rate $max_dl_shaper_rate $dl_achieved_rate $dl_load_condition $t_start t_dl_last_bufferbloat t_dl_last_decay dl_shaper_rate
 		get_next_shaper_rate $min_ul_shaper_rate $base_ul_shaper_rate $max_ul_shaper_rate $ul_achieved_rate $ul_load_condition $t_start t_ul_last_bufferbloat t_ul_last_decay ul_shaper_rate
@@ -314,8 +317,10 @@ do
 
 	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate=$min_dl_shaper_rate
+       	(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit"
         tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate}Kbit
 	ul_shaper_rate=$min_ul_shaper_rate
+       	(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit"
         tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate}Kbit
 	# remember the last rates
 	last_ul_shaper_rate=$ul_shaper_rate
