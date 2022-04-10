@@ -164,8 +164,8 @@ sleep_remaining_tick_time()
         (($sleep_duration > 0 )) && sleep $sleep_duration"e-6"
 }
 
-# Sanity check the rx/tx paths
-	
+# Sanity check the rx/tx paths	
+{ [ ! -f "$rx_bytes_path" ] || [ ! -f "$tx_bytes_path" ]; } && sleep 10 # Give time for ifb's to come up
 [ ! -f "$rx_bytes_path" ] && echo "Error: "$rx_bytes_path "does not exist. Exiting script." && exit
 [ ! -f "$tx_bytes_path" ] && echo "Error: "$tx_bytes_path "does not exist. Exiting script." && exit
 
