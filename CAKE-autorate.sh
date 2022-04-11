@@ -223,8 +223,7 @@ declare -A rtt_baseline
 # Get initial rtt_baselines for each reflector
 for reflector in "${reflectors[@]}"
 do
-	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]];
-	printf -v rtt_baseline[$reflector] %.0f\\n "${BASH_REMATCH[1]}e3"
+	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baseline[$reflector] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baseline[$reflector]=0
 done
 
 # Initiate pingers
