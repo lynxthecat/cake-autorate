@@ -300,7 +300,7 @@ do
 			(($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)) && break
 		else
 			# reset timer
-			t_sustained_connection_idle=0
+			t_sustained_connection_idle_us=0
 		fi
 
 		# remember the last rates
@@ -326,7 +326,7 @@ do
 	kill -STOP -- ${ping_pids[@]}
 
 	# reset idle timer
-	t_sustained_connection_idle=0
+	t_sustained_connection_idle_us=0
 
 	# wait until load increases again
 	while true
