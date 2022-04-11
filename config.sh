@@ -19,30 +19,30 @@ debug=0			  # enable (1) or disable (0) out of debug lines
 ul_if=wan        # upload interface
 dl_if=ifb-wg-pbr # download interface
 
-reflector_ping_interval=0.2 # (seconds, e.g. 0.2s or 2s)
+reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
 # list of reflectors to use
 reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
-delay_thr=25 # extent of RTT increase to classify as a delay
+delay_thr_ms=25 # extent of RTT increase to classify as a delay
 
-min_dl_shaper_rate=10000  # minimum bandwidth for download (Kbit/s)
-base_dl_shaper_rate=25000 # steady state bandwidth for download (Kbit/s)
-max_dl_shaper_rate=80000  # maximum bandwidth for download (Kbit/s)
+min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
+base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
+max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
 
-min_ul_shaper_rate=25000  # minimum bandwidth for upload (Kbit/s)
-base_ul_shaper_rate=30000 # steady state bandwidth for upload (KBit/s)
-max_ul_shaper_rate=35000  # maximum bandwidth for upload (Kbit/s)
+min_ul_shaper_rate_kbps=25000  # minimum bandwidth for upload (Kbit/s)
+base_ul_shaper_rate_kbps=30000 # steady state bandwidth for upload (KBit/s)
+max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 
 # sleep functionality saves unecessary pings and CPU cycles by
 # pausing all active pingers when connection is not in active use
 enable_sleep_function=1 # enable (1) or disable (0) sleep functonality 
-connection_active_thr=500   # threshold in Kbit/s below which dl/ul is considered idle
-sustained_idle_sleep_thr=60 # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
+connection_active_thr_kbps=500 # threshold in Kbit/s below which dl/ul is considered idle
+sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
-monitor_achieved_rates_interval=100 # (milliseconds) 
+monitor_achieved_rates_interval_ms=100 # (milliseconds) 
 
 bufferbloat_detection_window=4  # number of delay samples to retain in detection window
 bufferbloat_detection_thr=2     # number of delayed samples for bufferbloat detection
@@ -58,8 +58,8 @@ shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate
 medium_load_thr=0.25 # % of currently set bandwidth for detecting medium load
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
-bufferbloat_refractory_period=300 # (milliseconds)
-decay_refractory_period=1000 # (milliseconds)
+bufferbloat_refractory_period_ms=300 # (milliseconds)
+decay_refractory_period_ms=1000 # (milliseconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
