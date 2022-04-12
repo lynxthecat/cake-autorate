@@ -2,7 +2,7 @@
 
 **CAKE-autorate** is a script that automatically adapts [CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/) bandwidth settings by measuring traffic load and RTT times. This is designed for variable bandwidth connections such as LTE, **and is not intended for use on connections that have a stable, fixed bandwidth**.
 
-CAKE is an algorithm that manages the buffering of data being sent/received by an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
+CAKE is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
 ## The Problem: CAKE on Variable Connections forces an Unpalatable Compromise
 
@@ -74,7 +74,7 @@ and make it executable:
 
 - Edit the `config.sh` script using vi or nano to set the configuration paremters (see comments inside `config.sh` for details). 
 
-  - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
+  - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
   - Set minimum bandwidth variables (`min_dl_rate` and `min_ul_rate` in the script) as described above.
   - Set baseline bandwidth variables (`base_dl_rate` and `base_ul_rate` in the script) as described above.
   - Set maximum bandwidth (`max_dl_rate` and `max_ul_rate`) as described above.
