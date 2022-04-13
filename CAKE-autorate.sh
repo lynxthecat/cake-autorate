@@ -161,6 +161,32 @@ sleep_remaining_tick_time()
         (($sleep_duration_us > 0 )) && sleep $sleep_duration_us"e-6"
 }
 
+set_cake_rate()
+{
+	local interface=$1
+	local shaper_rate_kbps=$2
+	local -n time_rate_set_us=$3
+	
+	(($output_cake_changes)) && echo "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
+	tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 
+	time_rate_set_us=${EPOCHREALTIME/./}
+
+	# Compensate for delays imposed by active traffic shaper
+	# This will serve to increase the delay thr at rates below around 12Mbit/s
+	effective_delay_thr_us=$(( $delay_thr_us + (1000*$dl_MTU_plus_overhead_bits)/$dl_shaper_rate_kbps + (1000*$ul_MTU_plus_overhead_bits)/$ul_shaper_rate_kbps ))
+}
+
+get_max_on_the_wire_packet_size_bits()
+{
+	local interface=$1
+	local -n MTU_plus_overhead_bits=$2
+ 
+	read -r MTU_plus_overhead_bits < "/sys/class/net/${interface}/mtu" 
+	[[ $(tc qdisc show dev $interface) =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
+	[[ ! -z "${BASH_REMATCH[2]}" ]] && MTU_plus_overhead_bits=$((8*($MTU_plus_overhead_bits+${BASH_REMATCH[2]}))) 
+	[[ "${BASH_REMATCH[1]}" == "atm" ]] && MTU_plus_overhead_bits=$(( 424*(($MTU_plus_overhead_bits+376)/384) ))
+}
+
 # Sanity check the rx/tx paths	
 { [ ! -f "$rx_bytes_path" ] || [ ! -f "$tx_bytes_path" ]; } && sleep 10 # Give time for ifb's to come up
 [ ! -f "$rx_bytes_path" ] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
@@ -192,10 +218,11 @@ ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
 last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
 last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
 
-(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate_kbps}Kbit"
-tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate_kbps}Kbit
-(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate_kbps}Kbit"
-tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate_kbps}Kbit
+get_max_on_the_wire_packet_size_bits $dl_if dl_MTU_plus_overhead_bits  
+get_max_on_the_wire_packet_size_bits $ul_if ul_MTU_plus_overhead_bits
+
+set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
+set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
 
 t_start_us=${EPOCHREALTIME/./}
 t_end_us=${EPOCHREALTIME/./}
@@ -259,7 +286,7 @@ do
 		fi
 
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
-		delays[$delays_idx]=$(( $rtt_delta_us > $delay_thr_us ? 1 : 0 ))
+		delays[$delays_idx]=$(( $rtt_delta_us > $effective_delay_thr_us ? 1 : 0 ))
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
@@ -283,14 +310,10 @@ do
 
        		# fire up tc if there are rates to change
 		if (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps)); then
-       			(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate_kbps}Kbit"
-       			tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate_kbps}Kbit
-			t_prev_dl_rate_set=${EPOCHREALTIME/./}
+			set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
 		fi
        		if (( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )); then
-         		(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate_kbps}Kbit"
-       			tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate_kbps}Kbit
-			t_prev_ul_rate_set=${EPOCHREALTIME/./}
+			set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
 		fi
 		
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
@@ -312,11 +335,9 @@ do
 
 	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
-       	(($output_cake_changes)) && echo "tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate_kbps}Kbit"
-        tc qdisc change root dev ${dl_if} cake bandwidth ${dl_shaper_rate_kbps}Kbit
 	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
-       	(($output_cake_changes)) && echo "tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate_kbps}Kbit"
-        tc qdisc change root dev ${ul_if} cake bandwidth ${ul_shaper_rate_kbps}Kbit
+	set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
+	set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
 	# remember the last rates
 	last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
 	last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
