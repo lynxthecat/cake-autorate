@@ -171,9 +171,6 @@ set_cake_rate()
 	tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 
 	time_rate_set_us=${EPOCHREALTIME/./}
 
-	# Compensate for delays imposed by active traffic shaper
-	# This will serve to increase the delay thr at rates below around 12Mbit/s
-	effective_delay_thr_us=$(( $delay_thr_us + (1000*$dl_MTU_plus_overhead_bits)/$dl_shaper_rate_kbps + (1000*$ul_MTU_plus_overhead_bits)/$ul_shaper_rate_kbps ))
 }
 
 get_max_on_the_wire_packet_size_bits()
@@ -284,6 +281,10 @@ do
 			(($debug)) && echo "WARNING: encountered response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
 		fi
+
+		# Compensate for delays imposed by active traffic shaper
+		# This will serve to increase the delay thr at rates below around 12Mbit/s
+		effective_delay_thr_us=$(( $delay_thr_us + (1000*$dl_MTU_plus_overhead_bits)/$dl_shaper_rate_kbps + (1000*$ul_MTU_plus_overhead_bits)/$ul_shaper_rate_kbps ))
 
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
 		delays[$delays_idx]=$(( $rtt_delta_us > $effective_delay_thr_us ? 1 : 0 ))
