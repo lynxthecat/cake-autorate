@@ -18,7 +18,6 @@ cleanup_and_killall()
 	# Resume pingers in case they are sleeping so they can be killed off
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid
-	kill -CONT -- ${ping_pids[@]} 2> /dev/null
 	kill -- ${ping_pids[@]} 2> /dev/null
 	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
 	exit
@@ -87,7 +86,9 @@ monitor_achieved_rates()
 {
 	local rx_bytes_path=$1
 	local tx_bytes_path=$2
-	local monitor_achieved_rates_interval_us=$3 # (microseconds)
+	local base_monitor_achieved_rates_interval_us=$3 # (microseconds)
+
+	compensated_monitor_achieved_rates_interval_us=$base_monitor_achieved_rates_interval_us
 
 	read -r prev_rx_bytes < "$rx_bytes_path" 
 	read -r prev_tx_bytes < "$tx_bytes_path" 
@@ -102,21 +103,28 @@ monitor_achieved_rates()
        		[ -f "$rx_bytes_path" ] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
        		[ -f "$tx_bytes_path" ] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
 
-        	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $monitor_achieved_rates_interval_us ) ))
-       		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $monitor_achieved_rates_interval_us ) ))
+        	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
+       		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
 	
 		{
 			flock -x 200
 			printf '%s %s' "$dl_achieved_rate_kbps" "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/achieved_rates_kbps
-		} 200> /tmp/CAKE-autorate/achieved_rates_kbps_lock
+		} 200>/tmp/CAKE-autorate/achieved_rates_kbps_lock
 
        		t_prev_bytes=$t_bytes
        		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
 
+		# read in the max_wire_packet_rtt_us
+		{
+			flock -s 200
+			read -r max_wire_packet_rtt_us < "/tmp/CAKE-autorate/max_wire_packet_rtt_us"
+		} 200>/tmp/CAKE-autorate/max_wire_packet_rtt_us_lock
+
+		compensated_monitor_achieved_rates_interval_us=$(( (($base_monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $base_monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 		t_end_us=${EPOCHREALTIME/./}
 
-		sleep_remaining_tick_time $t_start_us $t_end_us $monitor_achieved_rates_interval_us		
+		sleep_remaining_tick_time $t_start_us $t_end_us $compensated_monitor_achieved_rates_interval_us		
 	done
 }
 
@@ -124,7 +132,8 @@ monitor_achieved_rates()
 monitor_reflector_path() 
 {
 	local reflector=$1
-	local rtt_baseline_us=$2
+
+	[[ $(ping -q -c 5 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baseline_us %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baseline_us=0
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
@@ -140,14 +149,33 @@ monitor_reflector_path()
 
 		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
 
-		alpha=$alpha_baseline_decrease
-		(( $rtt_delta_us >=0 )) && alpha=$alpha_baseline_increase
+		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
 
 		rtt_baseline_us=$(( ( (1000-$alpha)*$rtt_baseline_us+$alpha*$rtt_us )/1000 ))
 
 		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline_us" "$rtt_us" "$rtt_delta_us" > /tmp/CAKE-autorate/ping_fifo
 
 	done< <(ping -D -i $reflector_ping_interval_s $reflector & echo $! >/tmp/CAKE-autorate/${reflector}_ping_pid)
+}
+
+initiate_pingers()
+{
+	# Initiate pingers
+	for reflector in "${reflectors[@]}"
+	do
+		t_start_us=${EPOCHREALTIME/./}
+		monitor_reflector_path $reflector&
+		t_end_us=${EPOCHREALTIME/./}
+		# Space out pings by ping interval / number of reflectors
+		sleep_remaining_tick_time $t_start_us $t_end_us $ping_response_interval_us 
+	done
+
+	sleep 1
+
+	for reflector in "${reflectors[@]}"
+	do
+		read ping_pids[$reflector] < /tmp/CAKE-autorate/${reflector}_ping_pid
+	done
 }
 
 sleep_remaining_tick_time()
@@ -173,21 +201,38 @@ set_cake_rate()
 
 }
 
-get_max_on_the_wire_packet_size_bits()
+get_max_wire_packet_size_bits()
 {
 	local interface=$1
-	local -n MTU_plus_overhead_bits=$2
+	local -n max_wire_packet_size_bits=$2
  
-	read -r MTU_plus_overhead_bits < "/sys/class/net/${interface}/mtu" 
+	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu" 
 	[[ $(tc qdisc show dev $interface) =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
-	[[ ! -z "${BASH_REMATCH[2]}" ]] && MTU_plus_overhead_bits=$((8*($MTU_plus_overhead_bits+${BASH_REMATCH[2]}))) 
-	[[ "${BASH_REMATCH[1]}" == "atm" ]] && MTU_plus_overhead_bits=$(( 424*(($MTU_plus_overhead_bits+376)/384) ))
+	[[ ! -z "${BASH_REMATCH[2]}" ]] && max_wire_packet_size_bits=$((8*($max_wire_packet_size_bits+${BASH_REMATCH[2]}))) 
+	[[ "${BASH_REMATCH[1]}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*(($max_wire_packet_size_bits+376)/384) ))
+}
+
+update_max_wire_packet_compensation()
+{
+	# Compensate for delays imposed by active traffic shaper
+	# This will serve to increase the delay thr at rates below around 12Mbit/s
+	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
+	compensated_delay_thr_us=$(( $base_delay_thr_us + $max_wire_packet_rtt_us ))
+
+	# write out max_wire_packet_rtt_us
+	{
+		flock -x 200
+		printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
+	} 200>/tmp/CAKE-autorate/max_wire_packet_rtt_us_lock
 }
 
 # Sanity check the rx/tx paths	
 { [ ! -f "$rx_bytes_path" ] || [ ! -f "$tx_bytes_path" ]; } && sleep 10 # Give time for ifb's to come up
 [ ! -f "$rx_bytes_path" ] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
 [ ! -f "$tx_bytes_path" ] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
+
+# Create tmp directory
+[ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
 
 # Initialize variables
 
@@ -201,13 +246,15 @@ printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
 printf -v high_load_thr_percent %.0f\\n "${high_load_thr}e2"
 printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
-printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
+printf -v base_monitor_achieved_rates_interval_us %.0f\\n "${base_monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
-delay_thr_us=$(( 1000*$delay_thr_ms ))
+base_delay_thr_us=$(( 1000*$base_delay_thr_ms ))
 
 no_reflectors=${#reflectors[@]} 
+
+ping_response_interval_us=$(($reflector_ping_interval_us/$no_reflectors))
 
 dl_shaper_rate_kbps=$base_dl_shaper_rate_kbps
 ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
@@ -215,11 +262,13 @@ ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
 last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
 last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
 
-get_max_on_the_wire_packet_size_bits $dl_if dl_MTU_plus_overhead_bits  
-get_max_on_the_wire_packet_size_bits $ul_if ul_MTU_plus_overhead_bits
+get_max_wire_packet_size_bits $dl_if dl_max_wire_packet_size_bits  
+get_max_wire_packet_size_bits $ul_if ul_max_wire_packet_size_bits
 
 set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
 set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
+
+update_max_wire_packet_compensation
 
 t_start_us=${EPOCHREALTIME/./}
 t_end_us=${EPOCHREALTIME/./}
@@ -236,38 +285,16 @@ declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; do
 delays_idx=0
 sum_delays=0
 
-[ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
-
 mkfifo /tmp/CAKE-autorate/ping_fifo
 
 exec 3<> /tmp/CAKE-autorate/ping_fifo
 
-declare -A rtt_baseline
+declare -A ping_pids
 
-# Get initial rtt_baselines for each reflector
-for reflector in "${reflectors[@]}"
-do
-	[[ $(ping -q -c 10 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baseline[$reflector] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baseline[$reflector]=0
-done
-
-# Initiate pingers
-for reflector in "${reflectors[@]}"
-do
-	t_start_us=${EPOCHREALTIME/./}
-	monitor_reflector_path $reflector ${rtt_baseline[$reflector]}&
-	t_end_us=${EPOCHREALTIME/./}
-	# Space out pings by ping interval / number of reflectors
-	sleep_remaining_tick_time $t_start_us $t_end_us $(( $reflector_ping_interval_us / $no_reflectors ))
-done
-
-for reflector in "${reflectors[@]}"
-do
-	read ping_pid < /tmp/CAKE-autorate/${reflector}_ping_pid
-	ping_pids+=($ping_pid)
-done
+initiate_pingers
 
 # Initiate achived rate monitor
-monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
+monitor_achieved_rates $rx_bytes_path $tx_bytes_path $base_monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 
 sleep 1
@@ -278,22 +305,18 @@ do
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if ((($t_start_us - "${timestamp//[[\[\].]}")>500000)); then
-			(($debug)) && echo "WARNING: encountered response from [" $reflector "] that is > 500ms old. Skipping." 
+			(($debug)) && echo "WARNING: processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
 		fi
 
-		# Compensate for delays imposed by active traffic shaper
-		# This will serve to increase the delay thr at rates below around 12Mbit/s
-		effective_delay_thr_us=$(( $delay_thr_us + (1000*$dl_MTU_plus_overhead_bits)/$dl_shaper_rate_kbps + (1000*$ul_MTU_plus_overhead_bits)/$ul_shaper_rate_kbps ))
-
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
-		delays[$delays_idx]=$(( $rtt_delta_us > $effective_delay_thr_us ? 1 : 0 ))
+		delays[$delays_idx]=$(( $rtt_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
 		# read in the dl/ul achived rates and determines the load
 		{
-			flock -x 200
+			flock -s 200
 			read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < "/tmp/CAKE-autorate/achieved_rates_kbps"
 		} 200>/tmp/CAKE-autorate/achieved_rates_kbps_lock
 		dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
@@ -307,25 +330,24 @@ do
 		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
-		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $effective_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 
-       		# fire up tc if there are rates to change
-		if (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps)); then
-			set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
-		fi
-       		if (( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )); then
-			set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
-		fi
-		
+       		# fire up tc if there are rates to change, and if rates changes then update max wire calcs
+		{
+			(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us ||
+       			(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us;
+		} && update_max_wire_packet_compensation
+
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		(($enable_sleep_function)) && if [[ "$dl_load_condition" == "idle"* && "$ul_load_condition" == "idle"* ]]; then
+		(($enable_sleep_function)) && 
+		if [[ "$dl_load_condition" == "idle"* && "$ul_load_condition" == "idle"* ]]; then
 			((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-$t_end_us))))
 			(($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)) && break
 		else
 			# reset timer
 			t_sustained_connection_idle_us=0
 		fi
-
+		
 		# remember the last rates
        		last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
        		last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
@@ -339,12 +361,15 @@ do
 	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
 	set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
 	set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
+	update_max_wire_packet_compensation
+
 	# remember the last rates
 	last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
 	last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
-
-	# Pause ping processes
-	kill -STOP -- ${ping_pids[@]}
+	
+	# Kill off ping processes
+	kill -- ${ping_pids[@]}
+	ping_pids=()
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -365,6 +390,6 @@ do
 		sleep_remaining_tick_time $t_start_us $t_end_us $reflector_ping_interval_us
 	done
 
-	# Continue ping processes
-	kill -CONT -- ${ping_pids[@]}
+	# Start up ping processes
+	initiate_pingers
 done
