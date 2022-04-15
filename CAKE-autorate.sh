@@ -138,7 +138,7 @@ monitor_reflector_path()
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
 		# If no match then skip onto the next one
-		[[ $seq_rtt =~ icmp_seq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
+		[[ $seq_rtt =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
 		seq=${BASH_REMATCH[1]}
 
