@@ -86,9 +86,9 @@ monitor_achieved_rates()
 {
 	local rx_bytes_path=$1
 	local tx_bytes_path=$2
-	local base_monitor_achieved_rates_interval_us=$3 # (microseconds)
+	local monitor_achieved_rates_interval_us=$3 # (microseconds)
 
-	compensated_monitor_achieved_rates_interval_us=$base_monitor_achieved_rates_interval_us
+	compensated_monitor_achieved_rates_interval_us=$monitor_achieved_rates_interval_us
 
 	read -r prev_rx_bytes < "$rx_bytes_path" 
 	read -r prev_tx_bytes < "$tx_bytes_path" 
@@ -121,7 +121,7 @@ monitor_achieved_rates()
 			read -r max_wire_packet_rtt_us < "/tmp/CAKE-autorate/max_wire_packet_rtt_us"
 		} 200>/tmp/CAKE-autorate/max_wire_packet_rtt_us_lock
 
-		compensated_monitor_achieved_rates_interval_us=$(( (($base_monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $base_monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
+		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 		t_end_us=${EPOCHREALTIME/./}
 
 		sleep_remaining_tick_time $t_start_us $t_end_us $compensated_monitor_achieved_rates_interval_us		
@@ -209,6 +209,7 @@ get_max_wire_packet_size_bits()
 	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu" 
 	[[ $(tc qdisc show dev $interface) =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
 	[[ ! -z "${BASH_REMATCH[2]}" ]] && max_wire_packet_size_bits=$((8*($max_wire_packet_size_bits+${BASH_REMATCH[2]}))) 
+	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
 	[[ "${BASH_REMATCH[1]}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*(($max_wire_packet_size_bits+376)/384) ))
 }
 
@@ -217,7 +218,7 @@ update_max_wire_packet_compensation()
 	# Compensate for delays imposed by active traffic shaper
 	# This will serve to increase the delay thr at rates below around 12Mbit/s
 	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
-	compensated_delay_thr_us=$(( $base_delay_thr_us + $max_wire_packet_rtt_us ))
+	compensated_delay_thr_us=$(( $delay_thr_us + $max_wire_packet_rtt_us ))
 
 	# write out max_wire_packet_rtt_us
 	{
@@ -246,11 +247,11 @@ printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
 printf -v high_load_thr_percent %.0f\\n "${high_load_thr}e2"
 printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
-printf -v base_monitor_achieved_rates_interval_us %.0f\\n "${base_monitor_achieved_rates_interval_ms}e3"
+printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
-base_delay_thr_us=$(( 1000*$base_delay_thr_ms ))
+delay_thr_us=$(( 1000*$delay_thr_ms ))
 
 no_reflectors=${#reflectors[@]} 
 
@@ -294,7 +295,7 @@ declare -A ping_pids
 initiate_pingers
 
 # Initiate achived rate monitor
-monitor_achieved_rates $rx_bytes_path $tx_bytes_path $base_monitor_achieved_rates_interval_us&
+monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 
 sleep 1
