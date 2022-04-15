@@ -24,9 +24,9 @@ reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 # list of reflectors to use
 reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
-# base delay threshold in ms is the extent of RTT increase to classify as a delay
+# delay threshold in ms is the extent of RTT increase to classify as a delay
 # this is automatically adjusted based on maximum on the wire packet size
-base_delay_thr_ms=25 # base extent of RTT increase to classify as a delay
+delay_thr_ms=25 # base extent of RTT increase to classify as a delay
 
 min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
 base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
@@ -44,9 +44,9 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
-# base interval for monitoring achieved rx/tx rates
+# interval for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
-base_monitor_achieved_rates_interval_ms=100 # (milliseconds) 
+monitor_achieved_rates_interval_ms=100 # (milliseconds) 
 
 bufferbloat_detection_window=4  # number of delay samples to retain in detection window
 bufferbloat_detection_thr=2     # number of delayed samples for bufferbloat detection
