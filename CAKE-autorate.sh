@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and OWD/RTT
-# requires packages: bash, iputils-ping and coreutils-sleep
+# requires packages: bash; and iputils-ping
 
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
@@ -169,7 +169,7 @@ initiate_pingers()
 		sleep_remaining_tick_time $t_start_us $t_end_us $ping_response_interval_us 
 	done
 
-	sleep 1
+	read -t 1 < /dev/tty
 
 	for reflector in "${reflectors[@]}"
 	do
@@ -184,8 +184,13 @@ sleep_remaining_tick_time()
 	local tick_duration_us=$3 # (microseconds)
 
 	sleep_duration_us=$(( $tick_duration_us - $t_end_us + $t_start_us))
-        # echo $(($sleep_duration/(10**6)))
-        (($sleep_duration_us > 0 )) && sleep $sleep_duration_us"e-6"
+
+        (($sleep_duration_us > 0 )) && 
+	{
+		sleep_duration_s=000000$sleep_duration_us
+		sleep_duration_s=${sleep_duration_s::-6}.${sleep_duration_s: -6}
+		read -t $sleep_duration_s < /dev/tty
+	}
 }
 
 set_cake_rate()
@@ -224,7 +229,7 @@ update_max_wire_packet_compensation()
 }
 
 # Sanity check the rx/tx paths	
-[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && sleep 10 # Give time for ifb's to come up
+[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t 10 < /dev/tty # Give time for ifb's to come up
 [[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
 [[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
@@ -294,7 +299,7 @@ initiate_pingers
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 
-sleep 1
+read -t 1 < /dev/tty
 
 while true
 do
@@ -385,7 +390,6 @@ do
 		ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
 		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
 		t_end_us=${EPOCHREALTIME/./}
-		sleep $(($t_end_us-$t_start_us))"e-6"
 		sleep_remaining_tick_time $t_start_us $t_end_us $reflector_ping_interval_us
 	done
 
