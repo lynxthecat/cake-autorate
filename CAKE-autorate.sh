@@ -169,7 +169,7 @@ initiate_pingers()
 		sleep_remaining_tick_time $t_start_us $t_end_us $ping_response_interval_us 
 	done
 
-	read -t 1 < /dev/tty
+	read -t 1 < /tmp/CAKE-autorate/sleep_fifo
 
 	for reflector in "${reflectors[@]}"
 	do
@@ -189,7 +189,7 @@ sleep_remaining_tick_time()
 	{
 		sleep_duration_s=000000$sleep_duration_us
 		sleep_duration_s=${sleep_duration_s::-6}.${sleep_duration_s: -6}
-		read -t $sleep_duration_s < /dev/tty
+		read -t $sleep_duration_s < /tmp/CAKE-autorate/sleep_fifo
 	}
 }
 
@@ -229,7 +229,7 @@ update_max_wire_packet_compensation()
 }
 
 # Sanity check the rx/tx paths	
-[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t 10 < /dev/tty # Give time for ifb's to come up
+[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t 10 < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
 [[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
 [[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
@@ -288,8 +288,10 @@ delays_idx=0
 sum_delays=0
 
 mkfifo /tmp/CAKE-autorate/ping_fifo
+mkfifo /tmp/CAKE-autorate/sleep_fifo
 
 exec 3<> /tmp/CAKE-autorate/ping_fifo
+exec 4<> /tmp/CAKE-autorate/sleep_fifo
 
 declare -A ping_pids
 
@@ -299,7 +301,7 @@ initiate_pingers
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 
-read -t 1 < /dev/tty
+read -t 1 < /tmp/CAKE-autorate/sleep_fifo
 
 while true
 do
