@@ -19,7 +19,7 @@ cleanup_and_killall()
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid
 	kill -- ${ping_pids[@]} 2> /dev/null
-	[ -d "/tmp/CAKE-autorate" ] && rm -r "/tmp/CAKE-autorate"
+	[[ -d "/tmp/CAKE-autorate" ]] && rm -r "/tmp/CAKE-autorate"
 	exit
 }
 
@@ -100,28 +100,27 @@ monitor_achieved_rates()
 
 		# If rx/tx bytes file exists, read it in, otherwise set to previous reading
 		# This addresses interfaces going down and back up
-       		[ -f "$rx_bytes_path" ] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
-       		[ -f "$tx_bytes_path" ] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
+       		[[ -f $rx_bytes_path ]] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
+       		[[ -f $tx_bytes_path ]] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
 
         	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
        		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
 	
-		{
-			flock -x 200
-			printf '%s %s' "$dl_achieved_rate_kbps" "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/achieved_rates_kbps
-		} 200>/tmp/CAKE-autorate/achieved_rates_kbps_lock
+		printf '%s %s' "$dl_achieved_rate_kbps" "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/achieved_rates_kbps
 
        		t_prev_bytes=$t_bytes
        		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
-		{
-			flock -s 200
+		read -r max_wire_packet_rtt_us < "/tmp/CAKE-autorate/max_wire_packet_rtt_us"
+		while [[ -z $max_wire_packet_rtt_us ]]
+		do
 			read -r max_wire_packet_rtt_us < "/tmp/CAKE-autorate/max_wire_packet_rtt_us"
-		} 200>/tmp/CAKE-autorate/max_wire_packet_rtt_us_lock
+	 	done
 
 		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
+
 		t_end_us=${EPOCHREALTIME/./}
 
 		sleep_remaining_tick_time $t_start_us $t_end_us $compensated_monitor_achieved_rates_interval_us		
@@ -221,19 +220,16 @@ update_max_wire_packet_compensation()
 	compensated_delay_thr_us=$(( $delay_thr_us + $max_wire_packet_rtt_us ))
 
 	# write out max_wire_packet_rtt_us
-	{
-		flock -x 200
-		printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
-	} 200>/tmp/CAKE-autorate/max_wire_packet_rtt_us_lock
+	printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
 }
 
 # Sanity check the rx/tx paths	
-{ [ ! -f "$rx_bytes_path" ] || [ ! -f "$tx_bytes_path" ]; } && sleep 10 # Give time for ifb's to come up
-[ ! -f "$rx_bytes_path" ] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
-[ ! -f "$tx_bytes_path" ] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
+[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && sleep 10 # Give time for ifb's to come up
+[[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
+[[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
 # Create tmp directory
-[ ! -d "/tmp/CAKE-autorate" ] && mkdir "/tmp/CAKE-autorate"
+[[ ! -d "/tmp/CAKE-autorate" ]] && mkdir "/tmp/CAKE-autorate"
 
 # Initialize variables
 
@@ -316,10 +312,11 @@ do
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
 		# read in the dl/ul achived rates and determines the load
-		{
-			flock -s 200
+		read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < "/tmp/CAKE-autorate/achieved_rates_kbps"
+		while [[ -z $dl_achieved_rate_kbps || -z $ul_achieved_rate_kbps ]]
+		do
 			read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < "/tmp/CAKE-autorate/achieved_rates_kbps"
-		} 200>/tmp/CAKE-autorate/achieved_rates_kbps_lock
+		done
 		dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
 		ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
 		
@@ -341,7 +338,7 @@ do
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 		(($enable_sleep_function)) && 
-		if [[ "$dl_load_condition" == "idle"* && "$ul_load_condition" == "idle"* ]]; then
+		if [[ $dl_load_condition == idle* && $ul_load_condition == idle* ]]; then
 			((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-$t_end_us))))
 			(($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)) && break
 		else
@@ -379,10 +376,11 @@ do
 	while true
 	do
 		t_start_us=${EPOCHREALTIME/./}	
-		{
-			flock -x 200
+		read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < /tmp/CAKE-autorate/achieved_rates_kbps
+		while [[ -z $dl_achieved_rate_kbps || -z $ul_achieved_rate_kbps ]]
+		do
 			read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < /tmp/CAKE-autorate/achieved_rates_kbps
-		} 200>/tmp/CAKE-autorate/achieved_rates_kbps_lock
+		done
 		dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
 		ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
 		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
