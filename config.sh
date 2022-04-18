@@ -67,7 +67,7 @@ decay_refractory_period_ms=1000 # (milliseconds)
 
 global_ping_response_timeout=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
-bytes_path_timeout=10 # timeout for waiting for rx/tx paths to come up, else script exits (seconds)
+interface_init_wait_time=30 # timeout for waiting for rx/tx paths to come up, else script exits (seconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
