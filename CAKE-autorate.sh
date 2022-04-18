@@ -128,6 +128,18 @@ monitor_achieved_rates()
 	done
 }
 
+update_loads()
+{
+	# read in the dl/ul achived rates and determine the loads
+	read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"
+	while [[ -z $dl_achieved_rate_kbps ]]; do read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"; done
+	read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"
+	while [[ -z $ul_achieved_rate_kbps ]]; do read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"; done
+	
+	dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
+	ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
+}
+
 # ping reflector, maintain baseline and output deltas to a common fifo
 monitor_reflector_path() 
 {
@@ -174,6 +186,7 @@ initiate_pingers()
 	do
 		while [[ ! -f /tmp/CAKE-autorate/${reflector}_ping_pid ]]; do read -t 1 < /tmp/CAKE-autorate/sleep_fifo; done
 		read ping_pids[$reflector] < /tmp/CAKE-autorate/${reflector}_ping_pid
+		rm /tmp/CAKE-autorate/${reflector}_ping_pid
 	done
 }
 
@@ -321,20 +334,14 @@ do
 			continue
 		fi
 
+		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
 		delays[$delays_idx]=$(( $rtt_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
-	
-		# read in the dl/ul achived rates and determine the loads
-		read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"
-		while [[ -z $dl_achieved_rate_kbps ]]; do read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"; done
-		read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"
-		while [[ -z $ul_achieved_rate_kbps ]]; do read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"; done
 
-		dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
-		ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
-		
+		update_loads
+	
 		(( $dl_load_percent > $high_load_thr_percent )) && dl_load_condition="high"  || { (( $dl_load_percent > $medium_load_thr_percent )) && dl_load_condition="medium"; } || { (( $dl_achieved_rate_kbps > $connection_active_thr_kbps )) && dl_load_condition="low"; } || dl_load_condition="idle"
 		(( $ul_load_percent > $high_load_thr_percent )) && ul_load_condition="high"  || { (( $ul_load_percent > $medium_load_thr_percent )) && ul_load_condition="medium"; } || { (( $ul_achieved_rate_kbps > $connection_active_thr_kbps )) && ul_load_condition="low"; } || ul_load_condition="idle"
 	
@@ -379,13 +386,7 @@ do
 	while true
 	do
 		t_start_us=${EPOCHREALTIME/./}	
-		read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < /tmp/CAKE-autorate/achieved_rates_kbps
-		while [[ -z $dl_achieved_rate_kbps || -z $ul_achieved_rate_kbps ]]
-		do
-			read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < /tmp/CAKE-autorate/achieved_rates_kbps
-		done
-		dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
-		ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
+		update_loads
 		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
 		t_end_us=${EPOCHREALTIME/./}
 		sleep_remaining_tick_time $t_start_us $t_end_us $reflector_ping_interval_us
