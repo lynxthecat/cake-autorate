@@ -257,7 +257,7 @@ mkfifo /tmp/CAKE-autorate/sleep_fifo
 exec 3<> /tmp/CAKE-autorate/sleep_fifo
 
 # Sanity check the rx/tx paths	
-[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t $bytes_path_timeout < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
+[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t $interface_init_wait_time_s < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
 [[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
 [[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
@@ -369,7 +369,7 @@ do
 
 	done</tmp/CAKE-autorate/ping_fifo
 
-	(( ${PIPESTATUS[0]} == 142 )) && (($debug)) && echo "DEBUG Warning: global ping response timeout. Enforcing minimum shaper rates." || echo "DEBUG Connection idle. Enforcing minimum shaper rates."
+	(($debug)) && {(( ${PIPESTATUS[0]} == 142 )) && echo "DEBUG Warning: global ping response timeout. Enforcing minimum shaper rates." || echo "DEBUG Connection idle. Enforcing minimum shaper rates.";}
 	
 	# in any case, we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
