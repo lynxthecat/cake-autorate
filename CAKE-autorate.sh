@@ -327,7 +327,7 @@ read -t 1 < /tmp/CAKE-autorate/sleep_fifo
 
 while true
 do
-	while read -t $global_ping_response_timeout -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
+	while read -t $global_ping_response_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if ((($t_start_us - "${timestamp//[[\[\].]}")>500000)); then
