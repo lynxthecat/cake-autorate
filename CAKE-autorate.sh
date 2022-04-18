@@ -106,7 +106,8 @@ monitor_achieved_rates()
         	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
        		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
 	
-		printf '%s %s' "$dl_achieved_rate_kbps" "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/achieved_rates_kbps
+		printf '%s' "$dl_achieved_rate_kbps" > /tmp/CAKE-autorate/dl_achieved_rate_kbps
+		printf '%s' "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/ul_achieved_rate_kbps
 
        		t_prev_bytes=$t_bytes
        		prev_rx_bytes=$rx_bytes
@@ -169,10 +170,9 @@ initiate_pingers()
 		sleep_remaining_tick_time $t_start_us $t_end_us $ping_response_interval_us 
 	done
 
-	read -t 1 < /tmp/CAKE-autorate/sleep_fifo
-
 	for reflector in "${reflectors[@]}"
 	do
+		while [[ ! -f /tmp/CAKE-autorate/${reflector}_ping_pid ]]; do read -t 1 < /tmp/CAKE-autorate/sleep_fifo; done
 		read ping_pids[$reflector] < /tmp/CAKE-autorate/${reflector}_ping_pid
 	done
 }
@@ -202,7 +202,15 @@ set_cake_rate()
 	(($output_cake_changes)) && echo "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 	tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 
 	time_rate_set_us=${EPOCHREALTIME/./}
+}
 
+set_shaper_rates()
+{
+     	# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
+	{
+		{ (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; }; } ||
+       		{ (( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; }; }
+	} && update_max_wire_packet_compensation
 }
 
 get_max_wire_packet_size_bits()
@@ -305,11 +313,11 @@ read -t 1 < /tmp/CAKE-autorate/sleep_fifo
 
 while true
 do
-	while read -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
+	while read -t $global_ping_response_timeout -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if ((($t_start_us - "${timestamp//[[\[\].]}")>500000)); then
-			(($debug)) && echo "WARNING: processed response from [" $reflector "] that is > 500ms old. Skipping." 
+			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
 		fi
 
@@ -318,12 +326,12 @@ do
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 	
-		# read in the dl/ul achived rates and determines the load
-		read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < "/tmp/CAKE-autorate/achieved_rates_kbps"
-		while [[ -z $dl_achieved_rate_kbps || -z $ul_achieved_rate_kbps ]]
-		do
-			read -r dl_achieved_rate_kbps ul_achieved_rate_kbps < "/tmp/CAKE-autorate/achieved_rates_kbps"
-		done
+		# read in the dl/ul achived rates and determine the loads
+		read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"
+		while [[ -z $dl_achieved_rate_kbps ]]; do read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"; done
+		read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"
+		while [[ -z $ul_achieved_rate_kbps ]]; do read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"; done
+
 		dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
 		ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
 		
@@ -337,11 +345,7 @@ do
 
 		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 
-       		# fire up tc if there are rates to change, and if rates changes then update max wire calcs
-		{
-			(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us ||
-       			(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us;
-		} && update_max_wire_packet_compensation
+		set_shaper_rates
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 		(($enable_sleep_function)) && 
@@ -353,25 +357,17 @@ do
 			t_sustained_connection_idle_us=0
 		fi
 		
-		# remember the last rates
-       		last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
-       		last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
-
 		t_end_us=${EPOCHREALTIME/./}
 
 	done</tmp/CAKE-autorate/ping_fifo
 
-	# we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
+	(( ${PIPESTATUS[0]} == 142 )) && (($debug)) && echo "DEBUG Warning: global ping response timeout. Enforcing minimum shaper rates." || echo "DEBUG Connection idle. Enforcing minimum shaper rates."
+	
+	# in any case, we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
 	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
-	set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
-	set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
-	update_max_wire_packet_compensation
+	set_shaper_rates
 
-	# remember the last rates
-	last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
-	last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
-	
 	# Kill off ping processes
 	kill -- ${ping_pids[@]}
 	ping_pids=()
