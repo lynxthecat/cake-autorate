@@ -50,7 +50,6 @@ There is a detailed and fun discussion with plenty of sketches relating to the d
 
 - **bash** for its builtins, arithmetic and array handling
 - **iputils-ping** for more advanced ping with sub 1s ping frequency
-- **coreutils-sleep** for accurate sleeping
 
 ## Installation on OpenWrt
 
@@ -63,7 +62,7 @@ as described in the
 and make it executable:
 
    ```bash
-   opkg update; opkg install bash iputils-ping coreutils-sleep
+   opkg update; opkg install bash iputils-ping
    cd /root
    mkdir CAKE-autorate
    cd CAKE-autorate
