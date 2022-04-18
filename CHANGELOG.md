@@ -6,6 +6,13 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
+## 2022-04-19
+
+- Many further optimizations to reduce CPU use and improve performance. 
+- Replaced coreutils-sleep with 'read -t' on dummy fifo to use bash inbuilt.
+- Added various features to help with weaker LTE connections.
+- Implemented significant number of robustifications.
+
 ## 2022-03-21
 
 - Huge reworking of CAKE-autorate. Now individual processes ping a reflector, maintain a baseline, and write out result lines to a common FIFO that is read in by a main loop and processed. Several optimisations have been effected to reduce CPU load. Sleep functionality has been added to put the pinging processes to sleep when the connection is not being used and to wake back up when the connection is used again - this saves unecessary CPU cycles and issuing pings throughout the 'wee' hours of the night.
