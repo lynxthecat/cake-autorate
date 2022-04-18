@@ -65,9 +65,9 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
-global_ping_response_timeout=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
+global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
-interface_init_wait_time=30 # timeout for waiting for rx/tx paths to come up, else script exits (seconds)
+interface_init_wait_time_s=30 # timeout for waiting for rx/tx paths to come up, else script exits (seconds)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
