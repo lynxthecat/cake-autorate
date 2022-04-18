@@ -17,7 +17,7 @@ cleanup_and_killall()
 	echo "Killing all background processes and cleaning up /tmp files."
 	# Resume pingers in case they are sleeping so they can be killed off
 	trap - INT TERM EXIT
-	kill $monitor_achieved_rates_pid
+	kill $monitor_achieved_rates_pid 2> /dev/null
 	kill -- ${ping_pids[@]} 2> /dev/null
 	[[ -d "/tmp/CAKE-autorate" ]] && rm -r "/tmp/CAKE-autorate"
 	exit
@@ -249,13 +249,17 @@ update_max_wire_packet_compensation()
 	printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
 }
 
-# Sanity check the rx/tx paths	
-[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t 10 < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
-[[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
-[[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
 # Create tmp directory
 [[ ! -d "/tmp/CAKE-autorate" ]] && mkdir "/tmp/CAKE-autorate"
+
+mkfifo /tmp/CAKE-autorate/sleep_fifo
+exec 3<> /tmp/CAKE-autorate/sleep_fifo
+
+# Sanity check the rx/tx paths	
+[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && read -t $bytes_path_timeout < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
+[[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
+[[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
 # Initialize variables
 
@@ -309,10 +313,7 @@ delays_idx=0
 sum_delays=0
 
 mkfifo /tmp/CAKE-autorate/ping_fifo
-mkfifo /tmp/CAKE-autorate/sleep_fifo
-
-exec 3<> /tmp/CAKE-autorate/ping_fifo
-exec 4<> /tmp/CAKE-autorate/sleep_fifo
+exec 4<> /tmp/CAKE-autorate/ping_fifo
 
 declare -A ping_pids
 
