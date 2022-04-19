@@ -278,14 +278,13 @@ exec 3<> /tmp/CAKE-autorate/sleep_fifo
 # Sanity check dl/if interface not the same
 [[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
 
-# Sanity check the rx/tx paths	
-if [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]; then
-	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$interface_init_wait_time_s" seconds for interface to come up." 
-	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$interface_init_wait_time_s" seconds for interface to come up." 
-	read -t $interface_init_wait_time_s < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
-fi
-[[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
-[[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
+# Sanity check the rx/tx paths and give time for ifb's to come up (wait 10s and keep trying)	
+while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
+do
+	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting 10 seconds for interface to come up." 
+	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting 10 seconds for interface to come up." 
+	read -t 10 < /tmp/CAKE-autorate/sleep_fifo 
+done
 
 # Initialize variables
 
