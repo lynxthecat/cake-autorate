@@ -17,7 +17,7 @@ debug=0			  # enable (1) or disable (0) out of debug lines
 # *** STANDARD CONFIGURATION OPTIONS ***
 
 dl_if=ifb-wg-pbr # download interface
-ul_if=wan         # upload interface
+ul_if=wan        # upload interface
 
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
@@ -67,7 +67,7 @@ decay_refractory_period_ms=1000 # (milliseconds)
 
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
-if_up_check_interval_s=120 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
+if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
