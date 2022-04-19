@@ -16,7 +16,7 @@ debug=0			  # enable (1) or disable (0) out of debug lines
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
-dl_if=ifb-wgp-pbr # download interface
+dl_if=ifb-wg-pbr # download interface
 ul_if=wan         # upload interface
 
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
