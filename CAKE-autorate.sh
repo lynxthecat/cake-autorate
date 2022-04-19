@@ -103,10 +103,10 @@ monitor_achieved_rates()
 	do
         	t_start_us=${EPOCHREALTIME/./}
 
-		# If rx/tx bytes file exists, read it in, otherwise set to previous reading
+		# If rx/tx bytes file exists, read it in, otherwise set to 0
 		# This addresses interfaces going down and back up
-       		[[ -f $rx_bytes_path ]] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=$prev_rx_bytes
-       		[[ -f $tx_bytes_path ]] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=$prev_tx_bytes
+       		[[ -f $rx_bytes_path ]] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=0
+       		[[ -f $tx_bytes_path ]] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=0
 
         	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
        		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
