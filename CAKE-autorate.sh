@@ -278,7 +278,7 @@ exec 3<> /tmp/CAKE-autorate/sleep_fifo
 # Sanity check dl/if interface not the same
 [[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
 
-# Sanity check the rx/tx paths and give time for ifb's to come up (wait 10s and keep trying)
+# Sanity check the rx/tx paths and give time for ifb's to come up
 while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 do
 	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
