@@ -275,6 +275,9 @@ update_max_wire_packet_compensation()
 mkfifo /tmp/CAKE-autorate/sleep_fifo
 exec 3<> /tmp/CAKE-autorate/sleep_fifo
 
+# Sanity check dl/if interface not the same
+[[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
+
 # Sanity check the rx/tx paths	
 if [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]; then
 	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$interface_init_wait_time_s" seconds for interface to come up." 
