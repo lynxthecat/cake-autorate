@@ -46,21 +46,19 @@ get_next_shaper_rate()
 
 		# supra-threshold RTT spikes, so decrease the rate providing not inside bufferbloat refractory period
 		*delayed)
-			(( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )) &&
-			{
+			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_bufferbloat)/1000 )) 
 				shaper_rate_kbps=$(( $adjusted_achieved_rate_kbps < $adjusted_shaper_rate_kbps ? $adjusted_achieved_rate_kbps : $adjusted_shaper_rate_kbps ))
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
-			}
+			fi
 			;;
 		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high)	
-			(( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )) && 
-			{	
+			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_load_high)/1000 ))
-			}
+			fi
 			;;
 		# medium load, so just maintain rate as is, i.e. do nothing
 		medium)
@@ -68,23 +66,18 @@ get_next_shaper_rate()
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		low|idle)
-			(($t_next_rate_us > ($t_last_decay_us+$decay_refractory_period_us) )) &&
-			{
-	                	(($shaper_rate_kbps > $base_shaper_rate_kbps)) &&
-				{
+			if (($t_next_rate_us > ($t_last_decay_us+$decay_refractory_period_us) )); then
+
+	                	if (($shaper_rate_kbps > $base_shaper_rate_kbps)); then
 					decayed_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_load_low)/1000 ))
 					shaper_rate_kbps=$(( $decayed_shaper_rate_kbps > $base_shaper_rate_kbps ? $decayed_shaper_rate_kbps : $base_shaper_rate_kbps))
-				} || 
-				{			
-					(($shaper_rate_kbps < $base_shaper_rate_kbps)) &&
-					{
-        			        	decayed_shaper_rate_kbps=$(( ((2000-$shaper_rate_adjust_load_low)*$shaper_rate_kbps)/1000 ))
-						shaper_rate_kbps=$(( $decayed_shaper_rate_kbps < $base_shaper_rate_kbps ? $decayed_shaper_rate_kbps : $base_shaper_rate_kbps))
-                			}
-				}
-		
+				elif (($shaper_rate_kbps < $base_shaper_rate_kbps)); then
+        			        decayed_shaper_rate_kbps=$(( ((2000-$shaper_rate_adjust_load_low)*$shaper_rate_kbps)/1000 ))
+					shaper_rate_kbps=$(( $decayed_shaper_rate_kbps < $base_shaper_rate_kbps ? $decayed_shaper_rate_kbps : $base_shaper_rate_kbps))
+                		fi
+
 				t_last_decay_us=${EPOCHREALTIME/./}
-			}
+			fi
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
@@ -135,7 +128,7 @@ monitor_achieved_rates()
 	done
 }
 
-update_loads()
+get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
 	read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"
@@ -145,6 +138,27 @@ update_loads()
 	
 	dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
+}
+
+classify_load()
+{
+	# classify the load according to high/low/medium/idle and add _delayed if delayed
+	# thus ending up with high_delayed, low_delayed, etc.
+	local load_percent=$1
+	local achieved_rate_kbps=$2
+	local -n load_condition=$3
+	
+	if (( $load_percent > $high_load_thr_percent )); then
+		load_condition="high"  
+	elif (( $load_percent > $medium_load_thr_percent )); then
+		load_condition="medium"
+	elif (( $achieved_rate_kbps > $connection_active_thr_kbps )); then
+		load_condition="low"
+	else 
+		load_condition="idle"
+	fi
+	
+	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
 }
 
 # ping reflector, maintain baseline and output deltas to a common fifo
@@ -203,12 +217,11 @@ sleep_remaining_tick_time()
 
 	sleep_duration_us=$(( $t_start_us + $tick_duration_us - ${EPOCHREALTIME/./} ))
 	
-        (( $sleep_duration_us > 0 )) && 
-	{
+        if (( $sleep_duration_us > 0 )); then
 		sleep_duration_s=000000$sleep_duration_us
 		sleep_duration_s=${sleep_duration_s::-6}.${sleep_duration_s: -6}
 		read -t $sleep_duration_s < /tmp/CAKE-autorate/sleep_fifo
-	}
+	fi
 }
 
 set_cake_rate()
@@ -225,10 +238,12 @@ set_cake_rate()
 set_shaper_rates()
 {
      	# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-	{
+	if
 		{ (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; }; } ||
-       		{ (( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; }; }
-	} && update_max_wire_packet_compensation
+	       	{ (( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; }; }
+	
+		then update_max_wire_packet_compensation
+	fi
 }
 
 get_max_wire_packet_size_bits()
@@ -254,7 +269,6 @@ update_max_wire_packet_compensation()
 	printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
 }
 
-
 # Create tmp directory
 [[ ! -d "/tmp/CAKE-autorate" ]] && mkdir "/tmp/CAKE-autorate"
 
@@ -262,12 +276,11 @@ mkfifo /tmp/CAKE-autorate/sleep_fifo
 exec 3<> /tmp/CAKE-autorate/sleep_fifo
 
 # Sanity check the rx/tx paths	
-[[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]] && 
-{
+if [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]; then
 	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$interface_init_wait_time_s" seconds for interface to come up." 
 	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$interface_init_wait_time_s" seconds for interface to come up." 
 	read -t $interface_init_wait_time_s < /tmp/CAKE-autorate/sleep_fifo # Give time for ifb's to come up
-}
+fi
 [[ ! -f $rx_bytes_path ]] && { echo "Error: "$rx_bytes_path "does not exist. Exiting script."; exit; }
 [[ ! -f $tx_bytes_path ]] && { echo "Error: "$tx_bytes_path "does not exist. Exiting script."; exit; }
 
@@ -340,11 +353,10 @@ do
 	while read -t $global_ping_response_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
-		((($t_start_us - "${timestamp//[[\[\].]}")>500000)) && 
-		{
+		if ((($t_start_us - "${timestamp//[[\[\].]}")>500000)); then
 			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
-		}
+		fi
 
 		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
@@ -352,13 +364,13 @@ do
 		((delays[$delays_idx])) && ((sum_delays++))
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 
-		update_loads
-	
-		(( $dl_load_percent > $high_load_thr_percent )) && dl_load_condition="high"  || { (( $dl_load_percent > $medium_load_thr_percent )) && dl_load_condition="medium"; } || { (( $dl_achieved_rate_kbps > $connection_active_thr_kbps )) && dl_load_condition="low"; } || dl_load_condition="idle"
-		(( $ul_load_percent > $high_load_thr_percent )) && ul_load_condition="high"  || { (( $ul_load_percent > $medium_load_thr_percent )) && ul_load_condition="medium"; } || { (( $ul_achieved_rate_kbps > $connection_active_thr_kbps )) && ul_load_condition="low"; } || ul_load_condition="idle"
-	
-		(($sum_delays>=$bufferbloat_detection_thr)) && { dl_load_condition=$dl_load_condition"_delayed"; ul_load_condition=$ul_load_condition"_delayed"; }
+		bufferbloat_detected=$(( (($sum_delays>=$bufferbloat_detection_thr)) ? 1 : 0 ))
 
+		get_loads
+
+		classify_load $dl_load_percent $dl_achieved_rate_kbps dl_load_condition
+		classify_load $ul_load_percent $ul_achieved_rate_kbps ul_load_condition
+	
 		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
@@ -367,18 +379,15 @@ do
 		set_shaper_rates
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		(($enable_sleep_function)) && 
-		{
-			[[ $dl_load_condition == idle* && $ul_load_condition == idle* ]] &&
-			{
+		if (($enable_sleep_function)); then
+			if [[ $dl_load_condition == idle* && $ul_load_condition == idle* ]]; then
 				((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-$t_end_us))))
 				(($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)) && break
-			} || 
-			{
+			else
 				# reset timer
 				t_sustained_connection_idle_us=0
-			}
-		}
+			fi
+		fi
 		t_end_us=${EPOCHREALTIME/./}
 
 	done</tmp/CAKE-autorate/ping_fifo
@@ -401,7 +410,7 @@ do
 	while true
 	do
 		t_start_us=${EPOCHREALTIME/./}	
-		update_loads
+		get_loads
 		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
 		sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
 	done
