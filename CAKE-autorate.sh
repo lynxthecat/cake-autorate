@@ -231,7 +231,7 @@ set_cake_rate()
 	local -n time_rate_set_us=$3
 	
 	(($output_cake_changes)) && echo "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
-	tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 
+	tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
 	time_rate_set_us=${EPOCHREALTIME/./}
 }
 
