@@ -281,13 +281,9 @@ exec 3<> /tmp/CAKE-autorate/sleep_fifo
 # Sanity check the rx/tx paths and give time for ifb's to come up (wait 10s and keep trying)
 while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 do
-	while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
-	do
-		(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting 10 seconds for interface to come up." 
-		(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting 10 seconds for interface to come up." 
-		read -t 10 < /tmp/CAKE-autorate/sleep_fifo 
-	done
-	read -t 30 < /tmp/CAKE-autorate/sleep_fifo # let things settle and verify still up after 30s
+	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
+	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
+	read -t $if_up_check_interval_s < /tmp/CAKE-autorate/sleep_fifo 
 done
 
 # Initialize variables
