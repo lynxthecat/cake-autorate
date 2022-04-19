@@ -95,8 +95,8 @@ monitor_achieved_rates()
 
 	compensated_monitor_achieved_rates_interval_us=$monitor_achieved_rates_interval_us
 
-	read -r prev_rx_bytes < "$rx_bytes_path" 
-	read -r prev_tx_bytes < "$tx_bytes_path" 
+	[[ -f $rx_bytes_path ]] && read -r prev_rx_bytes < "$rx_bytes_path" 2> /dev/null || prev_rx_bytes=0
+        [[ -f $rx_bytes_path ]] && read -r prev_tx_bytes < "$tx_bytes_path" 2> /dev/null || prex_tx_bytes=0
 	t_prev_bytes=${EPOCHREALTIME/./}
 
 	while true
@@ -105,8 +105,8 @@ monitor_achieved_rates()
 
 		# If rx/tx bytes file exists, read it in, otherwise set to 0
 		# This addresses interfaces going down and back up
-       		[[ -f $rx_bytes_path ]] && read -r rx_bytes < "$rx_bytes_path" || rx_bytes=0
-       		[[ -f $tx_bytes_path ]] && read -r tx_bytes < "$tx_bytes_path" || tx_bytes=0
+       		[[ -f $rx_bytes_path ]] && read -r rx_bytes < "$rx_bytes_path" 2> /dev/null || rx_bytes=0
+       		[[ -f $tx_bytes_path ]] && read -r tx_bytes < "$tx_bytes_path" 2> /dev/null || tx_bytes=0
 
         	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
        		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
