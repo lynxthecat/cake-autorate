@@ -26,7 +26,8 @@ reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
 
 # delay threshold in ms is the extent of RTT increase to classify as a delay
 # this is automatically adjusted based on maximum on the wire packet size
-delay_thr_ms=25 # base extent of RTT increase to classify as a delay
+# (adjustment significant at sub 12Mbit/s rates, else negligible)  
+delay_thr_ms=25 # (milliseconds)
 
 min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
 base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
@@ -44,24 +45,38 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
-# interval for monitoring achieved rx/tx rates
+# interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
+# (adjustment significant at sub 12Mbit/s rates, else negligible)  
 monitor_achieved_rates_interval_ms=100 # (milliseconds) 
 
-bufferbloat_detection_window=4  # number of delay samples to retain in detection window
+# bufferbloat is detected when (bufferbloat_detection_thr) samples
+# out of the last (bufferbloat detection window) samples are delayed
+bufferbloat_detection_window=4  # number of samples to retain in detection window
 bufferbloat_detection_thr=2     # number of delayed samples for bufferbloat detection
 
+# RTT baseline against which to measure delays
+# the idea is that the baseline is allowed to increase slowly to allow for path changes
+# and slowly enough such that bufferbloat will be corrected well before the baseline increases,
+# but it will decrease very rapidly to ensure delays are measured against the shortest path
 alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
 
+# rate adjustment parameters 
+# bufferbloat adjustment works with the lower of the adjusted achieved rate and adjusted shaper rate
+# to exploit that transfer rates during bufferbloat provide an indication of line capacity
+# otherwise shaper rate is adjusted up on load high, and down on load idle or low
+# and held the same on load medium
 achieved_rate_adjust_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
 shaper_rate_adjust_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
 shaper_rate_adjust_load_high=1.01    # how rapidly to increase shaper rate upon high load detected 
-shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon low load detected 
+shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon idle or low load detected 
 
+# thus load is categoried as medium if > medium_load_thr and high if > high_load_thr relative to shaper rate
 medium_load_thr=0.25 # % of currently set bandwidth for detecting medium load
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
+# refractory periods between successive bufferbloat/decay rate changes
 bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
