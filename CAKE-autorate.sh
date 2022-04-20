@@ -38,25 +38,25 @@ get_next_shaper_rate()
 	local achieved_rate_kbps=$4
 	local load_condition=$5
 	local t_next_rate_us=$6
-	local -n t_last_bufferbloat_us=$7
+	local -n t_last_delay_us=$7
 	local -n t_last_decay_us=$8
     	local -n shaper_rate_kbps=$9
 
 	case $load_condition in
 
-		# supra-threshold RTT spikes, so decrease the rate providing not inside bufferbloat refractory period
+		# supra-threshold RTT spikes, so decrease the rate providing not inside delay refractory period
 		*delayed)
-			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
-				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_bufferbloat)/1000 )) 
-				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_bufferbloat)/1000 )) 
+			if (( $t_next_rate_us > ($t_last_delay_us+$delay_refractory_period_us) )); then
+				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_delay)/1000 )) 
+				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_delay)/1000 )) 
 				shaper_rate_kbps=$(( $adjusted_achieved_rate_kbps < $adjusted_shaper_rate_kbps ? $adjusted_achieved_rate_kbps : $adjusted_shaper_rate_kbps ))
-				t_last_bufferbloat_us=${EPOCHREALTIME/./}
+				t_last_delay_us=${EPOCHREALTIME/./}
 			fi
 			;;
 		
-            	# high load, so increase rate providing not inside bufferbloat refractory period 
+            	# high load, so increase rate providing not inside delay refractory period 
 		high)	
-			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
+			if (( $t_next_rate_us > ($t_last_delay_us+$delay_refractory_period_us) )); then
 				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_load_high)/1000 ))
 			fi
 			;;
@@ -158,7 +158,7 @@ classify_load()
 		load_condition="idle"
 	fi
 	
-	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
+	(($delay_detected)) && load_condition=$load_condition"_delayed"
 }
 
 # ping reflector, maintain baseline and output deltas to a common fifo
@@ -298,8 +298,8 @@ done
 # Convert human readable parameters to values that work with integer arithmetic
 printf -v alpha_baseline_increase %.0f\\n "${alpha_baseline_increase}e3"
 printf -v alpha_baseline_decrease %.0f\\n "${alpha_baseline_decrease}e3"   
-printf -v achieved_rate_adjust_bufferbloat %.0f\\n "${achieved_rate_adjust_bufferbloat}e3"
-printf -v shaper_rate_adjust_bufferbloat %.0f\\n "${shaper_rate_adjust_bufferbloat}e3"
+printf -v achieved_rate_adjust_delay %.0f\\n "${achieved_rate_adjust_delay}e3"
+printf -v shaper_rate_adjust_delay %.0f\\n "${shaper_rate_adjust_delay}e3"
 printf -v shaper_rate_adjust_load_high %.0f\\n "${shaper_rate_adjust_load_high}e3"
 printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
 printf -v high_load_thr_percent %.0f\\n "${high_load_thr}e2"
@@ -307,7 +307,7 @@ printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
-bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
+delay_refractory_period_us=$(( 1000*$delay_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
@@ -333,14 +333,14 @@ t_start_us=${EPOCHREALTIME/./}
 t_end_us=${EPOCHREALTIME/./}
 t_prev_ul_rate_set_us=$t_start_us
 t_prev_dl_rate_set_us=$t_start_us
-t_ul_last_bufferbloat_us=$t_start_us
+t_ul_last_delay_us=$t_start_us
 t_ul_last_decay_us=$t_start_us
-t_dl_last_bufferbloat_us=$t_start_us
+t_dl_last_delay_us=$t_start_us
 t_dl_last_decay_us=$t_start_us
 
 t_sustained_connection_idle_us=0
 
-declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
+declare -a delays=( $(for i in {1..$delay_detection_window}; do echo 0; done) )
 delays_idx=0
 sum_delays=0
 
@@ -371,17 +371,17 @@ do
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
 		delays[$delays_idx]=$(( $rtt_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
 		((delays[$delays_idx])) && ((sum_delays++))
-		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
+		(( delays_idx=(delays_idx+1)%$delay_detection_window ))
 
-		bufferbloat_detected=$(( (($sum_delays>=$bufferbloat_detection_thr)) ? 1 : 0 ))
+		delay_detected=$(( (($sum_delays>=$delay_detection_thr)) ? 1 : 0 ))
 
 		get_loads
 
 		classify_load $dl_load_percent $dl_achieved_rate_kbps dl_load_condition
 		classify_load $ul_load_percent $ul_achieved_rate_kbps ul_load_condition
 	
-		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
-		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
+		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_delay_us t_dl_last_decay_us dl_shaper_rate_kbps
+		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_delay_us t_ul_last_decay_us ul_shaper_rate_kbps
 
 		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 
