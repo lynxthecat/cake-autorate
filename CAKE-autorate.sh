@@ -15,11 +15,10 @@ trap cleanup_and_killall INT TERM EXIT
 cleanup_and_killall()
 {
 	echo "Killing all background processes and cleaning up /tmp files."
-	# Resume pingers in case they are sleeping so they can be killed off
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
 	kill -- ${ping_pids[@]} 2> /dev/null
-	[[ -d "/tmp/CAKE-autorate" ]] && rm -r "/tmp/CAKE-autorate"
+	[[ -d /tmp/CAKE-autorate ]] && rm -r /tmp/CAKE-autorate
 	exit
 }
 
@@ -44,7 +43,7 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
-		# supra-threshold RTT spikes, so decrease the rate providing not inside bufferbloat refractory period
+		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*delayed)
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_bufferbloat)/1000 )) 
@@ -95,18 +94,17 @@ monitor_achieved_rates()
 
 	compensated_monitor_achieved_rates_interval_us=$monitor_achieved_rates_interval_us
 
-	[[ -f $rx_bytes_path ]] && { read -r prev_rx_bytes < "$rx_bytes_path"; } 2> /dev/null || prev_rx_bytes=0
-        [[ -f $rx_bytes_path ]] && { read -r prev_tx_bytes < "$tx_bytes_path"; } 2> /dev/null || prex_tx_bytes=0
-	t_prev_bytes=${EPOCHREALTIME/./}
+	[[ -f $rx_bytes_path ]] && { read -r prev_rx_bytes < $rx_bytes_path; } 2> /dev/null || prev_rx_bytes=0
+        [[ -f $tx_bytes_path ]] && { read -r prev_tx_bytes < $tx_bytes_path; } 2> /dev/null || prev_tx_bytes=0
 
 	while true
 	do
         	t_start_us=${EPOCHREALTIME/./}
 
-		# If rx/tx bytes file exists, read it in, otherwise set to 0
+		# If rx/tx bytes file exists, read it in, otherwise set to prev_bytes
 		# This addresses interfaces going down and back up
-       		[[ -f $rx_bytes_path ]] && { read -r rx_bytes < "$rx_bytes_path"; } 2> /dev/null || rx_bytes=0
-       		[[ -f $tx_bytes_path ]] && { read -r tx_bytes < "$tx_bytes_path"; } 2> /dev/null || tx_bytes=0
+       		[[ -f $rx_bytes_path ]] && { read -r rx_bytes < $rx_bytes_path; } 2> /dev/null || rx_bytes=$prev_rx_bytes
+       		[[ -f $tx_bytes_path ]] && { read -r tx_bytes < $tx_bytes_path; } 2> /dev/null || tx_bytes=$prev_tx_bytes
 
         	dl_achieved_rate_kbps=$(( ((8000*($rx_bytes - $prev_rx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
        		ul_achieved_rate_kbps=$(( ((8000*($tx_bytes - $prev_tx_bytes)) / $compensated_monitor_achieved_rates_interval_us ) ))
@@ -114,13 +112,12 @@ monitor_achieved_rates()
 		printf '%s' "$dl_achieved_rate_kbps" > /tmp/CAKE-autorate/dl_achieved_rate_kbps
 		printf '%s' "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/ul_achieved_rate_kbps
 
-       		t_prev_bytes=$t_bytes
        		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
-		read -r max_wire_packet_rtt_us < "/tmp/CAKE-autorate/max_wire_packet_rtt_us"
-		while [[ -z $max_wire_packet_rtt_us ]]; do read -r max_wire_packet_rtt_us < "/tmp/CAKE-autorate/max_wire_packet_rtt_us"; done
+		read -r max_wire_packet_rtt_us < /tmp/CAKE-autorate/max_wire_packet_rtt_us
+		while [[ -z $max_wire_packet_rtt_us ]]; do read -r max_wire_packet_rtt_us < /tmp/CAKE-autorate/max_wire_packet_rtt_us; done
 
 		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 
@@ -131,10 +128,10 @@ monitor_achieved_rates()
 get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
-	read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"
-	while [[ -z $dl_achieved_rate_kbps ]]; do read -r dl_achieved_rate_kbps < "/tmp/CAKE-autorate/dl_achieved_rate_kbps"; done
-	read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"
-	while [[ -z $ul_achieved_rate_kbps ]]; do read -r ul_achieved_rate_kbps < "/tmp/CAKE-autorate/ul_achieved_rate_kbps"; done
+	read -r dl_achieved_rate_kbps < /tmp/CAKE-autorate/dl_achieved_rate_kbps
+	while [[ -z $dl_achieved_rate_kbps ]]; do read -r dl_achieved_rate_kbps < /tmp/CAKE-autorate/dl_achieved_rate_kbps; done
+	read -r ul_achieved_rate_kbps < /tmp/CAKE-autorate/ul_achieved_rate_kbps
+	while [[ -z $ul_achieved_rate_kbps ]]; do read -r ul_achieved_rate_kbps < /tmp/CAKE-autorate/ul_achieved_rate_kbps; done
 	
 	dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
@@ -188,7 +185,7 @@ monitor_reflector_path()
 
 		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline_us" "$rtt_us" "$rtt_delta_us" > /tmp/CAKE-autorate/ping_fifo
 
-	done< <(ping -D -i $reflector_ping_interval_s $reflector & echo $! >/tmp/CAKE-autorate/${reflector}_ping_pid)
+	done< <(ping -D -i $reflector_ping_interval_s $reflector & echo $! > /tmp/CAKE-autorate/${reflector}_ping_pid)
 }
 
 initiate_pingers()
@@ -197,7 +194,7 @@ initiate_pingers()
 	for reflector in "${reflectors[@]}"
 	do
 		t_start_us=${EPOCHREALTIME/./}
-		monitor_reflector_path $reflector&
+		monitor_reflector_path $reflector &
 		# Space out pings by ping interval / number of reflectors
 		sleep_remaining_tick_time $t_start_us $ping_response_interval_us 
 	done
@@ -206,7 +203,7 @@ initiate_pingers()
 	do
 		while [[ ! -f /tmp/CAKE-autorate/${reflector}_ping_pid ]]; do read -t 1 < /tmp/CAKE-autorate/sleep_fifo; done
 		read ping_pids[$reflector] < /tmp/CAKE-autorate/${reflector}_ping_pid
-		rm /tmp/CAKE-autorate/${reflector}_ping_pid
+		rm "/tmp/CAKE-autorate/${reflector}_ping_pid"
 	done
 }
 
@@ -277,7 +274,7 @@ update_max_wire_packet_compensation()
 }
 
 # Create tmp directory
-[[ ! -d "/tmp/CAKE-autorate" ]] && mkdir "/tmp/CAKE-autorate"
+[[ ! -d /tmp/CAKE-autorate ]] && mkdir /tmp/CAKE-autorate
 
 mkfifo /tmp/CAKE-autorate/sleep_fifo
 exec 3<> /tmp/CAKE-autorate/sleep_fifo
@@ -285,12 +282,15 @@ exec 3<> /tmp/CAKE-autorate/sleep_fifo
 # Sanity check dl/if interface not the same
 [[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
 
+# Sanity check bufferbloat detection threshold not greate than window length
+[[ $bufferbloat_detection_thr > $bufferbloat_detection_window ]] && { echo "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
+
 # Sanity check the rx/tx paths and give time for ifb's to come up
 while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 do
 	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
 	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
-	read -t $if_up_check_interval_s < /tmp/CAKE-autorate/sleep_fifo 
+	read -t $if_up_check_interval_s < /tmp/CAKE-autorate/sleep_fifo
 done
 
 # Initialize variables
