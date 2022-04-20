@@ -48,21 +48,21 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 # this is automatically adjusted based on maximum on the wire packet size
 monitor_achieved_rates_interval_ms=100 # (milliseconds) 
 
-delay_detection_window=4  # number of delay samples to retain in detection window
-delay_detection_thr=2     # number of delayed samples for delay detection
+bufferbloat_detection_window=4  # number of delay samples to retain in detection window
+bufferbloat_detection_thr=2     # number of delayed samples for bufferbloat detection
 
 alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
 
-achieved_rate_adjust_delay=0.9 # how rapidly to reduce achieved rate upon detection of delay 
-shaper_rate_adjust_delay=0.9   # how rapidly to reduce shaper rate upon detection of delay 
+achieved_rate_adjust_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
+shaper_rate_adjust_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
 shaper_rate_adjust_load_high=1.01    # how rapidly to increase shaper rate upon high load detected 
 shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon low load detected 
 
 medium_load_thr=0.25 # % of currently set bandwidth for detecting medium load
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
-delay_refractory_period_ms=300 # (milliseconds)
+bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
