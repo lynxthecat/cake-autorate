@@ -48,7 +48,7 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 # this is automatically adjusted based on maximum on the wire packet size
 monitor_achieved_rates_interval_ms=100 # (milliseconds) 
 
-delay_detection_window=4  # number of delay samples to retain in detection window
+delay_detection_window=4  # number of samples to retain in detection window
 delay_detection_thr=2     # number of delayed samples for delay detection
 
 alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
