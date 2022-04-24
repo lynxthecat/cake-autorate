@@ -17,7 +17,7 @@ cleanup_and_killall()
 	echo "Killing all background processes and cleaning up /tmp files."
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
-	kill -- ${ping_pids[@]} 2> /dev/null
+	kill $maintain_pingers_pid 2> /dev/null
 	[[ -d /tmp/CAKE-autorate ]] && rm -r /tmp/CAKE-autorate
 	exit
 }
@@ -116,8 +116,7 @@ monitor_achieved_rates()
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
-		read -r max_wire_packet_rtt_us < /tmp/CAKE-autorate/max_wire_packet_rtt_us
-		while [[ -z $max_wire_packet_rtt_us ]]; do read -r max_wire_packet_rtt_us < /tmp/CAKE-autorate/max_wire_packet_rtt_us; done
+		concurrent_read max_wire_packet_rtt_us /tmp/CAKE-autorate/max_wire_packet_rtt_us
 
 		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 
@@ -128,10 +127,8 @@ monitor_achieved_rates()
 get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
-	read -r dl_achieved_rate_kbps < /tmp/CAKE-autorate/dl_achieved_rate_kbps
-	while [[ -z $dl_achieved_rate_kbps ]]; do read -r dl_achieved_rate_kbps < /tmp/CAKE-autorate/dl_achieved_rate_kbps; done
-	read -r ul_achieved_rate_kbps < /tmp/CAKE-autorate/ul_achieved_rate_kbps
-	while [[ -z $ul_achieved_rate_kbps ]]; do read -r ul_achieved_rate_kbps < /tmp/CAKE-autorate/ul_achieved_rate_kbps; done
+	concurrent_read dl_achieved_rate_kbps /tmp/CAKE-autorate/dl_achieved_rate_kbps 
+	concurrent_read ul_achieved_rate_kbps /tmp/CAKE-autorate/ul_achieved_rate_kbps 
 	
 	dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
@@ -159,11 +156,10 @@ classify_load()
 }
 
 # ping reflector, maintain baseline and output deltas to a common fifo
-monitor_reflector_path() 
+monitor_pinger_responses() 
 {
-	local reflector=$1
-
-	[[ $(ping -q -c 5 -i 0.1 $reflector | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baseline_us %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baseline_us=0
+	local pinger=$1
+	local rtt_baseline_us=$2
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
@@ -184,41 +180,97 @@ monitor_reflector_path()
 		rtt_baseline_us=$(( ( (1000-$alpha)*$rtt_baseline_us+$alpha*$rtt_us )/1000 ))
 
 		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline_us" "$rtt_us" "$rtt_delta_us" > /tmp/CAKE-autorate/ping_fifo
-
-	done< <(ping -D -i $reflector_ping_interval_s $reflector & echo $! > /tmp/CAKE-autorate/${reflector}_ping_pid)
-}
-
-initiate_pingers()
-{
-	# Initiate pingers
-	for reflector in "${reflectors[@]}"
-	do
-		t_start_us=${EPOCHREALTIME/./}
-		monitor_reflector_path $reflector &
-		# Space out pings by ping interval / number of reflectors
-		sleep_remaining_tick_time $t_start_us $ping_response_interval_us 
-	done
-
-	for reflector in "${reflectors[@]}"
-	do
-		while [[ ! -f /tmp/CAKE-autorate/${reflector}_ping_pid ]]; do read -t 1 < /tmp/CAKE-autorate/sleep_fifo; done
-		read ping_pids[$reflector] < /tmp/CAKE-autorate/${reflector}_ping_pid
-		rm "/tmp/CAKE-autorate/${reflector}_ping_pid"
-	done
-}
-
-sleep_remaining_tick_time()
-{
-	local t_start_us=$1 # (microseconds)
-	local tick_duration_us=$2 # (microseconds)
-
-	sleep_duration_us=$(( $t_start_us + $tick_duration_us - ${EPOCHREALTIME/./} ))
 	
-        if (( $sleep_duration_us > 0 )); then
-		sleep_duration_s=000000$sleep_duration_us
-		sleep_duration_s=${sleep_duration_s::-6}.${sleep_duration_s: -6}
-		read -t $sleep_duration_s < /tmp/CAKE-autorate/sleep_fifo
-	fi
+		printf '%s\n' "${timestamp//[[\[\].]}" > /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
+
+	done</tmp/CAKE-autorate/pinger_${pinger}_fifo
+}
+
+kill_pingers()
+{
+	for (( pinger=0; pinger<$no_pingers; pinger++))
+	do
+		kill ${pinger_pids[$pinger]} 2> /dev/null
+		[[ -p /tmp/CAKE-autorate/${reflector}_fifo ]] && rm /tmp/CAKE-autorate/pringer_${pinger}_fifo
+	done
+	exit
+}
+
+maintain_pingers()
+{
+ 	trap kill_pingers TERM
+
+	declare -A pinger_pids
+	declare -A rtt_baselines_us
+
+	declare -A reflector_offences
+
+	# Create fifos and get baselines
+	for ((pinger=0; pinger<$no_pingers; pinger++))
+	do
+		mkfifo /tmp/CAKE-autorate/pinger_${pinger}_fifo
+		[[ $(ping -q -c 5 -i 0.1 ${reflectors[$pinger]} | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baselines_us[$pinger] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baselines_us[$pinger]=0
+		reflector_offences[$pinger]=0
+	done
+
+	pingers_t_start_us=${EPOCHREALTIME/./}
+
+	# Initiate pingers
+	for ((pinger=0; pinger<$no_pingers; pinger++))
+	do
+		printf '%s\n' "$pingers_t_start_us" > /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
+		start_pinger_next_pinger_time_slot $pinger pid
+		pinger_pids[$pinger]=$pid
+	done
+
+	while true
+	do
+		sleep_s $reflector_health_check_interval_s
+
+		for ((pinger=0; pinger<$no_pingers; pinger++))
+		do
+			read last_timestamp_us < /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
+			while [[ -z $last_timestamp_us ]]; do read -r last_timestamp_us < /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us; done
+			if (( (${EPOCHREALTIME/./}-$last_timestamp_us) > $reflector_response_deadline_us)); then
+				if((++reflector_offences[$pinger]==$reflector_offence_thr)); then
+									
+					(($debug)) && echo "DEBUG Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving. Swapping out if another reflector is available."
+				
+					if(($no_reflectors>$no_pingers)); then
+	
+						(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}" now."
+						kill ${pinger_pids[$pinger]}
+						bad_reflector=${reflectors[$pinger]}
+						# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
+						reflectors[$pinger]=${reflectors[$no_pingers]}
+						unset reflectors[$no_pingers]
+						# bad reflector goes to the back of the queue
+						reflectors+=($bad_reflector)
+						# reset array indices
+						reflectors=(${reflectors[*]})
+						start_pinger_next_pinger_time_slot $pinger pid
+						pinger_pids[$pinger]=$pid
+					fi
+				fi
+
+			elif ((pinger_health[$pinger]>0)); then
+				((reflector_offences[$pinger]--))
+			fi		
+		done
+	done
+}
+
+# wait until next pinger time slot and start pinger in its slot
+start_pinger_next_pinger_time_slot()
+{
+	local pinger=$1
+	local -n pinger_pid=$2
+	t_start_us=${EPOCHREALTIME/./}
+	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
+	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
+	ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo &
+	pinger_pid=$!
+	monitor_pinger_responses $pinger ${rtt_baselines_us[$pinger]} &
 }
 
 set_cake_rate()
@@ -273,24 +325,79 @@ update_max_wire_packet_compensation()
 	printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
 }
 
+concurrent_read()
+{
+	# in the context of separate processes writing using > and reading form file
+        # it seems costly calls to the external flock binary can be avoided
+	# read either succeeds as expected or occassionally reads in bank value
+	# so just test for blank value and re-read until not blank
+
+	local -n value=$1
+ 	local path=$2
+	
+	read -r value < $path
+	while [[ -z $value ]]; do read -r value < $path; done
+}
+
+sleep_s()
+{
+	# calling external sleep binary is slow
+	# bash has a builtin sleep that can be enabled 
+	# but read's timeout can be exploited and this is apparently even faster
+
+	local sleep_duration_s=$1 # (seconds, e.g. 0.5, 1 or 1.5)
+
+	read -t $sleep_duration_s < /tmp/CAKE-autorate/sleep_fifo
+}
+
+sleep_us()
+{
+	# calling external sleep binary is slow
+	# bash has a builtin sleep that can be enabled 
+	# but read's timeout can be exploited and this is apparently even faster
+
+	local sleep_duration_us=$1 # (microseconds)
+	
+	sleep_duration_s=000000$sleep_duration_us
+	sleep_duration_s=${sleep_duration_s::-6}.${sleep_duration_s: -6}
+	read -t $sleep_duration_s < /tmp/CAKE-autorate/sleep_fifo
+}
+
+sleep_remaining_tick_time()
+{
+	local t_start_us=$1 # (microseconds)
+	local tick_duration_us=$2 # (microseconds)
+
+	sleep_duration_us=$(( $t_start_us + $tick_duration_us - ${EPOCHREALTIME/./} ))
+	
+        if (( $sleep_duration_us > 0 )); then
+		sleep_us $sleep_duration_us
+	fi
+}
+
 # Create tmp directory
 [[ ! -d /tmp/CAKE-autorate ]] && mkdir /tmp/CAKE-autorate
 
 mkfifo /tmp/CAKE-autorate/sleep_fifo
 exec 3<> /tmp/CAKE-autorate/sleep_fifo
 
-# Sanity check dl/if interface not the same
+no_reflectors=${#reflectors[@]} 
+
+# Check no_pingers <= no_reflectors
+(( $no_pingers > $no_reflectors)) && { echo "Error: number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
+
+# Check dl/if interface not the same
 [[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
 
-# Sanity check bufferbloat detection threshold not greate than window length
+# Check bufferbloat detection threshold not greate than window length
 [[ $bufferbloat_detection_thr > $bufferbloat_detection_window ]] && { echo "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
-# Sanity check the rx/tx paths and give time for ifb's to come up
+# Check the rx/tx paths and give time for ifb's to come up
 while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 do
 	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
 	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
-	read -t $if_up_check_interval_s < /tmp/CAKE-autorate/sleep_fifo
+	sleep_s $if_up_check_interval_s
 done
 
 # Initialize variables
@@ -307,13 +414,12 @@ printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
+printf -v reflector_response_deadline_us %.0f\\n "${reflector_response_deadline_s}e6"
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
-no_reflectors=${#reflectors[@]} 
-
-ping_response_interval_us=$(($reflector_ping_interval_us/$no_reflectors))
+ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
 dl_shaper_rate_kbps=$base_dl_shaper_rate_kbps
 ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
@@ -347,15 +453,16 @@ sum_delays=0
 mkfifo /tmp/CAKE-autorate/ping_fifo
 exec 4<> /tmp/CAKE-autorate/ping_fifo
 
-declare -A ping_pids
-
-initiate_pingers
+maintain_pingers &
+maintain_pingers_pid=$!
 
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 
-read -t 1 < /tmp/CAKE-autorate/sleep_fifo
+sleep_s 1
+
+prev_timestamp=0
 
 while true
 do
@@ -366,7 +473,7 @@ do
 			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
 		fi
-
+		
 		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
 		delays[$delays_idx]=$(( $rtt_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
@@ -409,8 +516,7 @@ do
 	set_shaper_rates
 
 	# Kill off ping processes
-	kill -- ${ping_pids[@]}
-	ping_pids=()
+	kill $maintain_pingers_pid 2> /dev/null
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -425,5 +531,6 @@ do
 	done
 
 	# Start up ping processes
-	initiate_pingers
+	maintain_pingers &
+	maintain_pingers_pid=$!
 done
