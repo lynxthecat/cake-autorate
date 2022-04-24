@@ -84,10 +84,11 @@ get_next_shaper_rate()
         (($shaper_rate_kbps > $max_shaper_rate_kbps)) && shaper_rate_kbps=$max_shaper_rate_kbps;
 }
 
-# track rx and tx bytes transferred and divide by time since last update
-# to determine achieved dl and ul transfer rates
 monitor_achieved_rates()
 {
+	# track rx and tx bytes transfered and divide by time since last update
+	# to determine achieved dl and ul transfer rates
+
 	local rx_bytes_path=$1
 	local tx_bytes_path=$2
 	local monitor_achieved_rates_interval_us=$3 # (microseconds)
@@ -127,6 +128,7 @@ monitor_achieved_rates()
 get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
+
 	concurrent_read dl_achieved_rate_kbps /tmp/CAKE-autorate/dl_achieved_rate_kbps 
 	concurrent_read ul_achieved_rate_kbps /tmp/CAKE-autorate/ul_achieved_rate_kbps 
 	
@@ -155,14 +157,16 @@ classify_load()
 	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
 }
 
-# ping reflector, maintain baseline and output deltas to a common fifo
 monitor_pinger_responses() 
 {
+	# ping reflector, maintain baseline and output deltas to a common fifo
+
 	local pinger=$1
 	local rtt_baseline_us=$2
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
+
 		# If no match then skip onto the next one
 		[[ $seq_rtt =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
@@ -198,14 +202,15 @@ kill_pingers()
 
 maintain_pingers()
 {
+	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
+
  	trap kill_pingers TERM
 
 	declare -A pinger_pids
 	declare -A rtt_baselines_us
-
 	declare -A reflector_offences
 
-	# Create fifos and get baselines
+	# For each pinger: create fifos, get baselines and initialize record of offences
 	for ((pinger=0; pinger<$no_pingers; pinger++))
 	do
 		mkfifo /tmp/CAKE-autorate/pinger_${pinger}_fifo
@@ -223,36 +228,46 @@ maintain_pingers()
 		pinger_pids[$pinger]=$pid
 	done
 
+	# Pinger health check loop - verifies pingers have not gone stale and rotates reflectors as necessary
 	while true
 	do
 		sleep_s $reflector_health_check_interval_s
 
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
-			read last_timestamp_us < /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
-			while [[ -z $last_timestamp_us ]]; do read -r last_timestamp_us < /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us; done
+			concurrent_read last_timestamp_us /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
 			if (( (${EPOCHREALTIME/./}-$last_timestamp_us) > $reflector_response_deadline_us)); then
+
 				if((++reflector_offences[$pinger]==$reflector_offence_thr)); then
 									
-					(($debug)) && echo "DEBUG Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving. Swapping out if another reflector is available."
+					(($debug)) && echo "DEBUG Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving."
 				
 					if(($no_reflectors>$no_pingers)); then
+
+						# pingers always use reflectors[0]..[$no_pingers-1] as the initial set
+						# and the additional reflectors are spare reflectors should any from initial set go stale
+						# a bad reflector in the initial set is replaced with $reflectors[$no_pingers]
+						# $reflectors[$no_pingers] is then unset
+						# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
+						# and finally the indices for $reflectors are updated to reflect the new order
 	
-						(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}" now."
+						(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
 						kill ${pinger_pids[$pinger]}
 						bad_reflector=${reflectors[$pinger]}
 						# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
 						reflectors[$pinger]=${reflectors[$no_pingers]}
+						# remove the new reflector from the list of additional reflectors beginning from $reflectors[$no_pingers]
 						unset reflectors[$no_pingers]
 						# bad reflector goes to the back of the queue
 						reflectors+=($bad_reflector)
 						# reset array indices
 						reflectors=(${reflectors[*]})
+						# set up the new pinger with the new reflector and retain pid
 						start_pinger_next_pinger_time_slot $pinger pid
 						pinger_pids[$pinger]=$pid
 					
 					else
-						(($debug)) && echo "DEBUG: No additional reflectors available. So just retaining: "${reflectors[$pinger]}"."
+						(($debug)) && echo "DEBUG: No additional reflectors specified so just retaining: "${reflectors[$pinger]}"."
 						reflector_offences[$pinger]=0
 					fi
 				fi
@@ -264,9 +279,12 @@ maintain_pingers()
 	done
 }
 
-# wait until next pinger time slot and start pinger in its slot
 start_pinger_next_pinger_time_slot()
 {
+	# wait until next pinger time slot and start pinger in its slot
+	# this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)
+	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
+
 	local pinger=$1
 	local -n pinger_pid=$2
 	t_start_us=${EPOCHREALTIME/./}
@@ -322,6 +340,7 @@ update_max_wire_packet_compensation()
 {
 	# Compensate for delays imposed by active traffic shaper
 	# This will serve to increase the delay thr at rates below around 12Mbit/s
+
 	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
 	compensated_delay_thr_us=$(( $delay_thr_us + $max_wire_packet_rtt_us ))
 
@@ -338,16 +357,18 @@ concurrent_read()
 
 	local -n value=$1
  	local path=$2
-	
 	read -r value < $path
-	while [[ -z $value ]]; do read -r value < $path; done
+	while [[ -z $value ]]; do
+		sleep_us $concurrent_read_interval_us
+		read -r value < $path; 
+	done
 }
 
 sleep_s()
 {
 	# calling external sleep binary is slow
-	# bash has a builtin sleep that can be enabled 
-	# but read's timeout can be exploited and this is apparently even faster
+	# bash does have a loadable sleep 
+	# but read's timeout can more portably be exploited and this is apparently even fastera anyway
 
 	local sleep_duration_s=$1 # (seconds, e.g. 0.5, 1 or 1.5)
 
@@ -357,8 +378,8 @@ sleep_s()
 sleep_us()
 {
 	# calling external sleep binary is slow
-	# bash has a builtin sleep that can be enabled 
-	# but read's timeout can be exploited and this is apparently even faster
+	# bash does have a loadable sleep 
+	# but read's timeout can more portably be exploited and this is apparently even fastera anyway
 
 	local sleep_duration_us=$1 # (microseconds)
 	
@@ -369,6 +390,8 @@ sleep_us()
 
 sleep_remaining_tick_time()
 {
+	# sleeps until the end of the tick duration
+
 	local t_start_us=$1 # (microseconds)
 	local tick_duration_us=$2 # (microseconds)
 
@@ -424,6 +447,8 @@ decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
+
+concurrent_read_interval_us=$(($ping_response_interval_us/4))
 
 dl_shaper_rate_kbps=$base_dl_shaper_rate_kbps
 ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
