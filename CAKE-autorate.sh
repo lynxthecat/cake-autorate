@@ -404,12 +404,12 @@ sleep_remaining_tick_time()
 
 # /tmp/CAKE-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
-if [[ ! -d /tmp/CAKE-autorate ]]; then 
-	mkdir /tmp/CAKE-autorate
-else 
+if [[ -d /tmp/CAKE-autorate ]]; then 
 	echo "Error: /tmp/CAKE-autorate already exists. Is another instance running? Exiting script."
 	trap - INT TERM EXIT
 	exit
+else 
+	mkdir /tmp/CAKE-autorate
 fi
 
 mkfifo /tmp/CAKE-autorate/sleep_fifo
