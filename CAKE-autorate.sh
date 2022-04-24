@@ -191,7 +191,7 @@ kill_pingers()
 	for (( pinger=0; pinger<$no_pingers; pinger++))
 	do
 		kill ${pinger_pids[$pinger]} 2> /dev/null
-		[[ -p /tmp/CAKE-autorate/${reflector}_fifo ]] && rm /tmp/CAKE-autorate/pinger_${pinger}_fifo
+		[[ -p /tmp/CAKE-autorate/pinger_${pinger}_fifo ]] && rm /tmp/CAKE-autorate/pinger_${pinger}_fifo
 	done
 	exit
 }
