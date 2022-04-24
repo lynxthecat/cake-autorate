@@ -22,7 +22,10 @@ ul_if=wan        # upload interface
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
 # list of reflectors to use
-reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4")
+reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
+
+# number of pingers to maintain (must be <= number of reflectors above)
+no_pingers=4
 
 # delay threshold in ms is the extent of RTT increase to classify as a delay
 # this is automatically adjusted based on maximum on the wire packet size
@@ -79,6 +82,11 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 # refractory periods between successive bufferbloat/decay rate changes
 bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
+
+# deadline for reflector response not to be classified as an offence against reflector
+reflector_health_check_interval_s=1 # (seconds)
+reflector_response_deadline_s=1 # (seconds)
+reflector_offence_thr=10
 
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
