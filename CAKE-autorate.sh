@@ -191,7 +191,7 @@ kill_pingers()
 	for (( pinger=0; pinger<$no_pingers; pinger++))
 	do
 		kill ${pinger_pids[$pinger]} 2> /dev/null
-		[[ -p /tmp/CAKE-autorate/${reflector}_fifo ]] && rm /tmp/CAKE-autorate/pringer_${pinger}_fifo
+		[[ -p /tmp/CAKE-autorate/${reflector}_fifo ]] && rm /tmp/CAKE-autorate/pinger_${pinger}_fifo
 	done
 	exit
 }
@@ -250,6 +250,10 @@ maintain_pingers()
 						reflectors=(${reflectors[*]})
 						start_pinger_next_pinger_time_slot $pinger pid
 						pinger_pids[$pinger]=$pid
+					
+					else
+						(($debug)) && echo "DEBUG: No additional reflectors available. So just retaining: "${reflectors[$pinger]}"."
+						reflector_offences[$pinger]=0
 					fi
 				fi
 
