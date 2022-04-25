@@ -86,10 +86,17 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
-# deadline for reflector response not to be classified as an offence against reflector
+# interval for checking reflector health
 reflector_health_check_interval_s=1 # (seconds)
+# deadline for reflector response not to be classified as an offence against reflector
 reflector_response_deadline_s=1 # (seconds)
-reflector_offence_thr=10
+
+# reflector_misbehaving is detected when $reflector_misbehaving_detection_thr samples
+# out of the last (reflector misbehaving detection window) samples are offences
+# thus with a 1s interval, window 60 and detection_thr 3, this is tantamount to
+# 3 offences within the last 60s 
+reflector_misbehaving_detection_window=60
+reflector_misbehaving_detection_thr=3
 
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
@@ -121,6 +128,6 @@ case "${ul_if}" in
 esac
 
 if (( $debug )) ; then
-    echo "rx_bytes_path: $rx_bytes_path"
-    echo "tx_bytes_path: $tx_bytes_path"
+    echo "DEBUG: rx_bytes_path: $rx_bytes_path"
+    echo "DEBUG: tx_bytes_path: $tx_bytes_path"
 fi
