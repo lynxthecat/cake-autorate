@@ -157,7 +157,7 @@ classify_load()
 	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
 }
 
-monitor_pinger_responses() 
+monitor_reflector_responses() 
 {
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
@@ -166,7 +166,6 @@ monitor_pinger_responses()
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
-
 		# If no match then skip onto the next one
 		[[ $seq_rtt =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
@@ -185,7 +184,7 @@ monitor_pinger_responses()
 
 		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline_us" "$rtt_us" "$rtt_delta_us" > /tmp/CAKE-autorate/ping_fifo
 	
-		printf '%s\n' "${timestamp//[[\[\].]}" > /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
+		printf '%s' "${timestamp//[[\[\].]}" > /tmp/CAKE-autorate/reflector_${pinger}_last_timestamp_us
 
 	done</tmp/CAKE-autorate/pinger_${pinger}_fifo
 }
@@ -208,14 +207,19 @@ maintain_pingers()
 
 	declare -A pinger_pids
 	declare -A rtt_baselines_us
-	declare -A reflector_offences
+
+	reflector_offences_idx=0
 
 	# For each pinger: create fifos, get baselines and initialize record of offences
 	for ((pinger=0; pinger<$no_pingers; pinger++))
 	do
 		mkfifo /tmp/CAKE-autorate/pinger_${pinger}_fifo
 		[[ $(ping -q -c 5 -i 0.1 ${reflectors[$pinger]} | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baselines_us[$pinger] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baselines_us[$pinger]=0
-		reflector_offences[$pinger]=0
+	
+		declare -n reflector_offences="reflector_${pinger}_offences"
+		for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+
+		sum_reflector_offences[$pinger]=0
 	done
 
 	pingers_t_start_us=${EPOCHREALTIME/./}
@@ -223,59 +227,64 @@ maintain_pingers()
 	# Initiate pingers
 	for ((pinger=0; pinger<$no_pingers; pinger++))
 	do
-		printf '%s\n' "$pingers_t_start_us" > /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
+		printf '%s' "$pingers_t_start_us" > /tmp/CAKE-autorate/reflector_${pinger}_last_timestamp_us
 		start_pinger_next_pinger_time_slot $pinger pid
 		pinger_pids[$pinger]=$pid
 	done
 
-	# Pinger health check loop - verifies pingers have not gone stale and rotates reflectors as necessary
+	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
 	do
 		sleep_s $reflector_health_check_interval_s
 
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
-			concurrent_read last_timestamp_us /tmp/CAKE-autorate/pinger_${pinger}_last_timestamp_us
-			if (( (${EPOCHREALTIME/./}-$last_timestamp_us) > $reflector_response_deadline_us)); then
+			reflector_check_time_us=${EPOCHREALTIME/./}
+			concurrent_read reflector_last_timestamp_us /tmp/CAKE-autorate/reflector_${pinger}_last_timestamp_us
+			declare -n reflector_offences="reflector_${pinger}_offences"
 
-				if((++reflector_offences[$pinger]==$reflector_offence_thr)); then
-									
-					(($debug)) && echo "DEBUG Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving."
+			(( ${reflector_offences[$reflector_offences_idx]} )) && ((sum_reflector_offences[$pinger]--))
+			reflector_offences[$reflector_offences_idx]=$(( (((${EPOCHREALTIME/./}-$reflector_last_timestamp_us) > $reflector_response_deadline_us)) ? 1 : 0 ))
+			((reflector_offences[$reflector_offences_idx])) && ((sum_reflector_offences[$pinger]++))
+
+			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
+
+				(($debug)) && echo "DEBUG: Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving."
 				
-					if(($no_reflectors>$no_pingers)); then
+				if(($no_reflectors>$no_pingers)); then
 
-						# pingers always use reflectors[0]..[$no_pingers-1] as the initial set
-						# and the additional reflectors are spare reflectors should any from initial set go stale
-						# a bad reflector in the initial set is replaced with $reflectors[$no_pingers]
-						# $reflectors[$no_pingers] is then unset
-						# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
-						# and finally the indices for $reflectors are updated to reflect the new order
+					# pingers always use reflectors[0]..[$no_pingers-1] as the initial set
+					# and the additional reflectors are spare reflectors should any from initial set go stale
+					# a bad reflector in the initial set is replaced with $reflectors[$no_pingers]
+					# $reflectors[$no_pingers] is then unset
+					# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
+					# and finally the indices for $reflectors are updated to reflect the new order
 	
-						(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
-						kill ${pinger_pids[$pinger]}
-						bad_reflector=${reflectors[$pinger]}
-						# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
-						reflectors[$pinger]=${reflectors[$no_pingers]}
-						# remove the new reflector from the list of additional reflectors beginning from $reflectors[$no_pingers]
-						unset reflectors[$no_pingers]
-						# bad reflector goes to the back of the queue
-						reflectors+=($bad_reflector)
-						# reset array indices
-						reflectors=(${reflectors[*]})
-						# set up the new pinger with the new reflector and retain pid
-						start_pinger_next_pinger_time_slot $pinger pid
-						pinger_pids[$pinger]=$pid
+					(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
+					kill ${pinger_pids[$pinger]}
+					bad_reflector=${reflectors[$pinger]}
+					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
+					reflectors[$pinger]=${reflectors[$no_pingers]}
+					# remove the new reflector from the list of additional reflectors beginning from $reflectors[$no_pingers]
+					unset reflectors[$no_pingers]
+					# bad reflector goes to the back of the queue
+					reflectors+=($bad_reflector)
+					# reset array indices
+					reflectors=(${reflectors[*]})
+					# set up the new pinger with the new reflector and retain pid
+					start_pinger_next_pinger_time_slot $pinger pid
+					pinger_pids[$pinger]=$pid
 					
-					else
-						(($debug)) && echo "DEBUG: No additional reflectors specified so just retaining: "${reflectors[$pinger]}"."
-						reflector_offences[$pinger]=0
-					fi
+				else
+					(($debug)) && echo "DEBUG: No additional reflectors specified so just retaining: "${reflectors[$pinger]}"."
+					reflector_offences[$pinger]=0
 				fi
 
-			elif ((pinger_health[$pinger]>0)); then
-				((reflector_offences[$pinger]--))
+				for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+				sum_reflector_offences[$pinger]=0
 			fi		
 		done
+		((reflector_offences_idx=(reflector_offences_idx+1)%$reflector_misbehaving_detection_window))
 	done
 }
 
@@ -292,7 +301,7 @@ start_pinger_next_pinger_time_slot()
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
 	ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo &
 	pinger_pid=$!
-	monitor_pinger_responses $pinger ${rtt_baselines_us[$pinger]} &
+	monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
 }
 
 set_cake_rate()
