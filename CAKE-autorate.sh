@@ -261,7 +261,7 @@ maintain_pingers()
 					# and finally the indices for $reflectors are updated to reflect the new order
 	
 					(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
-					kill ${pinger_pids[$pinger]}
+					kill ${pinger_pids[$pinger]} 2> /dev/null
 					bad_reflector=${reflectors[$pinger]}
 					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
 					reflectors[$pinger]=${reflectors[$no_pingers]}
