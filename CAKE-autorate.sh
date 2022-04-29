@@ -299,8 +299,13 @@ start_pinger_next_pinger_time_slot()
 	t_start_us=${EPOCHREALTIME/./}
 	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
-	ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo &
-	pinger_pid=$!
+	if (($debug)); then
+		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo &
+		pinger_pid=$!
+	else
+		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo & 2> /dev/null
+		pinger_pid=$!
+	fi
 	monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
 }
 
