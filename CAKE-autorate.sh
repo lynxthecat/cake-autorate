@@ -303,7 +303,7 @@ start_pinger_next_pinger_time_slot()
 		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo &
 		pinger_pid=$!
 	else
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo & 2> /dev/null
+		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/CAKE-autorate/pinger_${pinger}_fifo 2> /dev/null &
 		pinger_pid=$!
 	fi
 	monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
