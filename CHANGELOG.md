@@ -6,6 +6,11 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
+## 2022-04-25
+
+- Included reflector health monitoring and support for reflector rotation upon detection of bad reflectors.
+- **Overall the code now seems to work very well and seems to have reached a mature stage.**
+
 ## 2022-04-19
 
 - Many further optimizations to reduce CPU use and improve performance. 
