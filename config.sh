@@ -22,7 +22,7 @@ ul_if=wan        # upload interface
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
 # list of reflectors to use and number of pingers to initiate
-# pingers will be initiated with reflectors in the order specified in the list in the order specified
+# pingers will be initiated with reflectors in the order specified in the list 
 # additional reflectors will be used to replace any reflectors that go stale
 # so e.g. if 6 reflectors are specified and the number of pingers is set to 4, the first 4 reflectors will be used initially
 # and the remaining 2 reflectors in the list will be used in the event any of the first 4 go bad
