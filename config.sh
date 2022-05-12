@@ -78,7 +78,7 @@ shaper_rate_adjust_bufferbloat=0.9   # how rapidly to reduce shaper rate upon de
 shaper_rate_adjust_load_high=1.01    # how rapidly to increase shaper rate upon high load detected 
 shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon idle or low load detected 
 
-# thus load is categoried as medium if > medium_load_thr and high if > high_load_thr relative to shaper rate
+# the load is categoried as low if < medium_load_thr, medium if > medium_load_thr and high if > high_load_thr relative to the current shaper rate
 medium_load_thr=0.25 # % of currently set bandwidth for detecting medium load
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
@@ -91,7 +91,7 @@ reflector_health_check_interval_s=1 # (seconds)
 # deadline for reflector response not to be classified as an offence against reflector
 reflector_response_deadline_s=1 # (seconds)
 
-# reflector_misbehaving is detected when $reflector_misbehaving_detection_thr samples
+# reflector misbehaving is detected when $reflector_misbehaving_detection_thr samples
 # out of the last (reflector misbehaving detection window) samples are offences
 # thus with a 1s interval, window 60 and detection_thr 3, this is tantamount to
 # 3 offences within the last 60s 
