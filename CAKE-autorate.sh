@@ -437,8 +437,8 @@ no_reflectors=${#reflectors[@]}
 # Check dl/if interface not the same
 [[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
 
-# Check bufferbloat detection threshold not greate than window length
-[[ $bufferbloat_detection_thr > $bufferbloat_detection_window ]] && { echo "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
+# Check bufferbloat detection threshold not greater than window length
+(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { echo "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
 # Check the rx/tx paths and give time for ifb's to come up
 while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
