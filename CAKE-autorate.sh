@@ -442,20 +442,19 @@ no_reflectors=${#reflectors[@]}
 # Check bufferbloat detection threshold not greater than window length
 (( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { echo "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
-# Check the rx/tx paths and give time for ifb's to come up
+# Wait if $startup_wait_s > 0
+if (($startup_wait_s>0)); then
+	(($debug)) && echo "DEBUG Waiting "$startup_wait_s" seconds before startup."
+	sleep_s $startup_wait_s
+fi
+
+# Check the rx/tx paths and give extra time for ifb's to come up if needed
 while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 do
 	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
 	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
 	sleep_s $if_up_check_interval_s
 done
-
-# Wait if $startup_wait_s > 0
-
-if (($startup_wait_s>0)); then
-	(($debug)) && echo "DEBUG Waiting "$startup_wait_s" seconds before startup."
-	sleep_s $startup_wait_s
-fi
 
 # Initialize variables
 
