@@ -132,8 +132,8 @@ get_loads()
 	concurrent_read dl_achieved_rate_kbps /tmp/CAKE-autorate/dl_achieved_rate_kbps 
 	concurrent_read ul_achieved_rate_kbps /tmp/CAKE-autorate/ul_achieved_rate_kbps 
 	
-	dl_load_percent=$(((100*$dl_achieved_rate_kbps)/$dl_shaper_rate_kbps))
-	ul_load_percent=$(((100*$ul_achieved_rate_kbps)/$ul_shaper_rate_kbps))
+	dl_load_percent=$(((100*10#${dl_achieved_rate_kbps})/$dl_shaper_rate_kbps))
+	ul_load_percent=$(((100*10#${ul_achieved_rate_kbps})/$ul_shaper_rate_kbps))
 }
 
 classify_load()
