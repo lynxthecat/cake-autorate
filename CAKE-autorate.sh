@@ -416,6 +416,8 @@ sleep_remaining_tick_time()
 	fi
 }
 
+# Set up tmp directory, sleep fifo and perform various sanity checks
+
 # /tmp/CAKE-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d /tmp/CAKE-autorate ]]; then 
@@ -447,6 +449,13 @@ do
 	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
 	sleep_s $if_up_check_interval_s
 done
+
+# Wait if $startup_wait_s > 0
+
+if (($startup_wait_s>0)); then
+	(($debug)) && echo "DEBUG Waiting "$startup_wait_s" seconds before startup."
+	sleep_s $startup_wait_s
+fi
 
 # Initialize variables
 
@@ -509,8 +518,6 @@ maintain_pingers_pid=$!
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
-
-sleep_s 1
 
 prev_timestamp=0
 
