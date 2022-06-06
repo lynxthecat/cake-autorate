@@ -49,7 +49,7 @@ enable_sleep_function=1 # enable (1) or disable (0) sleep functonality
 connection_active_thr_kbps=500 # threshold in Kbit/s below which dl/ul is considered idle
 sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
-startup_wait_s=5 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
+startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
