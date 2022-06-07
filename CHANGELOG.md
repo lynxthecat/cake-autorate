@@ -6,11 +6,12 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
-## 2022-06-06
+## 2022-06-07
 
 - Add optional startup delay
 - Fix octal/base issue on calculation of loads by forcing base 10
 - Prevent crash on interface reset in which rx/tx_bytes counters are reset by checking for negative achieved rates and setting to zero
+- Verify interfaces are up on startup and on main loop exit (and wait as necessary for them to come up)
 
 ## 2022-06-02
 
