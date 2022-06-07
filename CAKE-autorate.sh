@@ -464,6 +464,7 @@ if (($startup_wait_s>0)); then
 	sleep_s $startup_wait_s
 fi
 
+# Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
 
 # Initialize variables
