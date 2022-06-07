@@ -381,6 +381,19 @@ concurrent_read()
 	done
 }
 
+verify_ifs_up()
+{
+	# Check the rx/tx paths exist and give extra time for ifb's to come up if needed
+	# This will block if ifs never come up
+
+	while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
+	do
+		(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
+		(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
+		sleep_s $if_up_check_interval_s
+	done
+}
+
 sleep_s()
 {
 	# calling external sleep binary is slow
@@ -451,13 +464,7 @@ if (($startup_wait_s>0)); then
 	sleep_s $startup_wait_s
 fi
 
-# Check the rx/tx paths and give extra time for ifb's to come up if needed
-while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
-do
-	(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
-	(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
-	sleep_s $if_up_check_interval_s
-done
+verify_ifs_up
 
 # Initialize variables
 
@@ -579,6 +586,9 @@ do
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
+
+	# verify interfaces are up (e.g. following ping response timeout from interfaces going down)
+	verify_ifs_up
 
 	# wait until load increases again
 	while true
