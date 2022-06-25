@@ -75,13 +75,14 @@ alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
 # to exploit that transfer rates during bufferbloat provide an indication of line capacity
 # otherwise shaper rate is adjusted up on load high, and down on load idle or low
 # and held the same on load medium
-achieved_rate_adjust_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
-shaper_rate_adjust_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
-shaper_rate_adjust_load_high=1.01    # how rapidly to increase shaper rate upon high load detected 
-shaper_rate_adjust_load_low=0.98     # how rapidly to return to base shaper rate upon idle or low load detected 
+achieved_rate_adjust_down_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
+shaper_rate_adjust_down_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
+shaper_rate_adjust_up_load_high=1.01      # how rapidly to increase shaper rate upon high load detected 
+shaper_rate_adjust_down_load_low=0.9      # how rapidly to return down to base shaper rate upon idle or low load detected 
+shaper_rate_adjust_up_load_low=1.01       # how rapidly to return up to base shaper rate upon idle or low load detected 
 
 # the load is categoried as low if < medium_load_thr, medium if > medium_load_thr and high if > high_load_thr relative to the current shaper rate
-medium_load_thr=0.25 # % of currently set bandwidth for detecting medium load
+medium_load_thr=0.50 # % of currently set bandwidth for detecting medium load
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
 # refractory periods between successive bufferbloat/decay rate changes
