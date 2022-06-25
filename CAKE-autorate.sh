@@ -46,8 +46,8 @@ get_next_shaper_rate()
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*delayed)
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
-				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_bufferbloat)/1000 )) 
-				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_bufferbloat)/1000 )) 
+				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_down_bufferbloat)/1000 )) 
+				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_down_bufferbloat)/1000 )) 
 				shaper_rate_kbps=$(( $adjusted_achieved_rate_kbps < $adjusted_shaper_rate_kbps ? $adjusted_achieved_rate_kbps : $adjusted_shaper_rate_kbps ))
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
@@ -56,7 +56,7 @@ get_next_shaper_rate()
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high)	
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
-				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_load_high)/1000 ))
+				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
 		# medium load, so just maintain rate as is, i.e. do nothing
@@ -68,10 +68,10 @@ get_next_shaper_rate()
 			if (($t_next_rate_us > ($t_last_decay_us+$decay_refractory_period_us) )); then
 
 	                	if (($shaper_rate_kbps > $base_shaper_rate_kbps)); then
-					decayed_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_load_low)/1000 ))
+					decayed_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_down_load_low)/1000 ))
 					shaper_rate_kbps=$(( $decayed_shaper_rate_kbps > $base_shaper_rate_kbps ? $decayed_shaper_rate_kbps : $base_shaper_rate_kbps))
 				elif (($shaper_rate_kbps < $base_shaper_rate_kbps)); then
-        			        decayed_shaper_rate_kbps=$(( ((2000-$shaper_rate_adjust_load_low)*$shaper_rate_kbps)/1000 ))
+        			        decayed_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_up_load_low)/1000 ))
 					shaper_rate_kbps=$(( $decayed_shaper_rate_kbps < $base_shaper_rate_kbps ? $decayed_shaper_rate_kbps : $base_shaper_rate_kbps))
                 		fi
 
@@ -472,10 +472,11 @@ verify_ifs_up
 # Convert human readable parameters to values that work with integer arithmetic
 printf -v alpha_baseline_increase %.0f\\n "${alpha_baseline_increase}e3"
 printf -v alpha_baseline_decrease %.0f\\n "${alpha_baseline_decrease}e3"   
-printf -v achieved_rate_adjust_bufferbloat %.0f\\n "${achieved_rate_adjust_bufferbloat}e3"
-printf -v shaper_rate_adjust_bufferbloat %.0f\\n "${shaper_rate_adjust_bufferbloat}e3"
-printf -v shaper_rate_adjust_load_high %.0f\\n "${shaper_rate_adjust_load_high}e3"
-printf -v shaper_rate_adjust_load_low %.0f\\n "${shaper_rate_adjust_load_low}e3"
+printf -v achieved_rate_adjust_down_bufferbloat %.0f\\n "${achieved_rate_adjust_down_bufferbloat}e3"
+printf -v shaper_rate_adjust_down_bufferbloat %.0f\\n "${shaper_rate_adjust_down_bufferbloat}e3"
+printf -v shaper_rate_adjust_up_load_high %.0f\\n "${shaper_rate_adjust_up_load_high}e3"
+printf -v shaper_rate_adjust_down_load_low %.0f\\n "${shaper_rate_adjust_down_load_low}e3"
+printf -v shaper_rate_adjust_up_load_low %.0f\\n "${shaper_rate_adjust_up_load_low}e3"
 printf -v high_load_thr_percent %.0f\\n "${high_load_thr}e2"
 printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
