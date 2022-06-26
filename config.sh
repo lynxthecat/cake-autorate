@@ -89,7 +89,7 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 # the bufferbloat refractory period should be greater than the 
 # average time it would take to replace the bufferbloat
 # detection window with new samples upon a bufferbloat event
-bufferbloat_refractory_period_ms=500 # (milliseconds)
+bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
 # interval for checking reflector health
