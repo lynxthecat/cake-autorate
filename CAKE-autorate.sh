@@ -532,6 +532,14 @@ monitor_achieved_rates_pid=$!
 
 prev_timestamp=0
 
+if (($debug)); then
+	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
+		echo "DEBUG Warning: bufferbloat refractory period: " $bufferbloat_refractory_period_us " us."
+		echo "DEBUG Warning: but time to overwrite samples in bufferbloat detection window is: " $(($bufferbloat_detection_window*$ping_response_interval_us)) " us." 
+		echo "DEBUG Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
+	fi
+fi
+
 while true
 do
 	while read -t $global_ping_response_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
