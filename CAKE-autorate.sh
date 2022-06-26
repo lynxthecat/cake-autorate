@@ -535,7 +535,7 @@ prev_timestamp=0
 if (($debug)); then
 	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
 		echo "DEBUG Warning: bufferbloat refractory period: " $bufferbloat_refractory_period_us " us."
-		echo "DEBUG Warning: but time to overwrite samples in bufferbloat detection window is: " $(($bufferbloat_detection_window*$ping_response_interval_us)) " us." 
+		echo "DEBUG Warning: but expected time to overwrite samples in bufferbloat detection window is: " $(($bufferbloat_detection_window*$ping_response_interval_us)) " us." 
 		echo "DEBUG Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
 fi
