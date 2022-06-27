@@ -112,11 +112,13 @@ When running as a service, the `CAKE-autorate.sh` script outputs to `/tmp/CAKE-a
 
 WARNING: Disabling output by setting **output_processing_stats** to '0' when not required is a good idea given the rate of logging. 
 
-## Preserving files for backup or upgrades
+## Preserving CAKE-autorate files for backup or upgrades
 
-As per: https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify
+The [Backup and Restore page on the wiki](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify)
+describes how files can be saved across upgrades. 
 
-Consider adding files:
+[Add these files on the **Configuration** tab](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#back_up),
+so they will be saved in backups and preserved across snapshot upgrades.
 
  ```
 /root/CAKE-autorate
