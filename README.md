@@ -104,8 +104,8 @@ and start/enable it:
    cd /etc/init.d
    wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/cake-autorate
    chmod +x cake-autorate
-   service CAKE-autorate enable
-   service CAKE-autorate start
+   service cake-autorate enable
+   service cake-autorate start
    ```
 
 When running as a service, the `CAKE-autorate.sh` script outputs to `/tmp/CAKE-autorate.log`.
