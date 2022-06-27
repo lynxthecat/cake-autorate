@@ -112,6 +112,19 @@ When running as a service, the `CAKE-autorate.sh` script outputs to `/tmp/CAKE-a
 
 WARNING: Disabling output by setting **output_processing_stats** to '0' when not required is a good idea given the rate of logging. 
 
+## Preserving files for backup or upgrades
+
+As per: https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify
+
+Consider adding files:
+
+ ```
+/root/CAKE-autorate
+/etc/init.d/cake-autorate
+ ```
+ 
+ for inclusion in backups and preservation across snapshot upgrades.
+ 
 ## A Request to Testers
 
 If you use this script I have just one ask. Please post your experience on this [OpenWrt Forum thread](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/). Your feedback will help improve the script for the benefit of others.  
