@@ -78,6 +78,12 @@ and make it executable:
   - Set baseline bandwidth variables (`base_dl_rate` and `base_ul_rate` in the script) as described above.
   - Set maximum bandwidth (`max_dl_rate` and `max_ul_rate`) as described above.
   
+## Example Starlink config
+
+- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/CAKE-autorate/blob/main/Example_Starlink_config.sh).
+- See discussion on OpenWrt thread from [up to this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
+- This might be a good starting point for Starlink users.
+
 ## Manual testing
 
 - Run the `CAKE-autorate.sh` script:
