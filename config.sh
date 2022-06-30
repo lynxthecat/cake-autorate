@@ -111,9 +111,9 @@ if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files
 
 # Starlink options
 starlink_connection=1 # enable (1) or disable (0) Starlink handling
-# satelite switching times in seconds of each minute
-starlink_switching_times_s=("11.5" "26.5" "41.5" "56.5")
-starlink_switch_period_ms=1000
+# satelite switch compensation start times in seconds of each minute
+starlink_sat_switch_compensation_times_s=("11.5" "26.5" "41.5" "56.5")
+starlink_sat_switch_compensation_period_ms=1000
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
