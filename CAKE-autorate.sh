@@ -44,7 +44,7 @@ get_next_shaper_rate()
 	case $load_condition in
 
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
-		*delayed)
+		*bb)
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_down_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_down_bufferbloat)/1000 )) 
@@ -52,8 +52,8 @@ get_next_shaper_rate()
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
-
-		sta_s*)
+		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
+		ss*)
 
 				shaper_rate_kbps=$min_shaper_rate_kbps
 			;;
@@ -65,7 +65,7 @@ get_next_shaper_rate()
 			fi
 			;;
 		# medium load, so just maintain rate as is, i.e. do nothing
-		medium)
+		med)
 			:
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
@@ -155,21 +155,21 @@ classify_load()
 	if (( $load_percent > $high_load_thr_percent )); then
 		load_condition="high"  
 	elif (( $load_percent > $medium_load_thr_percent )); then
-		load_condition="medium"
+		load_condition="med"
 	elif (( $achieved_rate_kbps > $connection_active_thr_kbps )); then
 		load_condition="low"
 	else 
 		load_condition="idle"
 	fi
 	
-	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
+	(($bufferbloat_detected)) && load_condition=$load_condition"_bb"
 		
 	if ((starlink_connection)); then
-		for starlink_switching_time_us in "${starlink_switching_times_us[@]}"
+		for starlink_sat_switch_compensation_time_us in "${starlink_sat_switch_compensation_times_us[@]}"
 		do
 			((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
-			if (( ($timestamp_usecs_past_minute > $starlink_switching_time_us) && ($timestamp_usecs_past_minute < ($starlink_switching_time_us+$starlink_switch_period_us)) )); then
-				load_condition="sta_s_"$load_condition
+			if (( ($timestamp_usecs_past_minute > $starlink_sat_switch_compensation_time_us) && ($timestamp_usecs_past_minute < ($starlink_sat_switch_compensation_time_us+$starlink_sat_switch_compensation_period_us)) )); then
+				load_condition="ss_"$load_condition
 			fi
 		done			
 	fi
@@ -502,11 +502,11 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
-for (( i=0; i<${#starlink_switching_times_s[@]}; i++ ));
+for (( i=0; i<${#starlink_sat_switch_compensation_times_s[@]}; i++ ));
 do
-	printf -v starlink_switching_times_us[i] %.0f\\n "${starlink_switching_times_s[i]}e6"
+	printf -v starlink_sat_switch_compensation_times_us[i] %.0f\\n "${starlink_sat_switch_compensation_times_s[i]}e6"
 done
-printf -v starlink_switch_period_us %.0f\\n "${starlink_switch_period_ms}e3"
+printf -v starlink_sat_switch_compensation_period_us %.0f\\n "${starlink_sat_switch_compensation_period_ms}e3"
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
