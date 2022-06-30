@@ -108,6 +108,13 @@ global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no pin
 
 if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
 
+
+# Starlink options
+starlink_connection=1 # enable (1) or disable (0) Starlink handling
+# satelite switching times in seconds of each minute
+starlink_switching_times_s=("12.0" "27.0" "42.0" "57.0")
+starlink_switch_period_ms=300
+
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
     \veth*)
