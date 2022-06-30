@@ -22,7 +22,7 @@ cleanup_and_killall()
 	exit
 }
 
-install_dir="/root/CAKE-autorate/"
+install_dir="/root/CAKE-autorate/Starlink/"
 
 . $install_dir"config.sh"
 
@@ -487,6 +487,12 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
+for (( i=0; i<${#starlink_switching_times_s[@]}; i++ ));
+do
+	printf -v starlink_switching_times_us[i] %.0f\\n "${starlink_switching_times_s[i]}e6"
+done
+printf -v starlink_switch_period_us %.0f\\n "${starlink_switch_period_ms}e3"
+
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
 concurrent_read_interval_us=$(($ping_response_interval_us/4))
@@ -520,6 +526,7 @@ declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; do
 delays_idx=0
 sum_delays=0
 
+
 mkfifo /tmp/CAKE-autorate/ping_fifo
 exec 4<> /tmp/CAKE-autorate/ping_fifo
 
@@ -548,6 +555,25 @@ do
 		if ((($t_start_us - "${timestamp//[[\[\].]}")>500000)); then
 			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
+		fi
+
+		if ((starlink_connection)); then
+				
+			for starlink_switching_time_us in "${starlink_switching_times_us[@]}"
+			do
+				((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
+				if (( ($timestamp_usecs_past_minute > $starlink_switching_time_us) && ($timestamp_usecs_past_minute < ($starlink_switching_time_us+$starlink_switch_period_us)) )); then
+					dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
+					ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
+					set_shaper_rates
+					dl_load_condition="Starlink_switch"
+					ul_load_condition="Starlink_switch"
+					get_loads
+					(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+					continue 2;
+				fi
+			done			
+
 		fi
 		
 		# Keep track of number of delays across detection window
