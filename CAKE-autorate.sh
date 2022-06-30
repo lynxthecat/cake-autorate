@@ -52,6 +52,11 @@ get_next_shaper_rate()
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
+
+		sta_s*)
+
+				shaper_rate_kbps=$min_shaper_rate_kbps
+			;;
 		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high)	
@@ -158,6 +163,16 @@ classify_load()
 	fi
 	
 	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
+		
+	if ((starlink_connection)); then
+		for starlink_switching_time_us in "${starlink_switching_times_us[@]}"
+		do
+			((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
+			if (( ($timestamp_usecs_past_minute > $starlink_switching_time_us) && ($timestamp_usecs_past_minute < ($starlink_switching_time_us+$starlink_switch_period_us)) )); then
+				load_condition="sta_s_"$load_condition
+			fi
+		done			
+	fi
 }
 
 monitor_reflector_responses() 
@@ -557,24 +572,6 @@ do
 			continue
 		fi
 
-		if ((starlink_connection)); then
-				
-			for starlink_switching_time_us in "${starlink_switching_times_us[@]}"
-			do
-				((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
-				if (( ($timestamp_usecs_past_minute > $starlink_switching_time_us) && ($timestamp_usecs_past_minute < ($starlink_switching_time_us+$starlink_switch_period_us)) )); then
-					dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
-					ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
-					set_shaper_rates
-					dl_load_condition="Starlink_switch"
-					ul_load_condition="Starlink_switch"
-					get_loads
-					(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
-					continue 2;
-				fi
-			done			
-
-		fi
 		
 		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
