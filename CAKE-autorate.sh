@@ -169,6 +169,7 @@ classify_load()
 			((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
 			if (( ($timestamp_usecs_past_minute > ($sss_time_us-$sss_compensation_pre_duration_us)) && ($timestamp_usecs_past_minute < ($sss_time_us+$sss_compensation_post_duration_us)) )); then
 				load_condition=$load_condition"_sss"
+				break
 			fi
 		done			
 	fi
