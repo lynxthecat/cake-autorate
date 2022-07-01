@@ -163,11 +163,11 @@ classify_load()
 	
 	(($bufferbloat_detected)) && load_condition=$load_condition"_bb"
 		
-	if ((starlink_sat_switch_compensation)); then
-		for starlink_sat_switch_compensation_time_us in "${starlink_sat_switch_compensation_times_us[@]}"
+	if ((sss_compensation)); then
+		for sss_time_us in "${sss_times_us[@]}"
 		do
 			((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
-			if (( ($timestamp_usecs_past_minute > $starlink_sat_switch_compensation_time_us) && ($timestamp_usecs_past_minute < ($starlink_sat_switch_compensation_time_us+$starlink_sat_switch_compensation_period_us)) )); then
+			if (( ($timestamp_usecs_past_minute > ($sss_time_us-$sss_compensation_pre_duration_us)) && ($timestamp_usecs_past_minute < ($sss_time_us+$sss_compensation_post_duration_us)) )); then
 				load_condition=$load_condition"_sss"
 			fi
 		done			
@@ -501,11 +501,12 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
-for (( i=0; i<${#starlink_sat_switch_compensation_times_s[@]}; i++ ));
+for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
-	printf -v starlink_sat_switch_compensation_times_us[i] %.0f\\n "${starlink_sat_switch_compensation_times_s[i]}e6"
+	printf -v sss_times_us[i] %.0f\\n "${sss_times_s[i]}e6"
 done
-printf -v starlink_sat_switch_compensation_period_us %.0f\\n "${starlink_sat_switch_compensation_period_ms}e3"
+printf -v sss_compensation_pre_duration_us %.0f\\n "${sss_compensation_pre_duration_ms}e3"
+printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_duration_ms}e3"
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
