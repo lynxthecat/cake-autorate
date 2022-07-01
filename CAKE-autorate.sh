@@ -52,11 +52,6 @@ get_next_shaper_rate()
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
-		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
-		ss*)
-
-				shaper_rate_kbps=$min_shaper_rate_kbps
-			;;
 		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		high)	
@@ -82,6 +77,10 @@ get_next_shaper_rate()
 
 				t_last_decay_us=${EPOCHREALTIME/./}
 			fi
+			;;
+		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
+		*sss)
+				shaper_rate_kbps=$min_shaper_rate_kbps
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
@@ -164,12 +163,12 @@ classify_load()
 	
 	(($bufferbloat_detected)) && load_condition=$load_condition"_bb"
 		
-	if ((starlink_connection)); then
+	if ((starlink_sat_switch_compensation)); then
 		for starlink_sat_switch_compensation_time_us in "${starlink_sat_switch_compensation_times_us[@]}"
 		do
 			((timestamp_usecs_past_minute=${timestamp//[[\[\].]}%60000000))
 			if (( ($timestamp_usecs_past_minute > $starlink_sat_switch_compensation_time_us) && ($timestamp_usecs_past_minute < ($starlink_sat_switch_compensation_time_us+$starlink_sat_switch_compensation_period_us)) )); then
-				load_condition="ss_"$load_condition
+				load_condition=$load_condition"_sss"
 			fi
 		done			
 	fi
