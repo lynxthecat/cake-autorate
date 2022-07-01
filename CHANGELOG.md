@@ -6,6 +6,11 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
+## 2022-07-01
+
+- Significant testing for Starlink (thanks to @gba of OpenWrt)
+- Have added code to compensate for Starlink satelite switch times to preemptively reduce shaper rates prior to switch thereby to help prevent or at least reduce the otherwise large RTT spikes associate with the switching
+
 ## 2022-06-07
 
 - Add optional startup delay
