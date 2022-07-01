@@ -109,11 +109,12 @@ global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no pin
 if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
 
 
-# Starlink options
-starlink_sat_switch_compensation=1 # enable (1) or disable (0) Starlink handling
-# satelite switch compensation start times in seconds of each minute
-starlink_sat_switch_compensation_times_s=("11.5" "26.5" "41.5" "56.5")
-starlink_sat_switch_compensation_period_ms=1000
+# Starlink satellite switch (sss) compensation options
+sss_compensation=1 # enable (1) or disable (0) Starlink handling
+# satellite switch compensation start times in seconds of each minute
+sss_times_s=("12.0" "27.0" "42.0" "57.0")
+sss_compensation_pre_duration_ms=250
+sss_compensation_post_duration_ms=350
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
