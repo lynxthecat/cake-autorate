@@ -22,7 +22,7 @@ cleanup_and_killall()
 	exit
 }
 
-install_dir="/root/CAKE-autorate/Starlink/"
+install_dir="/root/CAKE-autorate/"
 
 . $install_dir"config.sh"
 
@@ -43,8 +43,12 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
+		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
+		ul*sss)
+				shaper_rate_kbps=$min_shaper_rate_kbps
+			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
-		*bb)
+		*bb*)
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_down_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_down_bufferbloat)/1000 )) 
@@ -52,19 +56,18 @@ get_next_shaper_rate()
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
-		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
-		high)	
+		*high*)	
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
 		# medium load, so just maintain rate as is, i.e. do nothing
-		med)
+		*med*)
 			:
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-		low|idle)
+		*low*|*idle*)
 			if (($t_next_rate_us > ($t_last_decay_us+$decay_refractory_period_us) )); then
 
 	                	if (($shaper_rate_kbps > $base_shaper_rate_kbps)); then
@@ -77,10 +80,6 @@ get_next_shaper_rate()
 
 				t_last_decay_us=${EPOCHREALTIME/./}
 			fi
-			;;
-		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
-		*sss)
-				shaper_rate_kbps=$min_shaper_rate_kbps
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
@@ -120,7 +119,7 @@ monitor_achieved_rates()
 		printf '%s' "$dl_achieved_rate_kbps" > /tmp/CAKE-autorate/dl_achieved_rate_kbps
 		printf '%s' "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/ul_achieved_rate_kbps
 
-       		prev_rx_bytes=$rx_bytes
+		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
@@ -587,6 +586,9 @@ do
 		classify_load $dl_load_percent $dl_achieved_rate_kbps dl_load_condition
 		classify_load $ul_load_percent $ul_achieved_rate_kbps ul_load_condition
 	
+		dl_load_condition="dl_"$dl_load_condition
+		ul_load_condition="ul_"$ul_load_condition
+
 		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
