@@ -110,7 +110,7 @@ if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files
 
 
 # Starlink satellite switch (sss) compensation options
-sss_compensation=1 # enable (1) or disable (0) Starlink handling
+sss_compensation=0 # enable (1) or disable (0) Starlink handling
 # satellite switch compensation start times in seconds of each minute
 sss_times_s=("12.0" "27.0" "42.0" "57.0")
 sss_compensation_pre_duration_ms=300
