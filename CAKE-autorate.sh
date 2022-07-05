@@ -43,8 +43,12 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
+		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
+		ul*sss)
+				shaper_rate_kbps=$min_shaper_rate_kbps
+			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
-		*delayed)
+		*bb*)
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_down_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_down_bufferbloat)/1000 )) 
@@ -52,19 +56,18 @@ get_next_shaper_rate()
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
-		
             	# high load, so increase rate providing not inside bufferbloat refractory period 
-		high)	
+		*high*)	
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
 		# medium load, so just maintain rate as is, i.e. do nothing
-		medium)
+		*med*)
 			:
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-		low|idle)
+		*low*|*idle*)
 			if (($t_next_rate_us > ($t_last_decay_us+$decay_refractory_period_us) )); then
 
 	                	if (($shaper_rate_kbps > $base_shaper_rate_kbps)); then
@@ -116,7 +119,7 @@ monitor_achieved_rates()
 		printf '%s' "$dl_achieved_rate_kbps" > /tmp/CAKE-autorate/dl_achieved_rate_kbps
 		printf '%s' "$ul_achieved_rate_kbps" > /tmp/CAKE-autorate/ul_achieved_rate_kbps
 
-       		prev_rx_bytes=$rx_bytes
+		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
@@ -150,14 +153,25 @@ classify_load()
 	if (( $load_percent > $high_load_thr_percent )); then
 		load_condition="high"  
 	elif (( $load_percent > $medium_load_thr_percent )); then
-		load_condition="medium"
+		load_condition="med"
 	elif (( $achieved_rate_kbps > $connection_active_thr_kbps )); then
 		load_condition="low"
 	else 
 		load_condition="idle"
 	fi
 	
-	(($bufferbloat_detected)) && load_condition=$load_condition"_delayed"
+	(($bufferbloat_detected)) && load_condition=$load_condition"_bb"
+		
+	if ((sss_compensation)); then
+		for sss_time_us in "${sss_times_us[@]}"
+		do
+			((timestamp_usecs_past_minute=${EPOCHREALTIME/./}%60000000))
+			if (( ($timestamp_usecs_past_minute > ($sss_time_us-$sss_compensation_pre_duration_us)) && ($timestamp_usecs_past_minute < ($sss_time_us+$sss_compensation_post_duration_us)) )); then
+				load_condition=$load_condition"_sss"
+				break
+			fi
+		done			
+	fi
 }
 
 monitor_reflector_responses() 
@@ -487,6 +501,13 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
+for (( i=0; i<${#sss_times_s[@]}; i++ ));
+do
+	printf -v sss_times_us[i] %.0f\\n "${sss_times_s[i]}e6"
+done
+printf -v sss_compensation_pre_duration_us %.0f\\n "${sss_compensation_pre_duration_ms}e3"
+printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_duration_ms}e3"
+
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
 concurrent_read_interval_us=$(($ping_response_interval_us/4))
@@ -520,6 +541,7 @@ declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; do
 delays_idx=0
 sum_delays=0
 
+
 mkfifo /tmp/CAKE-autorate/ping_fifo
 exec 4<> /tmp/CAKE-autorate/ping_fifo
 
@@ -549,6 +571,7 @@ do
 			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
 		fi
+
 		
 		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
@@ -563,6 +586,9 @@ do
 		classify_load $dl_load_percent $dl_achieved_rate_kbps dl_load_condition
 		classify_load $ul_load_percent $ul_achieved_rate_kbps ul_load_condition
 	
+		dl_load_condition="dl_"$dl_load_condition
+		ul_load_condition="ul_"$ul_load_condition
+
 		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
