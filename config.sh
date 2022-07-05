@@ -56,7 +56,7 @@ startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-monitor_achieved_rates_interval_ms=100 # (milliseconds) 
+monitor_achieved_rates_interval_ms=200 # (milliseconds) 
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
@@ -82,7 +82,7 @@ shaper_rate_adjust_down_load_low=0.9      # how rapidly to return down to base s
 shaper_rate_adjust_up_load_low=1.01       # how rapidly to return up to base shaper rate upon idle or low load detected 
 
 # the load is categoried as low if < medium_load_thr, medium if > medium_load_thr and high if > high_load_thr relative to the current shaper rate
-medium_load_thr=0.50 # % of currently set bandwidth for detecting medium load
+medium_load_thr=0.75 # % of currently set bandwidth for detecting medium load
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 
 # refractory periods between successive bufferbloat/decay rate changes
