@@ -123,7 +123,7 @@ monitor_achieved_rates()
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
-		concurrent_read max_wire_packet_rtt_us /tmp/CAKE-autorate/max_wire_packet_rtt_us
+		concurrent_read_positive_integer max_wire_packet_rtt_us /tmp/CAKE-autorate/max_wire_packet_rtt_us
 
 		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 
@@ -135,8 +135,8 @@ get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
 
-	concurrent_read dl_achieved_rate_kbps /tmp/CAKE-autorate/dl_achieved_rate_kbps 
-	concurrent_read ul_achieved_rate_kbps /tmp/CAKE-autorate/ul_achieved_rate_kbps 
+	concurrent_read_positive_integer dl_achieved_rate_kbps /tmp/CAKE-autorate/dl_achieved_rate_kbps 
+	concurrent_read_positive_integer ul_achieved_rate_kbps /tmp/CAKE-autorate/ul_achieved_rate_kbps 
 
 	dl_load_percent=$(((100*10#${dl_achieved_rate_kbps})/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*10#${ul_achieved_rate_kbps})/$ul_shaper_rate_kbps))
@@ -257,7 +257,7 @@ maintain_pingers()
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
-			concurrent_read reflector_last_timestamp_us /tmp/CAKE-autorate/reflector_${pinger}_last_timestamp_us
+			concurrent_read_positive_integer reflector_last_timestamp_us /tmp/CAKE-autorate/reflector_${pinger}_last_timestamp_us
 			declare -n reflector_offences="reflector_${pinger}_offences"
 
 			(( ${reflector_offences[$reflector_offences_idx]} )) && ((sum_reflector_offences[$pinger]--))
@@ -379,7 +379,7 @@ update_max_wire_packet_compensation()
 	printf '%s' "$max_wire_packet_rtt_us" > /tmp/CAKE-autorate/max_wire_packet_rtt_us
 }
 
-concurrent_read()
+concurrent_read_positive_integer()
 {
 	# in the context of separate processes writing using > and reading form file
         # it seems costly calls to the external flock binary can be avoided
@@ -390,9 +390,15 @@ concurrent_read()
  	local path=$2
 	read -r value < $path
 	while [[ -z $value ]]; do
-		sleep_us $concurrent_read_interval_us
+		sleep_us $concurrent_read_positive_integer_interval_us
 		read -r value < $path; 
 	done
+
+	if [[ -z "${value##*[!0-9]*}" ]]; then
+
+		caller >> /tmp/CAKE-autorate/concurrent_read_positive_integer_error
+		echo "value="$value" path="$path >> /tmp/CAKE-autorate/concurrent_read_positive_integer_error
+	fi
 }
 
 verify_ifs_up()
@@ -510,7 +516,7 @@ printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_dur
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
-concurrent_read_interval_us=$(($ping_response_interval_us/4))
+concurrent_read_positive_integer_interval_us=$(($ping_response_interval_us/4))
 
 dl_shaper_rate_kbps=$base_dl_shaper_rate_kbps
 ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
