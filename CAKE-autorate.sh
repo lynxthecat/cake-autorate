@@ -43,9 +43,13 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
-		# Starlink satelite switching compensation, so drop down to minimum rate through switching period
+		# Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
 		ul*sss)
 				shaper_rate_kbps=$min_shaper_rate_kbps
+			;;
+		# Starlink satelite switching compensation, so drop down to base rate for download through switching period
+		dl*sss)
+				shaper_rate_kbps=$base_shaper_rate_kbps
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
