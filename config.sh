@@ -142,6 +142,6 @@ case "${ul_if}" in
 esac
 
 if (( $debug )) ; then
-    echo "DEBUG: rx_bytes_path: $rx_bytes_path"
-    echo "DEBUG: tx_bytes_path: $tx_bytes_path"
+    echo "DEBUG rx_bytes_path: $rx_bytes_path"
+    echo "DEBUG tx_bytes_path: $tx_bytes_path"
 fi
