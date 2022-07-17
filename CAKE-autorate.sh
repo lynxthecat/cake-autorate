@@ -43,11 +43,11 @@ get_next_shaper_rate()
 
 	case $load_condition in
 
-		# Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
+		# upload Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
 		ul*sss)
 				shaper_rate_kbps=$min_shaper_rate_kbps
 			;;
-		# Starlink satelite switching compensation, so drop down to base rate for download through switching period
+		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
 				shaper_rate_kbps=$base_shaper_rate_kbps
 			;;
@@ -392,17 +392,21 @@ concurrent_read_positive_integer()
 
 	local -n value=$1
  	local path=$2
-	read -r value < $path
-	while [[ -z $value ]]; do
-		sleep_us $concurrent_read_positive_integer_interval_us
+	while true 
+	do
 		read -r value < $path; 
+		if [[ -z "${value##*[!0-9]*}" ]]; then
+			if (($debug)); then
+				read -r caller_output< <(caller)
+				echo "DEBUG concurrent_read_positive_integer() misfire with the following particulars:"
+				echo "DEBUG caller="$caller_output"; value="$value"; and path="$path
+			fi 
+			sleep_us $concurrent_read_positive_integer_interval_us
+			continue
+		else
+			break
+		fi
 	done
-
-	if [[ -z "${value##*[!0-9]*}" ]]; then
-
-		caller >> /tmp/CAKE-autorate/concurrent_read_positive_integer_error
-		echo "value="$value" path="$path >> /tmp/CAKE-autorate/concurrent_read_positive_integer_error
-	fi
 }
 
 verify_ifs_up()
