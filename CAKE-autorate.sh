@@ -581,11 +581,10 @@ do
 	while read -t $global_ping_response_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
-		if ((($t_start_us - "${timestamp//[[\[\].]}")>500000)); then
+		if ((($t_start_us - 10#"${timestamp//[[\[\].]}")>500000)); then
 			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
 			continue
 		fi
-
 		
 		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
