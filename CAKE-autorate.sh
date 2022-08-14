@@ -17,7 +17,9 @@ cleanup_and_killall()
 	echo "Killing all background processes and cleaning up /tmp files."
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
+	# Initiate termination of ping processes and wait until complete
 	kill $maintain_pingers_pid 2> /dev/null
+	wait $maintain_pingers_pid
 	[[ -d /tmp/CAKE-autorate ]] && rm -r /tmp/CAKE-autorate
 	exit
 }
@@ -630,8 +632,9 @@ do
 	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
 	set_shaper_rates
 
-	# Kill off ping processes
+	# Initiate termination of ping processes and wait until complete
 	kill $maintain_pingers_pid 2> /dev/null
+	wait $maintain_pingers_pid
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
