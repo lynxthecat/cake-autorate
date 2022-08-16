@@ -7,7 +7,7 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
-CAKE_autorate_version = "1.0.0"
+CAKE_autorate_version="1.0.0"
 
 # *** OUTPUT OPTIONS ***
 
