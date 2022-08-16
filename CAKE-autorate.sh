@@ -24,7 +24,7 @@ cleanup_and_killall()
 
 install_dir="/root/CAKE-autorate/"
 
-. $install_dir"config.sh"
+. $install_dir"CAKE-config.sh"
 
 # test if stdout is a tty (terminal)
 [[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
