@@ -1,14 +1,37 @@
 # CAKE with Adaptive Bandwidth - "autorate"
 
-**CAKE-autorate** is a script that automatically adapts [CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/) bandwidth settings by measuring traffic load and RTT times. This is designed for variable bandwidth connections such as LTE, **and is not intended for use on connections that have a stable, fixed bandwidth**.
+**CAKE-autorate** is a script that automatically adapts
+[CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
+bandwidth settings by measuring traffic load and RTT times.
+This is designed for variable bandwidth connections such as LTE,
+and is not intended for use on connections that
+have a stable, fixed bandwidth.
 
-CAKE is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
+CAKE is an algorithm that manages the buffering of data
+being sent/received by a device such as an
+[OpenWrt router](https://openwrt.org) so that
+no more data is queued than is necessary,
+minimizing the latency ("bufferbloat") and
+improving the responsiveness of a network.
 
 ## The Problem: CAKE on Variable Connections forces an Unpalatable Compromise
 
-The CAKE algorithm always uses fixed upload and download bandwidth settings to manage its queues. Variable bandwidth connections present a challenge because the actual bandwidth at any given moment is not known. 
+The CAKE algorithm always uses fixed upload and download
+bandwidth settings to manage its queues.
+Variable bandwidth connections present a challenge because
+the actual bandwidth at any given moment is not known. 
 
-As CAKE works with a fixed set bandwidth this effectively forces the user to choose a compromise bandwidth setting, but typically this means lost bandwidth in exchange for latency control and/or bufferbloat during the worst conditions. This compromise is hardly ideal: whilst the actual usable line rate is above the set compromise bandwidth, the connection is unnecessarily throttled back to the compromise setting resulting in lost bandwidth (yellow); and whilst the actual usable line rate is below the set compromise bandwidth, the connection is not throttled enough (green) resulting in bufferbloat.
+As CAKE works with a fixed set bandwidth this effectively forces
+the user to choose a compromise bandwidth setting,
+but typically this means lost bandwidth in exchange
+for latency control and/or bufferbloat during the worst conditions.
+This compromise is hardly ideal: whilst the actual usable
+line rate is above the set compromise bandwidth,
+the connection is unnecessarily throttled back
+to the compromise setting resulting in lost bandwidth (yellow);
+and whilst the actual usable line rate is below the
+compromise value, the connection is not throttled enough
+(green) resulting in bufferbloat.
 
 ![image of Bandwidth Compromise](./Bandwidth-Compromise.png)
 
@@ -58,27 +81,30 @@ as described in the
 [OpenWrt SQM documentation](https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm)
 - Alternatively, set up your own script to initiate CAKE. If you use WireGuard with PBR, then you may want to consider [cake-wg-pbr](https://github.com/lynxthecat/cake-wg-pbr).
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
-- Run the following commands to place the script at `/root/CAKE-autorate/`
-and make it executable:
+- Install with the installer script from this repo,
+copying and pasting each of the commands below:
 
    ```bash
-   opkg update; opkg install bash iputils-ping
-   cd /root
-   mkdir CAKE-autorate
-   cd CAKE-autorate
-   wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/CAKE-autorate.sh
-   wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/config.sh
-   chmod +x ./CAKE-autorate.sh
+   wget -O /tmp/CAKE-setup.sh https://raw.githubusercontent.com/richb-hanover/CAKE-autorate/setup-script/CAKE-setup.sh
+   sh /tmp/CAKE-setup.sh
    ```
 
-- Edit the `config.sh` script using vi or nano to set the configuration paremters (see comments inside `config.sh` for details). 
+- The installer script will detect a previous configuration file,
+and ask whether to preserve it. If you do not keep it...
+- Edit the `CAKE-config.sh` script (in the `/root/CAKE-autorate` directory) using
+vi or nano to set the configuration paremters
+(see comments inside `CAKE-config.sh` for details). 
 
   - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
-  - Set minimum bandwidth variables (`min_dl_rate` and `min_ul_rate` in the script) as described above.
-  - Set baseline bandwidth variables (`base_dl_rate` and `base_ul_rate` in the script) as described above.
-  - Set maximum bandwidth (`max_dl_rate` and `max_ul_rate`) as described above.
-  
-## Example Starlink config
+  - Set bandwidth variables as described in `CAKE-config.sh`.
+ 
+      | Type | Download | Upload |
+      |----: |   :-------- | :------ |
+      | Min. | `min_dl_shaper_rate_kbps` | `min_ul_shaper_rate_kbps` |
+      | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
+      | Max. | `max_dl_shaper_rate_kbps` | `max_ul_shaper_rate_kbps` |
+
+## Example Starlink Configuration
 
 - OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/CAKE-autorate/blob/main/Example_Starlink_config.sh).
 - See discussion on OpenWrt thread from [up to this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
@@ -86,37 +112,38 @@ and make it executable:
 
 ## Manual testing
 
-- Run the `CAKE-autorate.sh` script:
-- Set **output_processing_stats** in `config.sh` to '1' 
-- 
+To run the `CAKE-autorate.sh` script:
+
+* In `CAKE-config.sh`, set **output\_processing\_stats** to '1' 
+ 
    ```bash
-   ./CAKE-autorate.sh
+   cd # to the root directory
+   sh ./CAKE-autorate.sh
    ```
 
-- Monitor the script output to see how it adjusts the download and upload rates as you use the connection. 
+- Monitor the script output to see how it adjusts the download
+and upload rates as you use the connection. 
 - Press ^C to halt the process.
 
 ## Install as a service
 
 You can install this as a service that starts up the autorate process whenever the router reboots.
-
 To do this:
 
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
-- Run these commands to install the service file
-and start/enable it:
+- Run these commands to enable and start the service file:
 
    ```bash
-   cd /etc/init.d
-   wget https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/cake-autorate
-   chmod +x cake-autorate
+   # the CAKE-setup.sh script already installed the service file
    service cake-autorate enable
    service cake-autorate start
    ```
 
 When running as a service, the `CAKE-autorate.sh` script outputs to `/tmp/CAKE-autorate.log`.
 
-WARNING: Disabling output by setting **output_processing_stats** to '0' when not required is a good idea given the rate of logging. 
+WARNING: It is a good idea to disable logging output when
+running as a service given the high rate of logging.
+Do this by setting **output\_processing\_stats** to '0' in `CAKE-config.sh`
 
 ## Preserving CAKE-autorate files for backup or upgrades
 
@@ -130,9 +157,7 @@ so they will be saved in backups and preserved across snapshot upgrades.
 /root/CAKE-autorate
 /etc/init.d/cake-autorate
  ```
- 
- for inclusion in backups and preservation across snapshot upgrades.
- 
+  
 ## A Request to Testers
 
 If you use this script I have just one ask. Please post your experience on this [OpenWrt Forum thread](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/). Your feedback will help improve the script for the benefit of others.  
