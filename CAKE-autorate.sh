@@ -12,14 +12,32 @@ export TZ=UTC
 
 trap cleanup_and_killall INT TERM EXIT
 
+# Format log entries
+# Entries should include their own newline if desired
+log_msg()
+{
+    timestamp=$(date +"%Y-%m-%d %T")
+    printf "$timestamp $1"
+}
+
 cleanup_and_killall()
 {
-	echo "Killing all background processes and cleaning up /tmp files."
+	log_msg "\n ...Killing all background processes and cleaning up /tmp files.\n"
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
 	kill $maintain_pingers_pid 2> /dev/null
 	[[ -d /tmp/CAKE-autorate ]] && rm -r /tmp/CAKE-autorate
 	exit
+}
+
+# check to see if the named interface is present; exit if not
+is_if_present()
+{
+	is_here=$(ifconfig | grep "$1")
+	if [ is_here = "" ]; then
+		log_msg "$1 interface not present\n"
+		cleanup_and_killall 
+	fi
 }
 
 install_dir="/root/CAKE-autorate/"
@@ -28,6 +46,11 @@ install_dir="/root/CAKE-autorate/"
 
 # test if stdout is a tty (terminal)
 [[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
+
+# ======= Start of the Main Routine ========
+log_msg "Starting CAKE-autorate $CAKE_autorate_version\n"
+log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)\n"
+log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)\n"
 
 get_next_shaper_rate() 
 {
@@ -567,6 +590,8 @@ monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_int
 monitor_achieved_rates_pid=$!
 
 prev_timestamp=0
+
+printf "Starting CAKE-autorate $CAKE_autorate_version using Down: $dl_if, Up: $ul_if\n"
 
 if (($debug)); then
 	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
