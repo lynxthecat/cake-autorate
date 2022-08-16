@@ -12,8 +12,8 @@ export TZ=UTC
 
 trap cleanup_and_killall INT TERM EXIT
 
-# Format log entries
-# Entries should include their own newline if desired
+# Format log entries - includes timestamp on each line
+# Entries should contain their own newline, if necessary
 log_msg()
 {
     timestamp=$(date +"%Y-%m-%d %T")
@@ -22,7 +22,8 @@ log_msg()
 
 cleanup_and_killall()
 {
-	log_msg "\n ...Killing all background processes and cleaning up /tmp files.\n"
+    log_msg "\n"
+	log_msg "...Killing all background processes and cleaning up /tmp files.\n"
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
 	kill $maintain_pingers_pid 2> /dev/null
@@ -33,11 +34,13 @@ cleanup_and_killall()
 # check to see if the named interface is present; exit if not
 is_if_present()
 {
-	is_here=$(ifconfig | grep "$1")
-	if [ is_here = "" ]; then
-		log_msg "$1 interface not present\n"
-		cleanup_and_killall 
-	fi
+    the_if=$1
+    is_here=$(ifconfig | grep "$the_if")
+    if [ "$is_here" == "" ]; then
+        log_msg "'$the_if' interface not present... Aborting!\n"
+        log_msg "Make sure SQM QoS is installed and configured.\n"
+        cleanup_and_killall
+    fi
 }
 
 install_dir="/root/CAKE-autorate/"
@@ -48,7 +51,14 @@ install_dir="/root/CAKE-autorate/"
 [[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
 
 # ======= Start of the Main Routine ========
+
 log_msg "Starting CAKE-autorate $CAKE_autorate_version\n"
+
+# check if proper interfaces have been configured
+is_if_present $dl_if
+is_if_present $ul_if
+
+# tell the world what we're doing...
 log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)\n"
 log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)\n"
 
