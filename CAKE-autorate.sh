@@ -39,7 +39,7 @@ get_next_shaper_rate()
 	local t_next_rate_us=$6
 	local -n t_last_bufferbloat_us=$7
 	local -n t_last_decay_us=$8
-    	local -n shaper_rate_kbps=$9
+    local -n shaper_rate_kbps=$9
 
 	case $load_condition in
 
