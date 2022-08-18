@@ -16,6 +16,7 @@ trap cleanup_and_killall INT TERM EXIT
 # Entries should contain their own newline, if necessary
 log_msg()
 {
+    printf '%(%F %H:%M:%S)T %s' -1 "$1"
     timestamp=$(date +"%F %X")
     printf "$timestamp $1"
 }
