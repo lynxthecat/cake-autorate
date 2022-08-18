@@ -17,7 +17,6 @@ trap cleanup_and_killall INT TERM EXIT
 log_msg()
 {
     printf '%(%F %H:%M:%S)T %s' -1 "$1"
-    timestamp=$(date +"%F %X")
     printf "$timestamp $1"
 }
 
