@@ -61,7 +61,7 @@ log_msg "Starting CAKE-autorate $CAKE_autorate_version\n"
 is_if_present $dl_if
 is_if_present $ul_if
 
-# tell the world what we're doing...
+# Output interfaces and configured rates
 log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)\n"
 log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)\n"
 
