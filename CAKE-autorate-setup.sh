@@ -29,19 +29,19 @@ wget -q "$SRC_DIR"CAKE-autorate.sh
 
 # Check if the configuration script exists, and ask whether to keep it
 
-editmsg=$(printf "\nNow edit the CAKE-config.sh file as described in:\n   $DOC_URL")
+editmsg=$(printf "\nNow edit the CAKE-autorate-config.sh file as described in:\n   $DOC_URL")
 
-if [ -f CAKE-config.sh ]; then
+if [ -f CAKE-autorate-config.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
 	read keepIt
 	if [ "$keepIt" == "N" ] || [ "$keepIt" == "n" ]; then
-		rm ./CAKE-config.sh
-		wget -q "$SRC_DIR"CAKE-config.sh
+		rm ./CAKE-autorate-config.sh
+		wget -q "$SRC_DIR"CAKE-autorate-config.sh
 	else
 		editmsg="Using prior configuration"
 	fi
 else 
-	wget -q "$SRC_DIR"CAKE-config.sh 
+	wget -q "$SRC_DIR"CAKE-autorate-config.sh 
 fi
 # make both .sh files executable
 chmod +x *.sh
@@ -57,7 +57,7 @@ wget -q "$SRC_DIR"cake-autorate
 chmod +x cake-autorate
 
 printf "\n"
-printf "`grep CAKE_autorate /root/CAKE-autorate/CAKE-config.sh` successfully installed but not yet running\n"
+printf "`grep CAKE_autorate /root/CAKE-autorate/CAKE-autorate-config.sh` successfully installed but not yet running\n"
 printf "\n"
 printf "Start the software manually with:\n"
 printf "   cd /root/CAKE-autorate; bash ./CAKE-autorate.sh\n"
