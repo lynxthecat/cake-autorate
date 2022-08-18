@@ -16,7 +16,7 @@ trap cleanup_and_killall INT TERM EXIT
 # Entries should contain their own newline, if necessary
 log_msg()
 {
-    printf '%(%F %H:%M:%S)T %s' -1 "$1"
+    printf '%(%F %H:%M:%S)T %b' -1 "$1"
 }
 
 cleanup_and_killall()
@@ -39,7 +39,7 @@ is_if_present()
     is_here=$(ifconfig | grep "$the_if")
     if [ "$is_here" == "" ]; then
         log_msg "'$the_if' interface not present... Aborting!\n"
-		log_msg "Is SQM QoS installed and CAKE-autorate-config.sh configured?\n"
+		log_msg "Are SQM QoS installed and CAKE-autorate-config.sh configured?\n"
         cleanup_and_killall
     fi
 }
