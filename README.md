@@ -92,10 +92,16 @@ copying and pasting each of the commands below:
 - The installer script will detect a previous configuration file,
 and ask whether to preserve it. If you do not keep it...
 - Edit the `CAKE-config.sh` script (in the `/root/CAKE-autorate` directory) using
-vi or nano to set the configuration paremters
+vi or nano to set the configuration paremters below
 (see comments inside `CAKE-config.sh` for details). 
 
   - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
+
+      | Variable | Setting | 
+      |----: |   :-------- | 
+      | `ul_if` | Interface that uploads (often `wan`) | `min_ul_shaper_rate_kbps` |
+      | `dl_if` | Interface that uploads data (check `tc qdisc ls`) |
+
   - Set bandwidth variables as described in `CAKE-config.sh`.
  
       | Type | Download | Upload |
@@ -117,8 +123,8 @@ To run the `CAKE-autorate.sh` script:
 * In `CAKE-config.sh`, set **output\_processing\_stats** to '1' 
  
    ```bash
-   cd # to the root directory
-   sh ./CAKE-autorate.sh
+   cd /root/CAKE-autorate # to the CAKE-autorate directory
+   bash ./CAKE-autorate.sh
    ```
 
 - Monitor the script output to see how it adjusts the download
