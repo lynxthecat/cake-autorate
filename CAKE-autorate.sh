@@ -8,7 +8,7 @@
 
 # Possible performance improvement
 export LC_ALL=C
-export TZ=UTC
+# export TZ=UTC
 
 trap cleanup_and_killall INT TERM EXIT
 
@@ -16,7 +16,7 @@ trap cleanup_and_killall INT TERM EXIT
 # Entries should contain their own newline, if necessary
 log_msg()
 {
-    timestamp=$(date +"%Y-%m-%d %T")
+    timestamp=$(date +"%F %X")
     printf "$timestamp $1"
 }
 
@@ -38,7 +38,7 @@ is_if_present()
     is_here=$(ifconfig | grep "$the_if")
     if [ "$is_here" == "" ]; then
         log_msg "'$the_if' interface not present... Aborting!\n"
-        log_msg "Make sure SQM QoS is installed and configured.\n"
+		log_msg "Install SQM QoS and configure CAKE-config.sh\n"
         cleanup_and_killall
     fi
 }
