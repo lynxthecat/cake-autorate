@@ -46,7 +46,7 @@ is_if_present()
 
 install_dir="/root/CAKE-autorate/"
 
-. $install_dir"CAKE-config.sh"
+. $install_dir"CAKE-autorate-config.sh"
 
 # test if stdout is a tty (terminal)
 [[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
