@@ -85,15 +85,15 @@ as described in the
 copying and pasting each of the commands below:
 
    ```bash
-   wget -O /tmp/CAKE-setup.sh https://raw.githubusercontent.com/richb-hanover/CAKE-autorate/setup-script/CAKE-setup.sh
-   sh /tmp/CAKE-setup.sh
+   wget -O /tmp/CAKE-autorate-setup.sh https://raw.githubusercontent.com/richb-hanover/CAKE-autorate/setup-script/CAKE-autorate-setup.sh
+   sh /tmp/CAKE-autorate-setup.sh
    ```
 
 - The installer script will detect a previous configuration file,
 and ask whether to preserve it. If you do not keep it...
-- Edit the `CAKE-config.sh` script (in the `/root/CAKE-autorate` directory) using
-vi or nano to set the configuration paremters below
-(see comments inside `CAKE-config.sh` for details). 
+- Edit the `CAKE-autorate-config.sh` script (in the `/root/CAKE-autorate` directory) using
+vi or nano to set the configuration parameters below
+(see comments inside `CAKE-autorate-config.sh` for details). 
 
   - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
 
@@ -102,7 +102,7 @@ vi or nano to set the configuration paremters below
       | `ul_if` | Interface that uploads (often `wan`) | `min_ul_shaper_rate_kbps` |
       | `dl_if` | Interface that uploads data (check `tc qdisc ls`) |
 
-  - Set bandwidth variables as described in `CAKE-config.sh`.
+  - Set bandwidth variables as described in `CAKE-autorate-config.sh`.
  
       | Type | Download | Upload |
       |----: |   :-------- | :------ |
@@ -120,7 +120,7 @@ vi or nano to set the configuration paremters below
 
 To run the `CAKE-autorate.sh` script:
 
-* In `CAKE-config.sh`, set **output\_processing\_stats** to '1' 
+* In `CAKE-autorate-config.sh`, set **output\_processing\_stats** to '1' 
  
    ```bash
    cd /root/CAKE-autorate # to the CAKE-autorate directory
@@ -140,7 +140,7 @@ To do this:
 - Run these commands to enable and start the service file:
 
    ```bash
-   # the CAKE-setup.sh script already installed the service file
+   # the CAKE-autorate-setup.sh script already installed the service file
    service cake-autorate enable
    service cake-autorate start
    ```
@@ -149,7 +149,7 @@ When running as a service, the `CAKE-autorate.sh` script outputs to `/tmp/CAKE-a
 
 WARNING: It is a good idea to disable logging output when
 running as a service given the high rate of logging.
-Do this by setting **output\_processing\_stats** to '0' in `CAKE-config.sh`
+Do this by setting **output\_processing\_stats** to '0' in `CAKE-autorate-config.sh`
 
 ## Preserving CAKE-autorate files for backup or upgrades
 

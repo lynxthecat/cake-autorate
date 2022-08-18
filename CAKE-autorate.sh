@@ -39,7 +39,7 @@ is_if_present()
     is_here=$(ifconfig | grep "$the_if")
     if [ "$is_here" == "" ]; then
         log_msg "'$the_if' interface not present... Aborting!\n"
-		log_msg "Install SQM QoS and configure CAKE-config.sh\n"
+		log_msg "Is SQM QoS installed and CAKE-autorate-config.sh configured?\n"
         cleanup_and_killall
     fi
 }
