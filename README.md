@@ -85,7 +85,7 @@ as described in the
 copying and pasting each of the commands below:
 
    ```bash
-   wget -O /tmp/CAKE-autorate-setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/setup-script/CAKE-autorate-setup.sh
+   wget -O /tmp/CAKE-autorate-setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/CAKE-autorate-setup.sh
    sh /tmp/CAKE-autorate-setup.sh
    ```
 
