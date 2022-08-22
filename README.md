@@ -33,21 +33,24 @@ and whilst the actual usable line rate is below the
 compromise value, the connection is not throttled enough
 (green) resulting in bufferbloat.
 
-![image of Bandwidth Compromise](./Bandwidth-Compromise.png)
+![image of Bandwidth Compromise](images/bandwidth-compromise.png)
 
 ## The Solution: Automatic Bandwidth Adjustment based on LOAD and RTT
 
-The **CAKE-autorate.sh** script periodically measures the load and Round-Trip-Time (RTT) to adjust the upload and download values for the CAKE algorithm.
+The **cake-autorate.sh** script periodically measures the load and Round-Trip-Time (RTT)
+to adjust the upload and download values for the CAKE algorithm.
 
 ## Theory of Operation
 
-`CAKE-autorate.sh` monitors load (rx and tx) and ping respones from one or more reflectors, and adjusts the download and upload bandwidth for CAKE. Rate control is intentionally kept as simple as possible and follows the following approach:
+`cake-autorate.sh` monitors load (rx and tx) and ping respones from one or more reflectors,
+and adjusts the download and upload bandwidth for CAKE.
+Rate control is intentionally kept as simple as possible and follows the following approach:
 
 - with low load, decay rate back to set baseline (and subject to refractory period)
 - with high load, increase rate subject to set maximum
 - on bufferbloat, decrease rate subject to set min (and subject to refractory period)
 
-![image of CAKE-autorat rate control](./CAKE-autorate-rate-control.png)
+![image of cake-autorate rate control](images/cake-bandwidth-autorate-rate-control.png)
 
 **Setting the minimum bandwidth:** 
 Set the minimum value to the worst possible observed bufferbloat free bandwidth. Ideally this CAKE bandwidth should never result in bufferbloat even under the worst conditions. This is a hard minimum - the script will never reduce the bandwidth below this level.
@@ -60,7 +63,7 @@ The maximum bandwidth should be set to the lower of the maximum bandwidth that t
 
 To elaborate on setting the minimum and maximum, a variable bandwidth connection may be most ideally divided up into a known fixed, stable component, on top of which is provided an unknown variable component:
 
-![image of CAKE bandwidth adaptation](./CAKE-Bandwidth-Adaptation.png)
+![image of cake bandwidth adaptation](images/cake-bandwidth-adaptation.png)
 
 The minimum bandwidth is then set to (or slightly below) the fixed component, and the maximum bandwidth may be set to (or slightly above) the maximum observed bandwidth. Or, if a lower maximum bandwidth is required by the user, the maximum bandwidth is set to that lower bandwidth as explained above.
 
@@ -85,15 +88,15 @@ as described in the
 copying and pasting each of the commands below:
 
    ```bash
-   wget -O /tmp/CAKE-autorate-setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/CAKE-autorate-setup.sh
-   sh /tmp/CAKE-autorate-setup.sh
+   wget -O /tmp/cake-autorate-setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/cake-autorate-setup.sh
+   sh /tmp/cake-autorate-setup.sh
    ```
 
 - The installer script will detect a previous configuration file,
 and ask whether to preserve it. If you do not keep it...
-- Edit the `CAKE-autorate-config.sh` script (in the `/root/CAKE-autorate` directory) using
+- Edit the `cake-autorate-config.sh` script (in the `/root/cake-autorate` directory) using
 vi or nano to set the configuration parameters below
-(see comments inside `CAKE-autorate-config.sh` for details). 
+(see comments inside `cake-autorate-config.sh` for details). 
 
   - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
 
@@ -102,7 +105,7 @@ vi or nano to set the configuration parameters below
       | `ul_if` | Interface that uploads (often `wan`) | `min_ul_shaper_rate_kbps` |
       | `dl_if` | Interface that uploads data (check `tc qdisc ls`) |
 
-  - Set bandwidth variables as described in `CAKE-autorate-config.sh`.
+  - Set bandwidth variables as described in `cake-autorate-config.sh`.
  
       | Type | Download | Upload |
       |----: |   :-------- | :------ |
@@ -118,13 +121,13 @@ vi or nano to set the configuration parameters below
 
 ## Manual testing
 
-To run the `CAKE-autorate.sh` script:
+To run the `cake-autorate.sh` script:
 
-* In `CAKE-autorate-config.sh`, set **output\_processing\_stats** to '1' 
+* In `cake-autorate-config.sh`, set **output\_processing\_stats** to '1' 
  
    ```bash
-   cd /root/CAKE-autorate # to the CAKE-autorate directory
-   bash ./CAKE-autorate.sh
+   cd /root/cake-autorate # to the cake-autorate directory
+   bash ./cake-autorate.sh
    ```
 
 - Monitor the script output to see how it adjusts the download
@@ -140,16 +143,16 @@ To do this:
 - Run these commands to enable and start the service file:
 
    ```bash
-   # the CAKE-autorate-setup.sh script already installed the service file
+   # the cake-autorate-setup.sh script already installed the service file
    service cake-autorate enable
    service cake-autorate start
    ```
 
-When running as a service, the `CAKE-autorate.sh` script outputs to `/tmp/CAKE-autorate.log`.
+When running as a service, the `cake-autorate.sh` script outputs to `/tmp/cake-autorate.log`.
 
 WARNING: It is a good idea to disable logging output when
 running as a service given the high rate of logging.
-Do this by setting **output\_processing\_stats** to '0' in `CAKE-autorate-config.sh`
+Do this by setting **output\_processing\_stats** to '0' in `cake-autorate-config.sh`
 
 ## Preserving CAKE-autorate files for backup or upgrades
 
@@ -160,7 +163,7 @@ describes how files can be saved across upgrades.
 so they will be saved in backups and preserved across snapshot upgrades.
 
  ```
-/root/CAKE-autorate
+/root/cake-autorate
 /etc/init.d/cake-autorate
  ```
   

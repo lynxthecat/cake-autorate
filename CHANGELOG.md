@@ -6,6 +6,15 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
+## 2022-08-21
+
+- Version number 1.0.0
+- Change file names to lower case, left the project name and repo CAKE-autorate
+- create installer script
+- Startup logging routines
+
+
+
 ## 2022-07-01
 
 - Significant testing with a Starlink connection (thanks to @gba of OpenWrt)
