@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# config.sh sets up defaults for CAKE-autorate
-
-# config.sh is a part of CAKE-autorate
 # CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and RTT
+
+# cake-autorate-config.sh is a script that sets up defaults for CAKE-autorate
 
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
+
+cake_autorate_version="1.0.0"
 
 # *** OUTPUT OPTIONS ***
 
