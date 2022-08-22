@@ -6,14 +6,19 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
-## 2022-08-21
+## 2022-08-21 - Version 1.0.0
 
-- Version number 1.0.0
-- Change file names to lower case, left the project name and repo CAKE-autorate
-- create installer script
-- Startup logging routines
-
-
+- New installer script - cake-autorate-setup.sh - now installs all required files 
+- Installer checks for presence of previous config and asks whether to overwrite 
+- Installer also copies the service script into `/etc/init.d/cake-autorate`
+- Installer does NOT start the software, but displays instructions for config and starting 
+- At startup, display version number and interface name and configured speeds
+- Abort if the configured interfaces do not exist
+- Style guide: the name of the algorithm and repo is "CAKE-autorate"
+- All "cake-autorate..." filenames are lower case
+- New log_msg() function that places a simple time stamp on the each line 
+- Moved images to their own directory
+- No other new/interesting functionality
 
 ## 2022-07-01
 

@@ -370,7 +370,8 @@ set_cake_rate()
 	local shaper_rate_kbps=$2
 	local -n time_rate_set_us=$3
 	
-	(($output_cake_changes)) && echo "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
+#	(($output_cake_changes)) && echo "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
+	(($output_cake_changes)) && log_msg "${interface} ${shaper_rate_kbps}\n"
 	
 	if (($debug)); then
 		tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
