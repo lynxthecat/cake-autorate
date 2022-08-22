@@ -18,7 +18,7 @@ cd /root/ || exit
 # create the cake-autorate directory if it's not present
 [[ -d cake-autorate ]] || mkdir cake-autorate
 
-printf "Installing CAKE-autorate in /root/cake-autorate...\n"
+printf "Installing cake-autorate in /root/cake-autorate...\n"
 
 # cd into it
 cd cake-autorate/ || exit
@@ -56,10 +56,9 @@ cd /etc/init.d || exit
 wget -q "$SRC_DIR"cake-autorate
 chmod +x cake-autorate
 
-printf "\n"
-printf "`grep cake_autorate_version /root/cake-autorate/cake-autorate-config.sh` successfully installed but not yet running\n"
-printf "\n"
+printf "\n`grep cake_autorate_version /root/cake-autorate/cake-autorate-config.sh` successfully installed, but not yet running\n\n"
 printf "Start the software manually with:\n"
 printf "   cd /root/cake-autorate; bash ./cake-autorate.sh\n"
 printf "Run as a service with:\n"
-printf "   service cake-autorate enable;service cake-autorate start\n"
+printf "   service cake-autorate enable; service cake-autorate start\n\n"
+printf "And don't forget to disable output logging if running as a service!\n"
