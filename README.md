@@ -112,6 +112,15 @@ vi or nano to set the configuration parameters below
       | Min. | `min_dl_shaper_rate_kbps` | `min_ul_shaper_rate_kbps` |
       | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
       | Max. | `max_dl_shaper_rate_kbps` | `max_ul_shaper_rate_kbps` |
+      
+  - Two variables control logging:
+
+      | Variable | Setting | 
+      |----: |   :-------- | 
+      | `output_processing_stats` | If non-zero, log the results of every iteration through the process | 
+      | `output_cake_changes` | If non-zero, only log when changes are made to CAKE settings via `tc`. This shows when CAKE-autorate is adjusting the shaper. |
+   For long-term use, we recommend that `output_processing_stats` be set to zero (0);
+   `output_cake_changes` can be set to zero for minimal 
 
 ## Example Starlink Configuration
 
@@ -123,14 +132,16 @@ vi or nano to set the configuration parameters below
 
 To run the `cake-autorate.sh` script:
 
-* In `cake-autorate-config.sh`, set **output\_processing\_stats** to '1' 
- 
+- In `cake-autorate-config.sh`, set `output_processing_stats` to '0'
+and `output_cake_changes` to '1'. Then run:
+
    ```bash
    cd /root/cake-autorate # to the cake-autorate directory
    bash ./cake-autorate.sh
    ```
 
-- Monitor the script output to see how it adjusts the download
+- This will output a line everytime CAKE-autorate adjusts a parameter
+Monitor the script output to see how it adjusts the download
 and upload rates as you use the connection. 
 - Press ^C to halt the process.
 
@@ -150,9 +161,7 @@ To do this:
 
 When running as a service, the `cake-autorate.sh` script outputs to `/tmp/cake-autorate.log`.
 
-WARNING: It is a good idea to disable logging output when
-running as a service given the high rate of logging.
-Do this by setting **output\_processing\_stats** to '0' in `cake-autorate-config.sh`
+WARNING: Consider setting **output\_processing\_stats** to '0' in `cake-autorate-config.sh` to minimize the volume of log messages.
 
 ## Preserving CAKE-autorate files for backup or upgrades
 
