@@ -192,7 +192,7 @@ classify_load()
 		load_condition="high"  
 	elif (( $load_percent > $medium_load_thr_percent )); then
 		load_condition="med"
-	elif (( $achieved_rate_kbps > $connection_active_thr_kbps )); then
+	elif (( 10#${achieved_rate_kbps} > $connection_active_thr_kbps )); then
 		load_condition="low"
 	else 
 		load_condition="idle"
