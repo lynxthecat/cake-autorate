@@ -8,8 +8,8 @@ SRC_DIR="https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
 # Retrieve required packages
-# opkg update
-# opkg install bash iputils-ping 
+opkg update
+opkg install bash iputils-ping 
 
 # Set up CAKE-autorate files
 # cd to the /root directory
