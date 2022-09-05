@@ -56,7 +56,7 @@ startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-monitor_achieved_rates_interval_ms=100 # (milliseconds) 
+monitor_achieved_rates_interval_ms=200 # (milliseconds) 
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
@@ -107,6 +107,15 @@ reflector_misbehaving_detection_thr=3
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
 if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
+
+
+# Starlink satellite switch (sss) compensation options
+sss_compensation=1 # enable (1) or disable (0) Starlink handling
+# satellite switch compensation start times in seconds of each minute
+sss_times_s=("12.0" "27.0" "42.0" "57.0")
+sss_compensation_pre_duration_ms=300
+sss_compensation_post_duration_ms=200
+
 
 # verify these are correct using 'cat /sys/class/...'
 case "${dl_if}" in
