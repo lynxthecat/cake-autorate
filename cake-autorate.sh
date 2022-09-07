@@ -83,7 +83,7 @@ get_next_shaper_rate()
 			;;
 		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
-				shaper_rate_kbps=$base_shaper_rate_kbps
+				shaper_rate_kbps=$(( $shaper_rate_kbps > $base_shaper_rate_kbps ? $base_shaper_rate_kbps : $shaper_rate_kbps))
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
