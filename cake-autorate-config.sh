@@ -13,12 +13,12 @@ cake_autorate_version="1.0.0"
 
 output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
 output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
-debug=0			  # enable (1) or disable (0) out of debug lines
+debug=1			  # enable (1) or disable (0) out of debug lines
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
-dl_if=ifb-wg-pbr # download interface
-ul_if=wan        # upload interface
+dl_if=ifb-dl # download interface
+ul_if=ifb-ul # upload interface
 
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
@@ -53,6 +53,11 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
+
+# extra arguments for ping
+# e.g., when using mwan3, set up the correct outgoing interface and the firewall mark
+# ping_extra_args=(-I wwan0 -m $((0x300)))
+ping_extra_args=()
 
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
@@ -105,10 +110,14 @@ reflector_response_deadline_s=1 # (seconds)
 reflector_misbehaving_detection_window=60
 reflector_misbehaving_detection_thr=3
 
+# where either download or upload rate falls below $connection_stall_thr
+# then pause pingers for $stall_refractory_period_ms
+connection_stall_thr_kbps=10
+stall_refractory_period_ms=200 # (milliseconds)
+
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
 if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
-
 
 # Starlink satellite switch (sss) compensation options
 sss_compensation=0 # enable (1) or disable (0) Starlink handling
@@ -142,7 +151,3 @@ case "${ul_if}" in
         ;;
 esac
 
-if (( $debug )) ; then
-    echo "DEBUG rx_bytes_path: $rx_bytes_path"
-    echo "DEBUG tx_bytes_path: $tx_bytes_path"
-fi
