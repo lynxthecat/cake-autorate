@@ -110,10 +110,11 @@ reflector_response_deadline_s=1 # (seconds)
 reflector_misbehaving_detection_window=60
 reflector_misbehaving_detection_thr=3
 
-# where either download or upload rate falls below $connection_stall_thr
-# then pause pingers for $stall_refractory_period_ms
+# stall is detected when the following two conditions are met:
+# 1) no reflector responses within $stall_detection_thr*$ping_response_interval_us; and
+# 2) either $rx_achieved_rate or $tx_achieved_rate < $connection_stall_thr
+stall_detection_thr=5
 connection_stall_thr_kbps=10
-stall_refractory_period_ms=200 # (milliseconds)
 
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
