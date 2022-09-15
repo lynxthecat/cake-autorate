@@ -235,6 +235,10 @@ maintain_pingers()
 
  	trap kill_pingers TERM
 
+	trap "pause_reflector_health_check=1" USR1
+
+	pause_reflector_health_check=0
+
 	declare -A pinger_pids
 	declare -A rtt_baselines_us
 
@@ -266,6 +270,14 @@ maintain_pingers()
 	while true
 	do
 		sleep_s $reflector_health_check_interval_s
+
+		# ensure that we do not pause right in the middle of replacing a reflector
+		if (($pause_reflector_health_check)); then
+			(($debug)) && log_msg "DEBUG: Pausing reflector health check."
+			kill -STOP $BASHPID
+			(($debug)) && log_msg "DEBUG: Resuming reflector health check."
+			pause_reflector_health_check=0
+		fi
 
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
@@ -541,7 +553,6 @@ printf -v reflector_response_deadline_us %.0f\\n "${reflector_response_deadline_
 global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
-stall_refractory_period_us=$(( 1000*$stall_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 connection_idle=0
 
@@ -554,8 +565,8 @@ printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_dur
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
-stall_detection_timeout_s=$(( 5*$ping_response_interval_us ))
-stall_detection_timeout_s=000000$stall_detection_timeout_s
+stall_detection_timeout_us=$(( $stall_detection_thr*$ping_response_interval_us ))
+stall_detection_timeout_s=000000$stall_detection_timeout_us
 stall_detection_timeout_s=${stall_detection_timeout_s::-6}.${stall_detection_timeout_s: -6}
 
 concurrent_read_positive_integer_interval_us=$(($ping_response_interval_us/4))
@@ -663,18 +674,20 @@ do
 
 	done</tmp/cake-autorate/ping_fifo
 
-	# stall handling
+	# stall handling procedure
+	# PIPESTATUS[0] == 142 corresponds with while loop timeout
+	# i.e. no reflector responses within $stall_detection_thr * $ping_response_interval_us
 	if (( ${PIPESTATUS[0]} == 142 )); then
 
 		get_loads
 
-		# non-zero load so despite no reflector response within stall interval connection not considered to have stalled
-		# so resume normal operation
+		# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
+		# and therefore resume normal operation
 		(($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )) && continue
 
 		(($debug)) && log_msg "DEBUG: Warning: Connection stall detection. Waiting for new ping or increased load"
 
-		# save intiial global reflector timestamp
+		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
 
 		# stop reflector health monitoring to prevent reflector rotation
@@ -703,7 +716,7 @@ do
 
         	        sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
 
-			(( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us) )) && break
+			(( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us - $stall_detection_timeout_us) )) && break
 	        done	
 
 	fi
