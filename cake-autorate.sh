@@ -664,7 +664,7 @@ do
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 		if (($enable_sleep_function)); then
-			if [[ $dl_load_condition == idle* && $ul_load_condition == idle* ]]; then
+			if [[ $dl_load_condition == *idle* && $ul_load_condition == *idle* ]]; then
 				((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-$t_end_us))))
 				if (($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)); then 
 					connection_idle=1
