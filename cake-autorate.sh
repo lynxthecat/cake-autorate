@@ -219,20 +219,6 @@ monitor_reflector_responses()
 	done</tmp/cake-autorate/pinger_${pinger}_fifo
 }
 
-pause_pingers_on_connection_stall()
-{
-
-	for ((pinger=0; pinger<$no_pingers; pinger++))
-	do
-		kill -STOP ${pinger_pids[$pinger]} 2> /dev/null
-        done
-        sleep_us $stall_refractory_period_us
-        for ((pinger=0; pinger<$no_pingers; pinger++))
-        do
-        	kill -CONT ${pinger_pids[$pinger]} 2> /dev/null
-        done
-}
-
 kill_pingers()
 {
 	for (( pinger=0; pinger<$no_pingers; pinger++))
@@ -248,8 +234,6 @@ maintain_pingers()
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap kill_pingers TERM
-
-	trap pause_pingers_on_connection_stall STOP
 
 	declare -A pinger_pids
 	declare -A rtt_baselines_us
