@@ -12,17 +12,13 @@ export LC_ALL=C
 
 trap cleanup_and_killall INT TERM EXIT
 
-# Format log entries - includes timestamp on each line
-# Entries should contain their own newline, if necessary
-log_msg()
-{
-    printf '%(%F %H:%M:%S)T %b' -1 "$1"
-}
+install_dir="/root/cake-autorate/"
+. $install_dir"cake-autorate-config.sh"
 
 cleanup_and_killall()
 {
-    log_msg "\n"
-	log_msg "...Killing all background processes and cleaning up /tmp files.\n"
+	log_msg ""
+	log_msg "Killing all background processes and cleaning up /tmp files."
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
 	# Initiate termination of ping processes and wait until complete
@@ -32,36 +28,11 @@ cleanup_and_killall()
 	exit
 }
 
-# check to see if the named interface is present; exit if not
-is_if_present()
+# Format log entries - includes timestamp on each line if stdout is not a tty (terminal)
+log_msg()
 {
-    the_if=$1
-    is_here=$(ifconfig | grep "$the_if")
-    if [ "$is_here" == "" ]; then
-        log_msg "'$the_if' interface not present... Aborting!\n"
-		log_msg "Are SQM QoS installed and cake-autorate-config.sh configured?\n"
-        cleanup_and_killall
-    fi
+        printf '%(%F-%H:%M:%S)T %s\n' -1 "$1"
 }
-
-install_dir="/root/cake-autorate/"
-
-. $install_dir"cake-autorate-config.sh"
-
-# test if stdout is a tty (terminal)
-[[ ! -t 1 ]] &&	exec &> /tmp/cake-autorate.log
-
-# ======= Start of the Main Routine ========
-
-log_msg "Starting CAKE-autorate $cake_autorate_version\n"
-
-# check if proper interfaces have been configured
-is_if_present $dl_if
-is_if_present $ul_if
-
-# Output interfaces and configured rates
-log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)\n"
-log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)\n"
 
 get_next_shaper_rate() 
 {
@@ -90,7 +61,7 @@ get_next_shaper_rate()
 			if (( $t_next_rate_us > ($t_last_bufferbloat_us+$bufferbloat_refractory_period_us) )); then
 				adjusted_achieved_rate_kbps=$(( ($achieved_rate_kbps*$achieved_rate_adjust_down_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_down_bufferbloat)/1000 )) 
-				shaper_rate_kbps=$(( $adjusted_achieved_rate_kbps < $adjusted_shaper_rate_kbps ? $adjusted_achieved_rate_kbps : $adjusted_shaper_rate_kbps ))
+				shaper_rate_kbps=$(( $adjusted_achieved_rate_kbps > $min_shaper_rate_kbps && $adjusted_achieved_rate_kbps < $adjusted_shaper_rate_kbps ? $adjusted_achieved_rate_kbps : $adjusted_shaper_rate_kbps ))
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
@@ -238,10 +209,28 @@ monitor_reflector_responses()
 		rtt_baseline_us=$(( ( (1000-$alpha)*$rtt_baseline_us+$alpha*$rtt_us )/1000 ))
 
 		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline_us" "$rtt_us" "$rtt_delta_us" > /tmp/cake-autorate/ping_fifo
+
+		timestamp=${timestamp//[[\[\].]}
 	
-		printf '%s' "${timestamp//[[\[\].]}" > /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
+		printf '%s' "$timestamp" > /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
+		
+		printf '%s' "$timestamp" > /tmp/cake-autorate/reflectors_last_timestamp_us
 
 	done</tmp/cake-autorate/pinger_${pinger}_fifo
+}
+
+pause_pingers_on_connection_stall()
+{
+
+	for ((pinger=0; pinger<$no_pingers; pinger++))
+	do
+		kill -STOP ${pinger_pids[$pinger]} 2> /dev/null
+        done
+        sleep_us $stall_refractory_period_us
+        for ((pinger=0; pinger<$no_pingers; pinger++))
+        do
+        	kill -CONT ${pinger_pids[$pinger]} 2> /dev/null
+        done
 }
 
 kill_pingers()
@@ -260,6 +249,8 @@ maintain_pingers()
 
  	trap kill_pingers TERM
 
+	trap pause_pingers_on_connection_stall STOP
+
 	declare -A pinger_pids
 	declare -A rtt_baselines_us
 
@@ -269,7 +260,7 @@ maintain_pingers()
 	for ((pinger=0; pinger<$no_pingers; pinger++))
 	do
 		mkfifo /tmp/cake-autorate/pinger_${pinger}_fifo
-		[[ $(ping -q -c 5 -i 0.1 ${reflectors[$pinger]} | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baselines_us[$pinger] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baselines_us[$pinger]=0
+		[[ $(ping "${ping_extra_args[@]}" -q -c 5 -i 0.1 ${reflectors[$pinger]} | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baselines_us[$pinger] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baselines_us[$pinger]=0
 	
 		declare -n reflector_offences="reflector_${pinger}_offences"
 		for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
@@ -304,7 +295,7 @@ maintain_pingers()
 
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
-				(($debug)) && echo "DEBUG: Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving."
+				(($debug)) && log_msg "DEBUG: Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving."
 				
 				if(($no_reflectors>$no_pingers)); then
 
@@ -315,7 +306,7 @@ maintain_pingers()
 					# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
 					# and finally the indices for $reflectors are updated to reflect the new order
 	
-					(($debug)) && echo "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
+					(($debug)) && log_msg "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
 					kill ${pinger_pids[$pinger]} 2> /dev/null
 					bad_reflector=${reflectors[$pinger]}
 					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
@@ -331,7 +322,7 @@ maintain_pingers()
 					pinger_pids[$pinger]=$pid
 					
 				else
-					(($debug)) && echo "DEBUG: No additional reflectors specified so just retaining: "${reflectors[$pinger]}"."
+					(($debug)) && log_msg "DEBUG: No additional reflectors specified so just retaining: "${reflectors[$pinger]}"."
 					reflector_offences[$pinger]=0
 				fi
 
@@ -355,10 +346,10 @@ start_pinger_next_pinger_time_slot()
 	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
 	if (($debug)); then
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
+		ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
 		pinger_pid=$!
 	else
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+		ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
 		pinger_pid=$!
 	fi
 	monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
@@ -370,8 +361,7 @@ set_cake_rate()
 	local shaper_rate_kbps=$2
 	local -n time_rate_set_us=$3
 	
-#	(($output_cake_changes)) && echo "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
-	(($output_cake_changes)) && log_msg "${interface} ${shaper_rate_kbps}\n"
+	(($output_cake_changes)) && log_msg "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 	
 	if (($debug)); then
 		tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
@@ -433,8 +423,8 @@ concurrent_read_positive_integer()
 		if [[ -z "${value##*[!0-9]*}" ]]; then
 			if (($debug)); then
 				read -r caller_output< <(caller)
-				echo "DEBUG concurrent_read_positive_integer() misfire with the following particulars:"
-				echo "DEBUG caller="$caller_output"; value="$value"; and path="$path
+				log_msg "DEBUG: concurrent_read_positive_integer() misfire with the following particulars:"
+				log_msg "DEBUG: caller="$caller_output"; value="$value"; and path="$path
 			fi 
 			sleep_us $concurrent_read_positive_integer_interval_us
 			continue
@@ -451,8 +441,8 @@ verify_ifs_up()
 
 	while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 	do
-		(($debug)) && [[ ! -f $rx_bytes_path ]] && echo "DEBUG Warning: $rx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
-		(($debug)) && [[ ! -f $tx_bytes_path ]] && echo "DEBUG Warning: $tx_bytes_path does not exist. Waiting "$if_up_check_interval_s" seconds for interface to come up." 
+		(($debug)) && [[ ! -f $rx_bytes_path ]] && log_msg "DEBUG: Warning: The configured download interface: '$dl_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
+		(($debug)) && [[ ! -f $tx_bytes_path ]] && log_msg "DEBUG: Warning: The configured upload interface: '$ul_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
 		sleep_s $if_up_check_interval_s
 	done
 }
@@ -495,40 +485,57 @@ sleep_remaining_tick_time()
 	fi
 }
 
+# ======= Start of the Main Routine ========
+
 # Set up tmp directory, sleep fifo and perform various sanity checks
 
 # /tmp/cake-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
-if [[ -d /tmp/cake-autorate ]]; then 
-	echo "Error: /tmp/cake-autorate already exists. Is another instance running? Exiting script."
-	trap - INT TERM EXIT
-	exit
-else 
-	mkdir /tmp/cake-autorate
+if [[ -d /tmp/cake-autorate ]]; then
+        log_msg "Error: /tmp/cake-autorate already exists. Is another instance running? Exiting script."
+        trap - INT TERM EXIT
+        exit
+else
+        mkdir /tmp/cake-autorate
 fi
 
 mkfifo /tmp/cake-autorate/sleep_fifo
 exec 3<> /tmp/cake-autorate/sleep_fifo
 
-no_reflectors=${#reflectors[@]} 
-
-# Check no_pingers <= no_reflectors
-(( $no_pingers > $no_reflectors)) && { echo "Error: number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
-
-# Check dl/if interface not the same
-[[ $dl_if == $ul_if ]] && { echo "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
-
-# Check bufferbloat detection threshold not greater than window length
-(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { echo "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
+# test if stdout is a tty (terminal)
+[[ ! -t 1 ]] && log_msg "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
+[[ ! -t 1 ]] && exec &> /tmp/cake-autorate.log
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_s>0)); then
-	(($debug)) && echo "DEBUG Waiting "$startup_wait_s" seconds before startup."
-	sleep_s $startup_wait_s
+        (($debug)) && log_msg "DEBUG: Waiting "$startup_wait_s" seconds before startup."
+        sleep_s $startup_wait_s
+fi
+
+log_msg "Starting CAKE-autorate $cake_autorate_version"
+
+# Output interfaces and configured rates
+log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)"
+log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
+
+if (( $debug )) ; then
+    echo "DEBUG: rx_bytes_path: $rx_bytes_path"
+    echo "DEBUG: tx_bytes_path: $tx_bytes_path"
 fi
 
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
+
+no_reflectors=${#reflectors[@]} 
+
+# Check no_pingers <= no_reflectors
+(( $no_pingers > $no_reflectors)) && { log_msg "Error: number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
+
+# Check dl/if interface not the same
+[[ $dl_if == $ul_if ]] && { log_msg "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
+
+# Check bufferbloat detection threshold not greater than window length
+(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { log_msg "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
 # Initialize variables
 
@@ -546,9 +553,13 @@ printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
 printf -v reflector_response_deadline_us %.0f\\n "${reflector_response_deadline_s}e6"
+
+global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
+stall_refractory_period_us=$(( 1000*$stall_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
+connection_idle=0
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
@@ -558,6 +569,10 @@ printf -v sss_compensation_pre_duration_us %.0f\\n "${sss_compensation_pre_durat
 printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_duration_ms}e3"
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
+
+stall_detection_timeout_s=$(( 5*$ping_response_interval_us ))
+stall_detection_timeout_s=000000$stall_detection_timeout_s
+stall_detection_timeout_s=${stall_detection_timeout_s::-6}.${stall_detection_timeout_s: -6}
 
 concurrent_read_positive_integer_interval_us=$(($ping_response_interval_us/4))
 
@@ -590,7 +605,6 @@ declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; do
 delays_idx=0
 sum_delays=0
 
-
 mkfifo /tmp/cake-autorate/ping_fifo
 exec 4<> /tmp/cake-autorate/ping_fifo
 
@@ -603,23 +617,23 @@ monitor_achieved_rates_pid=$!
 
 prev_timestamp=0
 
-# printf "Starting CAKE-autorate $cake_autorate_version using Down: $dl_if, Up: $ul_if\n"
-
 if (($debug)); then
 	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
-		echo "DEBUG Warning: bufferbloat refractory period: " $bufferbloat_refractory_period_us " us."
-		echo "DEBUG Warning: but expected time to overwrite samples in bufferbloat detection window is: " $(($bufferbloat_detection_window*$ping_response_interval_us)) " us." 
-		echo "DEBUG Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
+		log_msg "DEBUG: Warning: bufferbloat refractory period: " $bufferbloat_refractory_period_us " us."
+		log_msg "DEBUG: Warning: but expected time to overwrite samples in bufferbloat detection window is: " $(($bufferbloat_detection_window*$ping_response_interval_us)) " us." 
+		log_msg "DEBUG: Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
 fi
 
+echo "0" > /tmp/cake-autorate/reflectors_last_timestamp_us
+
 while true
 do
-	while read -t $global_ping_response_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
+	while read -t $stall_detection_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if ((($t_start_us - 10#"${timestamp//[[\[\].]}")>500000)); then
-			(($debug)) && echo "DEBUG processed response from [" $reflector "] that is > 500ms old. Skipping." 
+			(($debug)) && log_msg "DEBUG: processed response from [$reflector] that is > 500ms old. Skipping." 
 			continue
 		fi
 		
@@ -642,15 +656,20 @@ do
 		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
-		(($output_processing_stats)) && printf '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s\n' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
-
+		if (($output_processing_stats)); then 
+			printf -v processing_stats '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			log_msg "$processing_stats"
+		fi
 		set_shaper_rates
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 		if (($enable_sleep_function)); then
 			if [[ $dl_load_condition == idle* && $ul_load_condition == idle* ]]; then
 				((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-$t_end_us))))
-				(($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)) && break
+				if (($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)); then 
+					connection_idle=1
+					break
+				fi
 			else
 				# reset timer
 				t_sustained_connection_idle_us=0
@@ -660,14 +679,64 @@ do
 
 	done</tmp/cake-autorate/ping_fifo
 
-	(($debug)) && {(( ${PIPESTATUS[0]} == 142 )) && echo "DEBUG Warning: global ping response timeout. Enforcing minimum shaper rates." || echo "DEBUG Connection idle. Enforcing minimum shaper rates.";}
-	
-	# in any case, we broke out of processing loop, so conservatively set hard minimums and wait until there is a load increase again
+	# stall handling
+	if (( ${PIPESTATUS[0]} == 142 )); then
+
+		get_loads
+
+		# non-zero load so despite no reflector response within stall interval connection not considered to have stalled
+		# so resume normal operation
+		(($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )) && continue
+
+		(($debug)) && log_msg "DEBUG: Warning: Connection stall detection. Waiting for new ping or increased load"
+
+		# save intiial global reflector timestamp
+		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
+
+		# stop reflector health monitoring to prevent reflector rotation
+		kill -STOP $maintain_pingers_pid
+
+		t_connection_stall_time_us=${EPOCHREALTIME/./}
+
+	        # wait until load resumes or ping response received (or global reflector response timeout)
+	        while true
+	        do
+        	        t_start_us=${EPOCHREALTIME/./}
+			
+			concurrent_read_positive_integer new_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
+	                get_loads
+
+			if (($new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || $dl_achieved_rate_kbps > $connection_stall_thr_kbps || $ul_achieved_rate_kbps > $connection_stall_thr_kbps )); then
+
+				(($debug)) && log_msg "DEBUG: Connection stall ended. Resuming normal operation."
+
+				# resume reflector health monitoring
+				kill -CONT $maintain_pingers_pid
+
+				# continue main loop (i.e. skip idle/global timeout handling beloow)
+				continue 2
+			fi
+
+        	        sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
+
+			(( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us) )) && break
+	        done	
+
+	fi
+
+	if (($connection_idle)); then
+		(($debug)) && log_msg "DEBUG: Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
+	else
+		(($debug)) && log_msg "DEBUG: Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+	fi
+
+	# conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
 	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
 	set_shaper_rates
 
 	# Initiate termination of ping processes and wait until complete
+	kill -CONT $maintain_pingers_pid
 	kill $maintain_pingers_pid 2> /dev/null
 	wait $maintain_pingers_pid
 
@@ -685,6 +754,9 @@ do
 		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
 		sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
 	done
+
+
+	connection_idle=0	
 
 	# Start up ping processes
 	maintain_pingers &
