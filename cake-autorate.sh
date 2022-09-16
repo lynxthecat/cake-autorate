@@ -44,7 +44,7 @@ get_next_shaper_rate()
 	local t_next_rate_us=$6
 	local -n t_last_bufferbloat_us=$7
 	local -n t_last_decay_us=$8
-    local -n shaper_rate_kbps=$9
+	local -n shaper_rate_kbps=$9
 
 	case $load_condition in
 
@@ -231,6 +231,8 @@ kill_pingers()
 
 maintain_pingers()
 {
+	local main_process_pid=$1
+
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap kill_pingers TERM
@@ -265,6 +267,9 @@ maintain_pingers()
 		start_pinger_next_pinger_time_slot $pinger pid
 		pinger_pids[$pinger]=$pid
 	done
+
+	# send USR1 signal to main process to let it continue
+	kill -USR1 $main_process_pid
 
 	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
@@ -495,6 +500,8 @@ else
         mkdir /tmp/cake-autorate
 fi
 
+trap ":" USR1
+
 mkfifo /tmp/cake-autorate/sleep_fifo
 exec 3<> /tmp/cake-autorate/sleep_fifo
 
@@ -602,12 +609,17 @@ sum_delays=0
 mkfifo /tmp/cake-autorate/ping_fifo
 exec 4<> /tmp/cake-autorate/ping_fifo
 
-maintain_pingers &
-maintain_pingers_pid=$!
-
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
+
+main_process_pid=$BASHPID
+
+maintain_pingers $main_process_pid&
+maintain_pingers_pid=$!
+(($debug)) && log_msg "DEBUG: Waiting for pingers to get setup."
+wait
+(($debug)) && log_msg "DEBUG: Pingers set up now. Continuing."
 
 prev_timestamp=0
 
@@ -759,6 +771,9 @@ do
 	done
 
 	# Start up ping processes
-	maintain_pingers &
+	maintain_pingers $main_process_pid&
 	maintain_pingers_pid=$!
+	(($debug)) && log_msg "DEBUG: Waiting for pingers to get setup."
+	wait
+	(($debug)) && log_msg "DEBUG: Pingers set up now. Continuing."
 done
