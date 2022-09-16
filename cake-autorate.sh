@@ -554,7 +554,6 @@ global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
-connection_idle=0
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
@@ -661,10 +660,7 @@ do
 		if (($enable_sleep_function)); then
 			if [[ $dl_load_condition == *idle* && $ul_load_condition == *idle* ]]; then
 				((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-$t_end_us))))
-				if (($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)); then 
-					connection_idle=1
-					break
-				fi
+				(($t_sustained_connection_idle_us>$sustained_idle_sleep_thr_us)) && break
 			else
 				# reset timer
 				t_sustained_connection_idle_us=0
@@ -684,11 +680,16 @@ do
 
 		get_loads
 
-		(($debug)) && log_msg "DEBUG: load check is: (($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps ))"
+		(($debug)) && log_msg "DEBUG: load check is: (($dl_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps && $ul_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps))"
 
 		# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 		# and therefore resume normal operation
-		(($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )) && continue
+		if (($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )); then
+
+			(($debug)) && log_msg "DEBUG: load above connection stall threshold so resumping normal operation."
+			continue
+
+		fi
 
 		(($debug)) && log_msg "DEBUG: Warning: Connection stall detection. Waiting for new ping or increased load"
 
@@ -721,17 +722,17 @@ do
 
         	        sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
 
-			(( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us - $stall_detection_timeout_us) )) && break
+			if (( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us - $stall_detection_timeout_us) )); then 
+		
+				(($debug)) && log_msg "DEBUG: Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+				break
+			fi
 	        done	
 
-	fi
-
-	if (($connection_idle)); then
-		(($debug)) && log_msg "DEBUG: Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
 	else
-		(($debug)) && log_msg "DEBUG: Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+		(($debug)) && log_msg "DEBUG: Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
 	fi
-
+	
 	# conservatively set hard minimums and wait until there is a load increase again
 	dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
 	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
@@ -756,9 +757,6 @@ do
 		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
 		sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
 	done
-
-
-	connection_idle=0	
 
 	# Start up ping processes
 	maintain_pingers &
