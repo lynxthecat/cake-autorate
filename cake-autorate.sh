@@ -22,6 +22,7 @@ cleanup_and_killall()
 	trap - INT TERM EXIT
 	kill $monitor_achieved_rates_pid 2> /dev/null
 	# Initiate termination of ping processes and wait until complete
+	kill -CONT $maintain_pingers_pid 2> /dev/null
 	kill $maintain_pingers_pid 2> /dev/null
 	wait $maintain_pingers_pid
 	[[ -d /tmp/cake-autorate ]] && rm -r /tmp/cake-autorate
