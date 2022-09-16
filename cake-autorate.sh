@@ -291,7 +291,7 @@ maintain_pingers()
 
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
-				(($debug)) && log_msg "DEBUG: Warning: reflector: "${reflectors[$pinger]}" seems to be misbehaving."
+				(($debug)) && log_msg "DEBUG: Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
 				
 				if(($no_reflectors>$no_pingers)); then
 
@@ -302,7 +302,7 @@ maintain_pingers()
 					# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
 					# and finally the indices for $reflectors are updated to reflect the new order
 	
-					(($debug)) && log_msg "DEBUG: Replacing reflector: "${reflectors[$pinger]}" with "${reflectors[$no_pingers]}"."
+					(($debug)) && log_msg "DEBUG: Replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
 					kill ${pinger_pids[$pinger]} 2> /dev/null
 					bad_reflector=${reflectors[$pinger]}
 					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
@@ -318,7 +318,7 @@ maintain_pingers()
 					pinger_pids[$pinger]=$pid
 					
 				else
-					(($debug)) && log_msg "DEBUG: No additional reflectors specified so just retaining: "${reflectors[$pinger]}"."
+					(($debug)) && log_msg "DEBUG: No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
 					reflector_offences[$pinger]=0
 				fi
 
@@ -420,7 +420,7 @@ concurrent_read_positive_integer()
 			if (($debug)); then
 				read -r caller_output< <(caller)
 				log_msg "DEBUG: concurrent_read_positive_integer() misfire with the following particulars:"
-				log_msg "DEBUG: caller="$caller_output"; value="$value"; and path="$path
+				log_msg "DEBUG: caller=$caller_output; value=$value; and path=$path"
 			fi 
 			sleep_us $concurrent_read_positive_integer_interval_us
 			continue
@@ -463,7 +463,7 @@ sleep_us()
 	local sleep_duration_us=$1 # (microseconds)
 	
 	sleep_duration_s=000000$sleep_duration_us
-	sleep_duration_s=${sleep_duration_s::-6}.${sleep_duration_s: -6}
+	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
 	read -t $sleep_duration_s < /tmp/cake-autorate/sleep_fifo
 }
 
@@ -504,7 +504,7 @@ exec 3<> /tmp/cake-autorate/sleep_fifo
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_s>0)); then
-        (($debug)) && log_msg "DEBUG: Waiting "$startup_wait_s" seconds before startup."
+        (($debug)) && log_msg "DEBUG: Waiting $startup_wait_s seconds before startup."
         sleep_s $startup_wait_s
 fi
 
@@ -528,7 +528,7 @@ no_reflectors=${#reflectors[@]}
 (( $no_pingers > $no_reflectors)) && { log_msg "Error: number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
 
 # Check dl/if interface not the same
-[[ $dl_if == $ul_if ]] && { log_msg "Error: download interface and upload interface are both set to: '"$dl_if"', but cannot be the same. Exiting script."; exit; }
+[[ $dl_if == $ul_if ]] && { log_msg "Error: download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
 
 # Check bufferbloat detection threshold not greater than window length
 (( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { log_msg "Error: bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
@@ -567,7 +567,7 @@ ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 
 stall_detection_timeout_us=$(( $stall_detection_thr*$ping_response_interval_us ))
 stall_detection_timeout_s=000000$stall_detection_timeout_us
-stall_detection_timeout_s=${stall_detection_timeout_s::-6}.${stall_detection_timeout_s: -6}
+stall_detection_timeout_s=$((10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
 
 concurrent_read_positive_integer_interval_us=$(($ping_response_interval_us/4))
 
@@ -614,8 +614,8 @@ prev_timestamp=0
 
 if (($debug)); then
 	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
-		log_msg "DEBUG: Warning: bufferbloat refractory period: " $bufferbloat_refractory_period_us " us."
-		log_msg "DEBUG: Warning: but expected time to overwrite samples in bufferbloat detection window is: " $(($bufferbloat_detection_window*$ping_response_interval_us)) " us." 
+		log_msg "DEBUG: Warning: bufferbloat refractory period: $bufferbloat_refractory_period_us us."
+		log_msg "DEBUG: Warning: but expected time to overwrite samples in bufferbloat detection window is: $(($bufferbloat_detection_window*$ping_response_interval_us)) us." 
 		log_msg "DEBUG: Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
 fi
@@ -679,7 +679,12 @@ do
 	# i.e. no reflector responses within $stall_detection_thr * $ping_response_interval_us
 	if (( ${PIPESTATUS[0]} == 142 )); then
 
+
+		(($debug)) && log_msg "DEBUG: Warning: No reflector response within: $stall_detection_timeout_s seconds. Checking for loads."
+
 		get_loads
+
+		(($debug)) && log_msg "DEBUG: load check is: (($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps ))"
 
 		# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 		# and therefore resume normal operation
@@ -690,8 +695,8 @@ do
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
 
-		# stop reflector health monitoring to prevent reflector rotation
-		kill -STOP $maintain_pingers_pid
+		# send signal USR1 to pause reflector health monitoring to prevent reflector rotation
+		kill -USR1 $maintain_pingers_pid
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -703,7 +708,7 @@ do
 			concurrent_read_positive_integer new_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
 	                get_loads
 
-			if (($new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || $dl_achieved_rate_kbps > $connection_stall_thr_kbps || $ul_achieved_rate_kbps > $connection_stall_thr_kbps )); then
+			if (( $new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || ( $dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps) )); then
 
 				(($debug)) && log_msg "DEBUG: Connection stall ended. Resuming normal operation."
 
