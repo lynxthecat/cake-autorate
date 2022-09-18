@@ -220,6 +220,53 @@ monitor_reflector_responses()
 	done</tmp/cake-autorate/pinger_${pinger}_fifo
 }
 
+start_pingers()
+{
+
+	reflector_offences_idx=0
+
+        # For each pinger: create fifos, get baselines and initialize record of offences
+        for ((pinger=0; pinger<$no_pingers; pinger++))
+        do
+                mkfifo /tmp/cake-autorate/pinger_${pinger}_fifo
+                rtt_baselines_us[$pinger]=1000000
+                declare -n reflector_offences="reflector_${pinger}_offences"
+                for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+		sum_reflector_offences[$pinger]=0
+        done
+
+        pingers_t_start_us=${EPOCHREALTIME/./}
+
+        # Initiate pingers
+        for ((pinger=0; pinger<$no_pingers; pinger++))
+        do
+                printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
+                start_pinger_next_pinger_time_slot $pinger pid
+                pinger_pids[$pinger]=$pid
+        done  
+}
+
+start_pinger_next_pinger_time_slot()                                                                                                                                       
+{
+        # wait until next pinger time slot and start pinger in its slot
+        # this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)                                                                                 
+	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
+
+        local pinger=$1
+        local -n pinger_pid=$2
+        t_start_us=${EPOCHREALTIME/./}
+        time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
+        sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us                                                                                                          
+	if (($debug)); then
+                ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
+                pinger_pid=$!
+        else
+                ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+                pinger_pid=$!                                                                                                                                                     
+	fi
+        monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
+}
+
 kill_pingers()
 {
 	for (( pinger=0; pinger<$no_pingers; pinger++))
@@ -232,8 +279,6 @@ kill_pingers()
 
 maintain_pingers()
 {
-	local main_process_pid=$1
-
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap kill_pingers TERM
@@ -245,32 +290,7 @@ maintain_pingers()
 	declare -A pinger_pids
 	declare -A rtt_baselines_us
 
-	reflector_offences_idx=0
-
-	# For each pinger: create fifos, get baselines and initialize record of offences
-	for ((pinger=0; pinger<$no_pingers; pinger++))
-	do
-		mkfifo /tmp/cake-autorate/pinger_${pinger}_fifo
-		[[ $(ping "${ping_extra_args[@]}" -q -c 5 -i 0.1 ${reflectors[$pinger]} | tail -1) =~ ([0-9.]+)/ ]] && printf -v rtt_baselines_us[$pinger] %.0f\\n "${BASH_REMATCH[1]}e3" || rtt_baselines_us[$pinger]=0
-	
-		declare -n reflector_offences="reflector_${pinger}_offences"
-		for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
-
-		sum_reflector_offences[$pinger]=0
-	done
-
-	pingers_t_start_us=${EPOCHREALTIME/./}
-
-	# Initiate pingers
-	for ((pinger=0; pinger<$no_pingers; pinger++))
-	do
-		printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
-		start_pinger_next_pinger_time_slot $pinger pid
-		pinger_pids[$pinger]=$pid
-	done
-
-	# send USR1 signal to main process to let it continue
-	kill -USR1 $main_process_pid
+	start_pingers
 
 	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
@@ -334,27 +354,6 @@ maintain_pingers()
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%$reflector_misbehaving_detection_window))
 	done
-}
-
-start_pinger_next_pinger_time_slot()
-{
-	# wait until next pinger time slot and start pinger in its slot
-	# this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)
-	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
-
-	local pinger=$1
-	local -n pinger_pid=$2
-	t_start_us=${EPOCHREALTIME/./}
-	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
-	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
-	if (($debug)); then
-		ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
-		pinger_pid=$!
-	else
-		ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
-		pinger_pid=$!
-	fi
-	monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
 }
 
 set_cake_rate()
@@ -616,11 +615,8 @@ monitor_achieved_rates_pid=$!
 
 main_process_pid=$BASHPID
 
-maintain_pingers $main_process_pid&
+maintain_pingers&
 maintain_pingers_pid=$!
-(($debug)) && log_msg "DEBUG: Waiting for pingers to get setup."
-wait
-(($debug)) && log_msg "DEBUG: Pingers set up now. Continuing."
 
 prev_timestamp=0
 
@@ -772,9 +768,6 @@ do
 	done
 
 	# Start up ping processes
-	maintain_pingers $main_process_pid&
+	maintain_pingers&
 	maintain_pingers_pid=$!
-	(($debug)) && log_msg "DEBUG: Waiting for pingers to get setup."
-	wait
-	(($debug)) && log_msg "DEBUG: Pingers set up now. Continuing."
 done
