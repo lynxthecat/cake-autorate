@@ -3,17 +3,22 @@
 # CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and OWD/RTT
 # requires packages: bash; and iputils-ping
 
+# cake-autorate must be configured using config file in $install_dir
+
+# Project homepage: https://github.com/lynxthecat/cake-autorate
+# Licence details:  https://github.com/lynxthecat/cake-autorate/blob/main/LICENCE.md
+
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
+install_dir="/root/cake-autorate/"
+[[ ! -f $install_dir"cake-autorate-config.sh" ]] && log_msg "DEBUG Warning: no config file found. Exiting now." && exit
+. $install_dir"cake-autorate-config.sh"
+
 # Possible performance improvement
 export LC_ALL=C
-# export TZ=UTC
 
 trap cleanup_and_killall INT TERM EXIT
-
-install_dir="/root/cake-autorate/"
-. $install_dir"cake-autorate-config.sh"
 
 cleanup_and_killall()
 {
@@ -32,7 +37,7 @@ cleanup_and_killall()
 # Format log entries - includes timestamp on each line if stdout is not a tty (terminal)
 log_msg()
 {
-        printf '%(%F-%H:%M:%S)T %s\n' -1 "$1"
+        printf '%(%F-%H:%M:%S)T_%s %s\n' -1 "$EPOCHREALTIME" "$1"
 }
 
 get_next_shaper_rate() 
@@ -201,7 +206,7 @@ maintain_pingers()
 
 	for ((reflector=0; reflector<$no_reflectors; reflector++))
 	do
-		printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
+		printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${reflectors[$reflector]//./-}_last_timestamp_us
 	done
 	
 	printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflectors_last_timestamp_us
@@ -224,9 +229,9 @@ maintain_pingers()
 
 		# ensure that we do not pause right in the middle of replacing a reflector
 		if (($pause_reflector_health_check)); then
-			(($debug)) && log_msg "DEBUG: Pausing reflector health check."
+			(($debug)) && log_msg "DEBUG Pausing reflector health check."
 			kill -STOP $BASHPID
-			(($debug)) && log_msg "DEBUG: Resuming reflector health check."
+			(($debug)) && log_msg "DEBUG Resuming reflector health check."
 			pause_reflector_health_check=0
 		fi
 
@@ -242,7 +247,7 @@ maintain_pingers()
 
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
-				(($debug)) && log_msg "DEBUG: Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
+				(($debug)) && log_msg "DEBUG Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
 				
 				if(($no_reflectors>$no_pingers)); then
 
@@ -253,7 +258,7 @@ maintain_pingers()
 					# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
 					# and finally the indices for $reflectors are updated to reflect the new order
 	
-					(($debug)) && log_msg "DEBUG: Replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
+					(($debug)) && log_msg "DEBUG Replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
 					kill $pinger_pid 2> /dev/null
 					bad_reflector=${reflectors[$pinger]}
 					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
@@ -269,7 +274,7 @@ maintain_pingers()
 					pinger_pid=$!
 					
 				else
-					(($debug)) && log_msg "DEBUG: No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
+					(($debug)) && log_msg "DEBUG No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
 					reflector_offences[$pinger]=0
 				fi
 
@@ -349,8 +354,8 @@ concurrent_read_positive_integer()
 		if [[ -z "${value##*[!0-9]*}" ]]; then
 			if (($debug)); then
 				read -r caller_output< <(caller)
-				log_msg "DEBUG: concurrent_read_positive_integer() misfire with the following particulars:"
-				log_msg "DEBUG: caller=$caller_output; value=$value; and path=$path"
+				log_msg "DEBUG concurrent_read_positive_integer() misfire with the following particulars:"
+				log_msg "DEBUG caller=$caller_output; value=$value; and path=$path"
 			fi 
 			sleep_us $concurrent_read_positive_integer_interval_us
 			continue
@@ -367,8 +372,8 @@ verify_ifs_up()
 
 	while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 	do
-		(($debug)) && [[ ! -f $rx_bytes_path ]] && log_msg "DEBUG: Warning: The configured download interface: '$dl_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
-		(($debug)) && [[ ! -f $tx_bytes_path ]] && log_msg "DEBUG: Warning: The configured upload interface: '$ul_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
+		(($debug)) && [[ ! -f $rx_bytes_path ]] && log_msg "DEBUG Warning: The configured download interface: '$dl_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
+		(($debug)) && [[ ! -f $tx_bytes_path ]] && log_msg "DEBUG Warning: The configured upload interface: '$ul_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
 		sleep_s $if_up_check_interval_s
 	done
 }
@@ -413,6 +418,7 @@ sleep_remaining_tick_time()
 
 # ======= Start of the Main Routine ========
 
+
 # Set up tmp directory, sleep fifo and perform various sanity checks
 
 # /tmp/cake-autorate/ is used to store temporary files
@@ -436,19 +442,17 @@ exec 3<> /tmp/cake-autorate/sleep_fifo
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_s>0)); then
-        (($debug)) && log_msg "DEBUG: Waiting $startup_wait_s seconds before startup."
+        (($debug)) && log_msg "DEBUG Waiting $startup_wait_s seconds before startup."
         sleep_s $startup_wait_s
 fi
 
-log_msg "Starting CAKE-autorate $cake_autorate_version"
-
-# Output interfaces and configured rates
-log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)"
-log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
 
 if (( $debug )) ; then
-    log_msg "DEBUG: rx_bytes_path: $rx_bytes_path"
-    log_msg "DEBUG: tx_bytes_path: $tx_bytes_path"
+	log_msg "DEBUG Starting CAKE-autorate $cake_autorate_version"
+	log_msg "DEBUG   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)"
+	log_msg "DEBUG     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
+	log_msg "DEBUG rx_bytes_path: $rx_bytes_path"
+	log_msg "DEBUG tx_bytes_path: $tx_bytes_path"
 fi
 
 # Check interfaces are up and wait if necessary for them to come up
@@ -550,32 +554,35 @@ prev_timestamp=0
 
 if (($debug)); then
 	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
-		log_msg "DEBUG: Warning: bufferbloat refractory period: $bufferbloat_refractory_period_us us."
-		log_msg "DEBUG: Warning: but expected time to overwrite samples in bufferbloat detection window is: $(($bufferbloat_detection_window*$ping_response_interval_us)) us." 
-		log_msg "DEBUG: Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
+		log_msg "DEBUG Warning: bufferbloat refractory period: $bufferbloat_refractory_period_us us."
+		log_msg "DEBUG Warning: but expected time to overwrite samples in bufferbloat detection window is: $(($bufferbloat_detection_window*$ping_response_interval_us)) us." 
+		log_msg "DEBUG Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
 fi
 
-
-
 for (( pinger=0; pinger<$no_reflectors; pinger++)) do rtt_baselines_us[${reflectors[$pinger]}]=1000000; done
+
+
+log_msg "HEADER PROC_TIME_US DL_ACHIEVED_RATE_KBPS UL_ACHIEVED_RATE_KBPS DL_LOAD_PERCENT UL_LOAD_PERCEN RTT_TIMESTAMP REFLECTOR SEQUENCE RTT_BASELINE RTT_US RTT_DELTA_US ADJ_DELAY_THR SUM_DELAYS DL_LOAD_CONDITION UL_LOAD_CONDITION CAKE_DL_RATE_KBPS CAKE_UL_RATE_KBPS"
 
 while true
 do
-	while read -t $stall_detection_timeout_s -r timestamp reflector _ seq timeout _ rtt _ _
+	while read -t $stall_detection_timeout_s -r timestamp reflector _ seq_rtt
 	do 
-		# skip any timeouts
-		[[ $timeout -eq "timed" ]] && continue
-
 		t_start_us=${EPOCHREALTIME/./}
-		if ((($t_start_us - 10#"${timestamp//[[\[\].]}"0)>500000)); then
-			(($debug)) && log_msg "DEBUG: processed response from [$reflector] that is > 500ms old. Skipping." 
+		if ((($t_start_us - 10#"${timestamp//[\[\].]}"0)>500000)); then
+			(($debug)) && log_msg "DEBUG processed response from [$reflector] that is > 500ms old. Skipping." 
 			continue
 		fi
 
-		[[ $rtt =~ ([0-9]+)\.?([0-9]+)? ]] || continue
-		rtt_us=${BASH_REMATCH[2]}000
-		rtt_us=$((${BASH_REMATCH[1]}000+10#${rtt_us:0:3}))
+		[[ $seq_rtt =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
+
+		timestamp=${timestamp//[\[\]]}
+
+		seq=${BASH_REMATCH[1]}
+
+		rtt_us=${BASH_REMATCH[3]}000
+		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
 
 		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
 
@@ -609,7 +616,7 @@ do
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
 		if (($output_processing_stats)); then 
-			printf -v processing_stats '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq ${rtt_baselines_us[$reflector]} $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			printf -v processing_stats '%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s' "DATA" $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq ${rtt_baselines_us[$reflector]} $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "$processing_stats"
 		fi
 		set_shaper_rates
@@ -634,22 +641,22 @@ do
 	if (( ${PIPESTATUS[0]} == 142 )); then
 
 
-		(($debug)) && log_msg "DEBUG: Warning: No reflector response within: $stall_detection_timeout_s seconds. Checking for loads."
+		(($debug)) && log_msg "DEBUG Warning: No reflector response within: $stall_detection_timeout_s seconds. Checking for loads."
 
 		get_loads
 
-		(($debug)) && log_msg "DEBUG: load check is: (($dl_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps && $ul_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps))"
+		(($debug)) && log_msg "DEBUG load check is: (($dl_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps && $ul_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps))"
 
 		# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 		# and therefore resume normal operation
 		if (($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )); then
 
-			(($debug)) && log_msg "DEBUG: load above connection stall threshold so resumping normal operation."
+			(($debug)) && log_msg "DEBUG load above connection stall threshold so resumping normal operation."
 			continue
 
 		fi
 
-		(($debug)) && log_msg "DEBUG: Warning: Connection stall detection. Waiting for new ping or increased load"
+		(($debug)) && log_msg "DEBUG Warning: Connection stall detection. Waiting for new ping or increased load"
 
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
@@ -669,7 +676,7 @@ do
 
 			if (( $new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || ( $dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps) )); then
 
-				(($debug)) && log_msg "DEBUG: Connection stall ended. Resuming normal operation."
+				(($debug)) && log_msg "DEBUG Connection stall ended. Resuming normal operation."
 
 				# resume reflector health monitoring
 				kill -CONT $maintain_pingers_pid
@@ -682,13 +689,13 @@ do
 
 			if (( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us - $stall_detection_timeout_us) )); then 
 		
-				(($debug)) && log_msg "DEBUG: Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+				(($debug)) && log_msg "DEBUG Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
 				break
 			fi
 	        done	
 
 	else
-		(($debug)) && log_msg "DEBUG: Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
+		(($debug)) && log_msg "DEBUG Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
 	fi
 	
 	# conservatively set hard minimums and wait until there is a load increase again
