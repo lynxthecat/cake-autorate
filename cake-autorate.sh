@@ -184,13 +184,14 @@ classify_load()
 	fi
 }
 
+
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap "kill $pinger_pid 2> /dev/null; exit" TERM
+ 	trap 'kill $pinger_pid 2> /dev/null; exit' TERM
 
-	trap "pause_reflector_health_check=1" USR1
+	trap 'pause_reflector_health_check=1' USR1
 
 	pause_reflector_health_check=0
 
@@ -198,14 +199,19 @@ maintain_pingers()
 
 	pingers_t_start_us=${EPOCHREALTIME/./}	
 
+	for ((reflector=0; reflector<$no_reflectors; reflector++))
+	do
+		printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
+	done
+	
+	printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflectors_last_timestamp_us
+
         # For each pinger initialize record of offences
-        for ((pinger=0; pinger<$no_pingers; pinger++))                                                                                                                             do                                                                                                                                                                                 
+        for ((pinger=0; pinger<$no_pingers; pinger++))                           
+	do
 		declare -n reflector_offences="reflector_${pinger}_offences"                                                                                                               
 		for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
                 sum_reflector_offences[$pinger]=0
-
-		printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
-
         done
 	
 	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/ping_fifo&
@@ -441,8 +447,8 @@ log_msg "   Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_r
 log_msg "     Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
 
 if (( $debug )) ; then
-    echo "DEBUG: rx_bytes_path: $rx_bytes_path"
-    echo "DEBUG: tx_bytes_path: $tx_bytes_path"
+    log_msg "DEBUG: rx_bytes_path: $rx_bytes_path"
+    log_msg "DEBUG: tx_bytes_path: $tx_bytes_path"
 fi
 
 # Check interfaces are up and wait if necessary for them to come up
@@ -550,7 +556,7 @@ if (($debug)); then
 	fi
 fi
 
-echo "${EPOCHREALTIME/./}" > /tmp/cake-autorate/reflectors_last_timestamp_us
+
 
 for (( pinger=0; pinger<$no_reflectors; pinger++)) do rtt_baselines_us[${reflectors[$pinger]}]=1000000; done
 
