@@ -184,113 +184,32 @@ classify_load()
 	fi
 }
 
-monitor_reflector_responses() 
-{
-	# ping reflector, maintain baseline and output deltas to a common fifo
-
-	local pinger=$1
-	local rtt_baseline_us=$2
-
-	while read -r  timestamp _ _ _ reflector seq_rtt
-	do
-		# If no match then skip onto the next one
-		[[ $seq_rtt =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
-
-		seq=${BASH_REMATCH[1]}
-
-		rtt_us=${BASH_REMATCH[3]}000
-		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
-
-		reflector=${reflector//:/}
-
-		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
-
-		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
-
-		rtt_baseline_us=$(( ( (1000-$alpha)*$rtt_baseline_us+$alpha*$rtt_us )/1000 ))
-
-		printf '%s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$rtt_baseline_us" "$rtt_us" "$rtt_delta_us" > /tmp/cake-autorate/ping_fifo
-
-		timestamp=${timestamp//[[\[\].]}
-	
-		printf '%s' "$timestamp" > /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
-		
-		printf '%s' "$timestamp" > /tmp/cake-autorate/reflectors_last_timestamp_us
-
-	done</tmp/cake-autorate/pinger_${pinger}_fifo
-}
-
-start_pingers()
-{
-
-	reflector_offences_idx=0
-
-        # For each pinger: create fifos, get baselines and initialize record of offences
-        for ((pinger=0; pinger<$no_pingers; pinger++))
-        do
-                mkfifo /tmp/cake-autorate/pinger_${pinger}_fifo
-                rtt_baselines_us[$pinger]=1000000
-                declare -n reflector_offences="reflector_${pinger}_offences"
-                for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
-		sum_reflector_offences[$pinger]=0
-        done
-
-        pingers_t_start_us=${EPOCHREALTIME/./}
-
-        # Initiate pingers
-        for ((pinger=0; pinger<$no_pingers; pinger++))
-        do
-                printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
-                start_pinger_next_pinger_time_slot $pinger pid
-                pinger_pids[$pinger]=$pid
-        done  
-}
-
-start_pinger_next_pinger_time_slot()                                                                                                                                       
-{
-        # wait until next pinger time slot and start pinger in its slot
-        # this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)                                                                                 
-	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
-
-        local pinger=$1
-        local -n pinger_pid=$2
-        t_start_us=${EPOCHREALTIME/./}
-        time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
-        sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us                                                                                                          
-	if (($debug)); then
-                ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
-                pinger_pid=$!
-        else
-                ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
-                pinger_pid=$!                                                                                                                                                     
-	fi
-        monitor_reflector_responses $pinger ${rtt_baselines_us[$pinger]} &
-}
-
-kill_pingers()
-{
-	for (( pinger=0; pinger<$no_pingers; pinger++))
-	do
-		kill ${pinger_pids[$pinger]} 2> /dev/null
-		[[ -p /tmp/cake-autorate/pinger_${pinger}_fifo ]] && rm /tmp/cake-autorate/pinger_${pinger}_fifo
-	done
-	exit
-}
-
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap kill_pingers TERM
+ 	trap "kill $pinger_pid 2> /dev/null; exit" TERM
 
 	trap "pause_reflector_health_check=1" USR1
 
 	pause_reflector_health_check=0
 
-	declare -A pinger_pids
-	declare -A rtt_baselines_us
+	reflector_offences_idx=0
 
-	start_pingers
+	pingers_t_start_us=${EPOCHREALTIME/./}	
+
+        # For each pinger initialize record of offences
+        for ((pinger=0; pinger<$no_pingers; pinger++))                                                                                                                             do                                                                                                                                                                                 
+		declare -n reflector_offences="reflector_${pinger}_offences"                                                                                                               
+		for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+                sum_reflector_offences[$pinger]=0
+
+		printf '%s' "$pingers_t_start_us" > /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
+
+        done
+	
+	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/ping_fifo&
+	pinger_pid=$!
 
 	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
@@ -308,7 +227,7 @@ maintain_pingers()
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
-			concurrent_read_positive_integer reflector_last_timestamp_us /tmp/cake-autorate/reflector_${pinger}_last_timestamp_us
+			concurrent_read_positive_integer reflector_last_timestamp_us /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
 			declare -n reflector_offences="reflector_${pinger}_offences"
 
 			(( ${reflector_offences[$reflector_offences_idx]} )) && ((sum_reflector_offences[$pinger]--))
@@ -329,7 +248,7 @@ maintain_pingers()
 					# and finally the indices for $reflectors are updated to reflect the new order
 	
 					(($debug)) && log_msg "DEBUG: Replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
-					kill ${pinger_pids[$pinger]} 2> /dev/null
+					kill $pinger_pid 2> /dev/null
 					bad_reflector=${reflectors[$pinger]}
 					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
 					reflectors[$pinger]=${reflectors[$no_pingers]}
@@ -339,9 +258,9 @@ maintain_pingers()
 					reflectors+=($bad_reflector)
 					# reset array indices
 					reflectors=(${reflectors[*]})
-					# set up the new pinger with the new reflector and retain pid
-					start_pinger_next_pinger_time_slot $pinger pid
-					pinger_pids[$pinger]=$pid
+					# set up the new pinger with the new reflector and retain pid	
+					fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/ping_fifo&
+					pinger_pid=$!
 					
 				else
 					(($debug)) && log_msg "DEBUG: No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
@@ -552,6 +471,7 @@ printf -v shaper_rate_adjust_down_load_low %.0f\\n "${shaper_rate_adjust_down_lo
 printf -v shaper_rate_adjust_up_load_low %.0f\\n "${shaper_rate_adjust_up_load_low}e3"
 printf -v high_load_thr_percent %.0f\\n "${high_load_thr}e2"
 printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
+printf -v reflector_ping_interval_ms %.0f\\n "${reflector_ping_interval_s}e3"
 printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
@@ -570,6 +490,7 @@ printf -v sss_compensation_pre_duration_us %.0f\\n "${sss_compensation_pre_durat
 printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_duration_ms}e3"
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
+ping_response_interval_ms=$(($ping_response_interval_us/1000))
 
 stall_detection_timeout_us=$(( $stall_detection_thr*$ping_response_interval_us ))
 stall_detection_timeout_s=000000$stall_detection_timeout_us
@@ -603,6 +524,9 @@ t_dl_last_decay_us=$t_start_us
 t_sustained_connection_idle_us=0
 
 declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
+
+declare -A rtt_baselines_us
+
 delays_idx=0
 sum_delays=0
 
@@ -612,8 +536,6 @@ exec 4<> /tmp/cake-autorate/ping_fifo
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
-
-main_process_pid=$BASHPID
 
 maintain_pingers&
 maintain_pingers_pid=$!
@@ -628,18 +550,39 @@ if (($debug)); then
 	fi
 fi
 
-echo "0" > /tmp/cake-autorate/reflectors_last_timestamp_us
+echo "${EPOCHREALTIME/./}" > /tmp/cake-autorate/reflectors_last_timestamp_us
+
+for (( pinger=0; pinger<$no_reflectors; pinger++)) do rtt_baselines_us[${reflectors[$pinger]}]=1000000; done
 
 while true
 do
-	while read -t $stall_detection_timeout_s -r timestamp reflector seq rtt_baseline_us rtt_us rtt_delta_us
+	while read -t $stall_detection_timeout_s -r timestamp reflector _ seq timeout _ rtt _ _
 	do 
+		# skip any timeouts
+		[[ $timeout -eq "timed" ]] && continue
+
 		t_start_us=${EPOCHREALTIME/./}
-		if ((($t_start_us - 10#"${timestamp//[[\[\].]}")>500000)); then
+		if ((($t_start_us - 10#"${timestamp//[[\[\].]}"0)>500000)); then
 			(($debug)) && log_msg "DEBUG: processed response from [$reflector] that is > 500ms old. Skipping." 
 			continue
 		fi
+
+		[[ $rtt =~ ([0-9]+)\.?([0-9]+)? ]] || continue
+		rtt_us=${BASH_REMATCH[2]}000
+		rtt_us=$((${BASH_REMATCH[1]}000+10#${rtt_us:0:3}))
+
+		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
+
+		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
+
+		rtt_baselines_us[$reflector]=$(( ( (1000-$alpha)*${rtt_baselines_us[$reflector]}+$alpha*$rtt_us )/1000 ))
+
+		timestamp_us=${timestamp//[[\[\].]}0
+
+		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
 		
+		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflectors_last_timestamp_us
+	
 		# Keep track of number of delays across detection window
 		(( ${delays[$delays_idx]} )) && ((sum_delays--))
 		delays[$delays_idx]=$(( $rtt_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
@@ -660,7 +603,7 @@ do
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
 		if (($output_processing_stats)); then 
-			printf -v processing_stats '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $rtt_baseline_us $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			printf -v processing_stats '%s %-6s %-6s %-3s %-3s %s %-15s %-6s %-6s %-6s %-6s %-6s %s %-14s %-14s %-6s %-6s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq ${rtt_baselines_us[$reflector]} $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "$processing_stats"
 		fi
 		set_shaper_rates
