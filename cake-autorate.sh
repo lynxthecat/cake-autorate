@@ -34,7 +34,7 @@ cleanup_and_killall()
 	exit
 }
 
-# Format log entries - includes timestamp on each line if stdout is not a tty (terminal)
+# Format log entries
 log_msg()
 {
         printf '%(%F-%H:%M:%S)T_%s %s\n' -1 "$EPOCHREALTIME" "$1"
@@ -98,8 +98,8 @@ get_next_shaper_rate()
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
-        (($shaper_rate_kbps < $min_shaper_rate_kbps)) && shaper_rate_kbps=$min_shaper_rate_kbps;
-        (($shaper_rate_kbps > $max_shaper_rate_kbps)) && shaper_rate_kbps=$max_shaper_rate_kbps;
+        (($shaper_rate_kbps < $min_shaper_rate_kbps)) && shaper_rate_kbps=$min_shaper_rate_kbps
+        (($shaper_rate_kbps > $max_shaper_rate_kbps)) && shaper_rate_kbps=$max_shaper_rate_kbps
 }
 
 monitor_achieved_rates()
@@ -492,6 +492,8 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
+log_file_rotation_us=$(($log_file_rotation_mins*60000000))
+
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
 	printf -v sss_times_us[i] %.0f\\n "${sss_times_s[i]}e6"
@@ -533,12 +535,16 @@ t_dl_last_decay_us=$t_start_us
 
 t_sustained_connection_idle_us=0
 
+t_log_file_start_us=${EPOCHREALTIME/./}
+
 declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
 
 declare -A rtt_baselines_us
 
 delays_idx=0
 sum_delays=0
+
+for (( pinger=0; pinger<$no_reflectors; pinger++)) do rtt_baselines_us[${reflectors[$pinger]}]=1000000; done
 
 mkfifo /tmp/cake-autorate/ping_fifo
 exec 4<> /tmp/cake-autorate/ping_fifo
@@ -550,8 +556,6 @@ monitor_achieved_rates_pid=$!
 maintain_pingers&
 maintain_pingers_pid=$!
 
-prev_timestamp=0
-
 if (($debug)); then
 	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
 		log_msg "DEBUG Warning: bufferbloat refractory period: $bufferbloat_refractory_period_us us."
@@ -560,10 +564,7 @@ if (($debug)); then
 	fi
 fi
 
-for (( pinger=0; pinger<$no_reflectors; pinger++)) do rtt_baselines_us[${reflectors[$pinger]}]=1000000; done
-
-
-log_msg "HEADER PROC_TIME_US DL_ACHIEVED_RATE_KBPS UL_ACHIEVED_RATE_KBPS DL_LOAD_PERCENT UL_LOAD_PERCEN RTT_TIMESTAMP REFLECTOR SEQUENCE RTT_BASELINE RTT_US RTT_DELTA_US ADJ_DELAY_THR SUM_DELAYS DL_LOAD_CONDITION UL_LOAD_CONDITION CAKE_DL_RATE_KBPS CAKE_UL_RATE_KBPS"
+(($output_processing_stats)) && log_msg "HEADER PROC_TIME_US DL_ACHIEVED_RATE_KBPS UL_ACHIEVED_RATE_KBPS DL_LOAD_PERCENT UL_LOAD_PERCEN RTT_TIMESTAMP REFLECTOR SEQUENCE RTT_BASELINE RTT_US RTT_DELTA_US ADJ_DELAY_THR SUM_DELAYS DL_LOAD_CONDITION UL_LOAD_CONDITION CAKE_DL_RATE_KBPS CAKE_UL_RATE_KBPS"
 
 while true
 do
@@ -618,7 +619,21 @@ do
 		if (($output_processing_stats)); then 
 			printf -v processing_stats '%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s' "DATA" $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq ${rtt_baselines_us[$reflector]} $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "$processing_stats"
+
+			if [[ ! -t 1 ]]; then
+				echo "(( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_us ))"
+				if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_us )); then
+
+					(($debug)) && log_msg "DEBUG configured log file rotation time: $log_file_rotation_mins minutes has elapsed. Rotating log file."
+					cp /tmp/cake-autorate.log /tmp/cake-autorate.log.old
+					>/tmp/cake-autorate.log
+					(($output_processing_stats)) && log_msg "HEADER PROC_TIME_US DL_ACHIEVED_RATE_KBPS UL_ACHIEVED_RATE_KBPS DL_LOAD_PERCENT UL_LOAD_PERCEN RTT_TIMESTAMP REFLECTOR SEQUENCE RTT_BASELINE RTT_US RTT_DELTA_US ADJ_DELAY_THR SUM_DELAYS DL_LOAD_CONDITION UL_LOAD_CONDITION CAKE_DL_RATE_KBPS CAKE_UL_RATE_KBPS"
+					t_log_file_start_us=${EPOCHREALTIME/./}
+
+				fi
+			fi
 		fi
+	
 		set_shaper_rates
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
@@ -631,6 +646,7 @@ do
 				t_sustained_connection_idle_us=0
 			fi
 		fi
+		
 		t_end_us=${EPOCHREALTIME/./}
 
 	done</tmp/cake-autorate/ping_fifo
@@ -651,7 +667,7 @@ do
 		# and therefore resume normal operation
 		if (($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )); then
 
-			(($debug)) && log_msg "DEBUG load above connection stall threshold so resumping normal operation."
+			(($debug)) && log_msg "DEBUG load above connection stall threshold so resuming normal operation."
 			continue
 
 		fi
