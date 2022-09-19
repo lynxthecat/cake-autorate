@@ -13,7 +13,7 @@ cake_autorate_version="1.0.0"
 
 output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
 output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
-debug=1			  # enable (1) or disable (0) out of debug lines
+debug=1 		  # enable (1) or disable (0) out of debug lines
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
@@ -28,7 +28,7 @@ reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 # so e.g. if 6 reflectors are specified and the number of pingers is set to 4, the first 4 reflectors will be used initially
 # and the remaining 2 reflectors in the list will be used in the event any of the first 4 go bad
 # a bad reflector will go to the back of the queue on reflector rotation
-reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
+reflectors=("1.123.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
 no_pingers=4
 
 # delay threshold in ms is the extent of RTT increase to classify as a delay
@@ -51,6 +51,8 @@ connection_active_thr_kbps=500 # threshold in Kbit/s below which dl/ul is consid
 sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
+
+log_file_rotation_mins=60 # number of minutes to rotate log file
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
