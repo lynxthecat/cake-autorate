@@ -52,7 +52,13 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
-log_file_rotation_mins=10 # number of minutes to rotate log file
+# ** Take care with these settings to ensure you won't run into OOM issues on your router ***
+# By default the log file is checked every 10 minutes and rotated if, upon the check, the size exceeds 2MB
+# The log file at /tmp/cake-autorate.log is rotated to /tmp/cake-autorate.log.old
+# Therefore the storage required is approx. twice that specified in $log_file_max_size_KB
+# $log_file_max_size_KB is not a cap and thus could be exceeded if the check interval is set too high
+log_file_rotation_check_interval_mins=10 # number of minutes to check whether to rotate log file
+log_file_max_size_KB=2000 # log file rotated if this size reached on the check interval
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
