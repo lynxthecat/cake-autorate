@@ -645,11 +645,11 @@ do
 					log_file_size_KB=$(wc -c < /tmp/cake-autorate.log)
 					log_file_size_KB=$(($log_file_size_KB/1024))
 					if (( $log_file_size_KB > $log_file_max_size_KB )); then
-						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB has exceeded configured maximum: $log_file_max_size_KB so rotating log file"
+						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 						mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
 						(($output_processing_stats)) && print_header
 					else
-						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB has not exceeded configured maximum: $log_file_max_size_KB so not rotating log file"
+						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has not exceeded configured maximum: $log_file_max_size_KB KB so not rotating log file"
 					fi
 					t_log_file_start_us=${EPOCHREALTIME/./}
 				fi
