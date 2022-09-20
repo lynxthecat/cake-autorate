@@ -632,8 +632,7 @@ do
 
 					(($debug)) && log_msg "DEBUG" "configured log file rotation time: $log_file_rotation_mins minute(s) has elapsed. Rotating log file."
 					exec &> /dev/null
-					cp /tmp/cake-autorate.log /tmp/cake-autorate.log.old
-					>/tmp/cake-autorate.log
+					mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
 					exec &> /tmp/cake-autorate.log
 					(($output_processing_stats)) && print_header
 					t_log_file_start_us=${EPOCHREALTIME/./}
