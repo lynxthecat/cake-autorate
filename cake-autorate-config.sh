@@ -52,7 +52,7 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
-log_file_rotation_mins=60 # number of minutes to rotate log file
+log_file_rotation_mins=10 # number of minutes to rotate log file
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
