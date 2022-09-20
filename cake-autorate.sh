@@ -642,8 +642,8 @@ do
 				if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_check_interval_us )); then
 
 					(($debug)) && log_msg "DEBUG" "configured log file rotation time: $log_file_rotation_check_interval_mins minute(s) has elapsed. Checking log file size."
-					log_file_size_KB=$(wc -c < /tmp/cake-autorate.log)
-					log_file_size_KB=$(($log_file_size_KB/1024))
+					read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
+					log_file_size_KB=${log_file_size_KB//[!0-9]/}
 					if (( $log_file_size_KB > $log_file_max_size_KB )); then
 						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 						mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
