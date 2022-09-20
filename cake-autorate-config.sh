@@ -28,7 +28,7 @@ reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 # so e.g. if 6 reflectors are specified and the number of pingers is set to 4, the first 4 reflectors will be used initially
 # and the remaining 2 reflectors in the list will be used in the event any of the first 4 go bad
 # a bad reflector will go to the back of the queue on reflector rotation
-reflectors=("1.123.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
+reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
 no_pingers=4
 
 # delay threshold in ms is the extent of RTT increase to classify as a delay
