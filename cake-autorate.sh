@@ -40,12 +40,20 @@ log_msg()
 	local type=$1
 	local msg=$2
 
-        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
+	if [[ ! -t 1 ]]; then
+	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> /tmp/cake-autorate.log
+	else
+	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
+	fi
 }
 
 print_header()
 {
-	printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	if [[ ! -t 1 ]]; then
+		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" >> /tmp/cake-autorate.log
+	else
+		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	fi
 }
 
 get_next_shaper_rate() 
@@ -445,8 +453,10 @@ mkfifo /tmp/cake-autorate/sleep_fifo
 exec 3<> /tmp/cake-autorate/sleep_fifo
 
 # test if stdout is a tty (terminal)
-[[ ! -t 1 ]] && log_msg "INFO" "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
-[[ ! -t 1 ]] && exec &> /tmp/cake-autorate.log
+if [[ ! -t 1 ]]; then 
+	echo "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
+	>/tmp/cake-autorate.log # reset log file on startup
+fi
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_s>0)); then
@@ -500,7 +510,7 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
-log_file_rotation_us=$(($log_file_rotation_mins*60000000))
+log_file_rotation_check_interval_us=$(($log_file_rotation_check_interval_mins*60000000))
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
@@ -629,15 +639,19 @@ do
 			log_msg "DATA" "$processing_stats"
 
 			if [[ ! -t 1 ]]; then
-				if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_us )); then
+				if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_check_interval_us )); then
 
-					(($debug)) && log_msg "DEBUG" "configured log file rotation time: $log_file_rotation_mins minute(s) has elapsed. Rotating log file."
-					exec &> /dev/null
-					mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
-					exec &> /tmp/cake-autorate.log
-					(($output_processing_stats)) && print_header
+					(($debug)) && log_msg "DEBUG" "configured log file rotation time: $log_file_rotation_check_interval_mins minute(s) has elapsed. Checking log file size."
+					log_file_size_KB=$(wc -c < /tmp/cake-autorate.log)
+					log_file_size_KB=$(($log_file_size_KB/1024))
+					if (( $log_file_size_KB > $log_file_max_size_KB )); then
+						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB has exceeded configured maximum: $log_file_max_size_KB so rotating log file"
+						mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
+						(($output_processing_stats)) && print_header
+					else
+						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB has not exceeded configured maximum: $log_file_max_size_KB so not rotating log file"
+					fi
 					t_log_file_start_us=${EPOCHREALTIME/./}
-
 				fi
 			fi
 		fi
