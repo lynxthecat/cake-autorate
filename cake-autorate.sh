@@ -621,12 +621,13 @@ do
 			log_msg "$processing_stats"
 
 			if [[ ! -t 1 ]]; then
-				echo "(( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_us ))"
 				if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_us )); then
 
-					(($debug)) && log_msg "DEBUG configured log file rotation time: $log_file_rotation_mins minutes has elapsed. Rotating log file."
+					(($debug)) && log_msg "DEBUG configured log file rotation time: $log_file_rotation_mins minute(s) has elapsed. Rotating log file."
+					exec &> /dev/null
 					cp /tmp/cake-autorate.log /tmp/cake-autorate.log.old
 					>/tmp/cake-autorate.log
+					exec &> /tmp/cake-autorate.log
 					(($output_processing_stats)) && log_msg "HEADER PROC_TIME_US DL_ACHIEVED_RATE_KBPS UL_ACHIEVED_RATE_KBPS DL_LOAD_PERCENT UL_LOAD_PERCEN RTT_TIMESTAMP REFLECTOR SEQUENCE RTT_BASELINE RTT_US RTT_DELTA_US ADJ_DELAY_THR SUM_DELAYS DL_LOAD_CONDITION UL_LOAD_CONDITION CAKE_DL_RATE_KBPS CAKE_UL_RATE_KBPS"
 					t_log_file_start_us=${EPOCHREALTIME/./}
 
