@@ -25,11 +25,7 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up /tmp files."
 
-	kill $monitor_achieved_rates_pid 2> /dev/null
-	# Initiate termination of ping processes and wait until complete
-	kill -CONT $maintain_pingers_pid 2> /dev/null
-	kill $maintain_pingers_pid 2> /dev/null
-	[[ ! -t 1 ]] && kill $maintain_log_file_pid 2> /dev/null
+	kill $monitor_achieved_rates_pid $maintain_pingers_pid $maintain_log_file_pid 2> /dev/null
 
 	wait # wait for child processes to terminate
 
@@ -270,6 +266,7 @@ classify_load()
 
 # MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
 
+# FPING FUNCTIONS # 
 monitor_reflector_responses_fping()
 {
 		
@@ -289,8 +286,6 @@ monitor_reflector_responses_fping()
 		t_start_us=${EPOCHREALTIME/./}
 
 		[[ $seq_rtt =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
-
-		timestamp=${timestamp//[\[\]]}
 
 		seq=${BASH_REMATCH[1]}
 
@@ -312,11 +307,11 @@ monitor_reflector_responses_fping()
 		dl_owd_delta_us=$(($rtt_delta_us/2))
 		ul_owd_delta_us=$dl_owd_delta_us		
 		
-		timestamp_us=${timestamp//[\[\]]}0
+		timestamp=${timestamp//[\[\]]}0
 
 		printf '%s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > /tmp/cake-autorate/ping_fifo
 
-		timestamp_us=${timestamp_us//[.]}
+		timestamp_us=${timestamp//[.]}
 
 		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
 		
@@ -332,6 +327,7 @@ monitor_reflector_responses_fping()
 
 start_pinger_fping()
 {
+	mkfifo /tmp/cake-autorate/fping_fifo
 	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
@@ -340,6 +336,7 @@ start_pinger_fping()
 kill_pinger_fping()
 {
 	kill "${pinger_pids[@]}" 2> /dev/null
+	[[ -p /tmp/cake-autorate/fping_fifo ]] && rm /tmp/cake-autorate/fping_fifo
 }
 
 start_pingers_fping()
@@ -353,7 +350,130 @@ start_pingers_fping()
 kill_pingers_fping()
 {
 	kill "${pinger_pids[@]}" 2> /dev/null
+	[[ -p /tmp/cake-autorate/fping_fifo ]] && rm /tmp/cake-autorate/fping_fifo
 	exit
+}
+# END OF FPING FUNCTIONS 
+
+# IPUTILS-PING FUNCTIONS
+
+monitor_reflector_responses_ping() 
+{
+	# ping reflector, maintain baseline and output deltas to a common fifo
+
+	local pinger=$1
+
+	if [[ -f /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_baseline_us ]]; then
+			read rtt_baseline_us < /tmp/cake-autorate/reflector_${reflectors[$pinger]//./-}_baseline_us
+	else
+			rtt_baseline_us=1000000
+	fi
+	while read -r  timestamp _ _ _ reflector seq_rtt
+	do
+		# If no match then skip onto the next one
+		[[ $seq_rtt =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
+
+		seq=${BASH_REMATCH[1]}
+
+		rtt_us=${BASH_REMATCH[3]}000
+		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
+
+		reflector=${reflector//:/}
+
+		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
+
+		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
+
+		rtt_baseline_us=$(( ( (1000-$alpha)*$rtt_baseline_us+$alpha*$rtt_us )/1000 ))
+
+		dl_owd_baseline_us=$(($rtt_baseline_us/2))
+		ul_owd_baseline_us=$dl_owd_baseline_us
+
+		dl_owd_us=$(($rtt_us/2))
+		ul_owd_us=$dl_owd_us
+
+		dl_owd_delta_us=$(($rtt_delta_us/2))
+		ul_owd_delta_us=$dl_owd_delta_us	
+
+		timestamp=${timestamp//[\[\]]}
+
+		printf '%s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > /tmp/cake-autorate/ping_fifo
+		
+		timestamp_us=${timestamp//[.]}
+
+		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
+		
+		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflectors_last_timestamp_us
+
+	done</tmp/cake-autorate/pinger_${pinger}_fifo
+
+	printf '%s' $rtt_baseline_us > /tmp/cake-autorate/reflector_${pinger//./-}_baseline_us
+}
+
+start_pinger_binary_ping()
+{
+	local pinger=$1
+
+	mkfifo /tmp/cake-autorate/pinger_${pinger}_fifo
+	if (($debug)); then
+		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
+		pinger_pids[$pinger]=$!
+	else
+		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+		pinger_pids[$pinger]=$!
+	fi	
+}
+
+start_pinger_ping()
+{
+	local pinger=$1
+	start_pinger_next_pinger_time_slot $pinger pid
+	pinger_pids[$pinger]=$pid
+}
+
+kill_pinger_ping()
+{
+	local pinger=$1
+	kill $pinger_pids[$pinger] 2> /dev/null
+	[[ -p /tmp/cake-autorate/pinger_${pinger}_fifo ]] && rm /tmp/cake-autorate/pinger_${pinger}_fifo
+	
+}
+
+start_pingers_ping()
+{
+	# Initiate pingers
+	for ((pinger=0; pinger<$no_pingers; pinger++))
+	do
+		start_pinger_next_pinger_time_slot $pinger pid
+		pinger_pids[$pinger]=$pid
+	done
+}
+
+kill_pingers_ping()
+{
+	for (( pinger=0; pinger<$no_pingers; pinger++))
+	do
+		kill ${pinger_pids[$pinger]} 2> /dev/null
+		[[ -p /tmp/cake-autorate/pinger_${pinger}_fifo ]] && rm /tmp/cake-autorate/pinger_${pinger}_fifo
+	done
+	exit
+}
+
+# END OF IPUTILS-PING FUNCTIONS
+
+start_pinger_next_pinger_time_slot()
+{
+	# wait until next pinger time slot and start pinger in its slot
+	# this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)
+	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
+
+	local pinger=$1
+	local -n pinger_pid=$2
+	t_start_us=${EPOCHREALTIME/./}
+	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
+	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
+	start_pinger_binary_$pinger_binary $pinger
+	monitor_reflector_responses_$pinger_binary $pinger ${rtt_baselines_us[$pinger]} &
 }
 
 maintain_pingers()
@@ -363,6 +483,7 @@ maintain_pingers()
  	trap 'kill_pingers_$pinger_binary' TERM
 
 	trap 'pause_reflector_health_check=1' USR1
+	trap 'pause_reflector_health_check=0' USR2
 
 	pause_reflector_health_check=0
 
@@ -386,19 +507,13 @@ maintain_pingers()
         done
 
 	start_pingers_$pinger_binary
-	
+
 	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
 	do
 		sleep_s $reflector_health_check_interval_s
 
-		# ensure that we do not pause right in the middle of replacing a reflector
-		if (($pause_reflector_health_check)); then
-			(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
-			kill -STOP $BASHPID
-			(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
-			pause_reflector_health_check=0
-		fi
+		(($pause_reflector_health_check)) && continue
 
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
@@ -763,9 +878,8 @@ while true
 do
 	while read -t $stall_detection_timeout_s timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_us
 	do 
-	
 		t_start_us=${EPOCHREALTIME/./}
-		if ((($t_start_us - 10#"${timestamp//[.]}"0)>500000)); then
+		if ((($t_start_us - 10#"${timestamp//[.]}")>500000)); then
 			(($debug)) && log_msg "DEBUG" "processed response from [$reflector] that is > 500ms old. Skipping." 
 			continue
 		fi
@@ -845,6 +959,7 @@ do
 		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /tmp/cake-autorate/reflectors_last_timestamp_us
 
 		# send signal USR1 to pause reflector health monitoring to prevent reflector rotation
+		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
 		kill -USR1 $maintain_pingers_pid
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -861,8 +976,9 @@ do
 
 				(($debug)) && log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
-				# resume reflector health monitoring
-				kill -CONT $maintain_pingers_pid
+				# send signal USR1 to pause reflector health monitoring to prevent reflector rotation
+				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
+				kill -USR2 $maintain_pingers_pid
 
 				# continue main loop (i.e. skip idle/global timeout handling beloow)
 				continue 2
@@ -887,7 +1003,6 @@ do
 	set_shaper_rates
 
 	# Initiate termination of ping processes and wait until complete
-	kill -CONT $maintain_pingers_pid
 	kill $maintain_pingers_pid 2> /dev/null
 	wait $maintain_pingers_pid
 
