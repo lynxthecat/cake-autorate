@@ -20,6 +20,12 @@ debug=1 		  # enable (1) or disable (0) out of debug lines
 dl_if=ifb-dl # download interface
 ul_if=ifb-ul # upload interface
 
+# pinger selection can be any of:
+# fping - round robin pinging (rtts)
+# iputils-ping - individual pinging (rtts)
+# hping3 - individidual pinging (owds)
+pinger_binary=fping 
+
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
 # list of reflectors to use and number of pingers to initiate
@@ -28,7 +34,7 @@ reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 # so e.g. if 6 reflectors are specified and the number of pingers is set to 4, the first 4 reflectors will be used initially
 # and the remaining 2 reflectors in the list will be used in the event any of the first 4 go bad
 # a bad reflector will go to the back of the queue on reflector rotation
-reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
+reflectors=("1.123.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
 no_pingers=4
 
 # delay threshold in ms is the extent of RTT increase to classify as a delay
@@ -57,7 +63,7 @@ startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things
 # The log file at /tmp/cake-autorate.log is rotated to /tmp/cake-autorate.log.old
 # Therefore the storage required is approx. twice that specified in $log_file_max_size_KB
 # $log_file_max_size_KB is not a cap and thus could be exceeded if the check interval is set too high
-log_file_rotation_check_interval_mins=10 # number of minutes to check whether to rotate log file
+log_file_max_time_mins=10 # number of minutes to check whether to rotate log file
 log_file_max_size_KB=2000 # log file rotated if this size reached on the check interval
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
@@ -160,3 +166,4 @@ case "${ul_if}" in
         ;;
 esac
 
+config_file_check="cake-autorate"
