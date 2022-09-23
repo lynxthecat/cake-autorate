@@ -12,8 +12,6 @@
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
 install_dir="/root/cake-autorate/"
-[[ ! -f $install_dir"cake-autorate-config.sh" ]] && log_msg "DEBUG" "Warning: no config file found. Exiting now." && exit
-. $install_dir"cake-autorate-config.sh"
 
 # Possible performance improvement
 export LC_ALL=C
@@ -22,10 +20,14 @@ trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
 {
+	trap - INT TERM EXIT
+
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up /tmp files."
-	trap - INT TERM EXIT
+
+	[[ ! -t 1 ]] && kill $maintain_log_file_pid 2> /dev/null
 	kill $monitor_achieved_rates_pid 2> /dev/null
+	wait $monitor_achieved_rates_pid
 	# Initiate termination of ping processes and wait until complete
 	kill -CONT $maintain_pingers_pid 2> /dev/null
 	kill $maintain_pingers_pid 2> /dev/null
@@ -40,8 +42,10 @@ log_msg()
 	local type=$1
 	local msg=$2
 
+	echo $msg > /tmp/try3
+
 	if [[ ! -t 1 ]]; then
-	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> /tmp/cake-autorate.log
+	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > /tmp/cake-autorate/log_fifo
 	else
 	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 	fi
@@ -50,10 +54,54 @@ log_msg()
 print_header()
 {
 	if [[ ! -t 1 ]]; then
-		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" >> /tmp/cake-autorate.log
+		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" > /tmp/cake-autorate/log_fifo
 	else
 		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 	fi
+}
+
+rotate_log_file()
+{
+	mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
+	(($output_processing_stats)) && print_header
+}
+
+kill_maintain_log_file()
+{
+	while read -t 0.1 log_line
+	do
+		printf '%s\n' "$log_line" >> /tmp/cake-autorate.log		
+	done
+	exit
+}
+
+maintain_log_file()
+{
+	trap "kill_maintian_log_file" TERM
+
+	t_log_file_start_us=${EPOCHREALTIME/./}
+
+	while read log_line
+	do
+
+		printf '%s\n' "$log_line" >> /tmp/cake-autorate.log		
+
+		# Verify log file size < configured maximum
+		read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
+		log_file_size_KB=${log_file_size_KB//[!0-9]/}
+
+		if (( $log_file_size_KB > $log_file_max_size_KB )); then
+			(($debug)) && echo "DEBUG; log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file" > /tmp/cake-autorate.log
+			rotate_log_file
+		fi
+		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_max_time_us )); then
+
+			(($debug)) && echo "DEBUG; log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file" > /tmp/cake-autorate.log
+			rotate_log_file
+			t_log_file_start_us=${EPOCHREALTIME/./}
+		fi
+
+	done</tmp/cake-autorate/log_fifo
 }
 
 get_next_shaper_rate() 
@@ -179,7 +227,8 @@ classify_load()
 	# thus ending up with high_delayed, low_delayed, etc.
 	local load_percent=$1
 	local achieved_rate_kbps=$2
-	local -n load_condition=$3
+	local bufferbloat_detected=$3
+	local -n load_condition=$4
 	
 	if (( $load_percent > $high_load_thr_percent )); then
 		load_condition="high"  
@@ -205,12 +254,101 @@ classify_load()
 	fi
 }
 
+# MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
+
+monitor_reflector_responses_fping()
+{
+		
+	declare -A rtt_baselines_us
+
+	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
+	do
+		if [[ -f /tmp/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us ]]; then
+			read rtt_baselines_us[${reflectors[$reflector]}] < /tmp/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us
+		else
+			rtt_baselines_us[${reflectors[$reflector]}]=1000000
+		fi
+	done
+	
+	while read timestamp reflector _ seq_rtt
+	do 
+		t_start_us=${EPOCHREALTIME/./}
+
+		[[ $seq_rtt =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
+
+		timestamp=${timestamp//[\[\]]}
+
+		seq=${BASH_REMATCH[1]}
+
+		rtt_us=${BASH_REMATCH[3]}000
+		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
+
+		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
+
+		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
+
+		rtt_baselines_us[$reflector]=$(( ( (1000-$alpha)*${rtt_baselines_us[$reflector]}+$alpha*$rtt_us )/1000 ))
+
+		dl_owd_baseline_us=$((${rtt_baselines_us[$reflector]}/2))
+		ul_owd_baseline_us=$dl_owd_baseline_us
+
+		dl_owd_us=$(($rtt_us/2))
+		ul_owd_us=$dl_owd_us
+
+		dl_owd_delta_us=$(($rtt_delta_us/2))
+		ul_owd_delta_us=$dl_owd_delta_us		
+		
+		timestamp_us=${timestamp//[\[\]]}0
+
+		printf '%s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > /tmp/cake-autorate/ping_fifo
+
+		timestamp_us=${timestamp_us//[.]}
+
+		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
+		
+		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflectors_last_timestamp_us
+
+	done</tmp/cake-autorate/fping_fifo
+
+	for (( reflector=0; reflector<$no_reflectors; reflector++))
+	do
+		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > /tmp/cake-autorate/reflector_${reflector//./-}_baseline_us
+	done
+}
+
+start_pinger_fping()
+{
+	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/fping_fifo&
+	pinger_pids[0]=$!
+	monitor_reflector_responses_fping &
+}
+
+kill_pinger_fping()
+{
+	kill "${pinger_pids[@]}" 2> /dev/null
+}
+
+start_pingers_fping()
+{
+	mkfifo /tmp/cake-autorate/fping_fifo
+	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/fping_fifo&
+	pinger_pids[0]=$!
+	monitor_reflector_responses_fping &
+}
+
+kill_pingers_fping()
+{
+	echo "SHIT"
+	echo "${pinger_pids[@]}"
+	kill "${pinger_pids[@]}" 2> /dev/null
+	exit
+}
 
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap 'kill $pinger_pid 2> /dev/null; exit' TERM
+ 	trap 'kill_pingers_$pinger_binary' TERM
 
 	trap 'pause_reflector_health_check=1' USR1
 
@@ -234,10 +372,9 @@ maintain_pingers()
 		for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
                 sum_reflector_offences[$pinger]=0
         done
-	
-	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/ping_fifo&
-	pinger_pid=$!
 
+	start_pingers_$pinger_binary
+	
 	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
 	do
@@ -275,7 +412,7 @@ maintain_pingers()
 					# and finally the indices for $reflectors are updated to reflect the new order
 	
 					(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
-					kill $pinger_pid 2> /dev/null
+					kill_pinger_$pinger_binary $pinger
 					bad_reflector=${reflectors[$pinger]}
 					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
 					reflectors[$pinger]=${reflectors[$no_pingers]}
@@ -286,8 +423,7 @@ maintain_pingers()
 					# reset array indices
 					reflectors=(${reflectors[*]})
 					# set up the new pinger with the new reflector and retain pid	
-					fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /tmp/cake-autorate/ping_fifo&
-					pinger_pid=$!
+					start_pinger_$pinger_binary $pinger
 					
 				else
 					(($debug)) && log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
@@ -349,7 +485,9 @@ update_max_wire_packet_compensation()
 	# This will serve to increase the delay thr at rates below around 12Mbit/s
 
 	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
-	compensated_delay_thr_us=$(( $delay_thr_us + $max_wire_packet_rtt_us ))
+	
+	# compensated OWD delay threshold in microseconds
+	compensated_delay_thr_us=$(( ($delay_thr_us + $max_wire_packet_rtt_us)/2 ))
 
 	# write out max_wire_packet_rtt_us
 	printf '%s' "$max_wire_packet_rtt_us" > /tmp/cake-autorate/max_wire_packet_rtt_us
@@ -432,38 +570,72 @@ sleep_remaining_tick_time()
 	fi
 }
 
+log_file()
+{
+	if [[ ! -t 1 ]]; then
+		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_check_interval_us )); then
+
+			(($debug)) && log_msg "DEBUG" "configured log file rotation check interval time: $log_file_rotation_check_interval_mins minute(s) has elapsed. Checking log file size."
+			read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
+			log_file_size_KB=${log_file_size_KB//[!0-9]/}
+			if (( $log_file_size_KB > $log_file_max_size_KB )); then
+				(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
+				mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
+				(($output_processing_stats)) && print_header
+			else
+					(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has not exceeded configured maximum: $log_file_max_size_KB KB so not rotating log file"
+			fi
+				t_log_file_start_us=${EPOCHREALTIME/./}
+		fi
+	fi
+}
+
 # ======= Start of the Main Routine ========
 
+trap ":" USR1
 
-# Set up tmp directory, sleep fifo and perform various sanity checks
+[[ ! -f $install_dir"cake-autorate-config.sh" ]] && echo "ERROR; No config file found. Exiting now." && exit
+. $install_dir"cake-autorate-config.sh"
+[[ $config_file_check != "cake-autorate" ]] && echo "ERROR; Config file error. Please check config file entries." && exit
 
 # /tmp/cake-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d /tmp/cake-autorate ]]; then
-        log_msg "ERROR" "/tmp/cake-autorate already exists. Is another instance running? Exiting script."
+        echo "ERROR; /tmp/cake-autorate already exists. Is another instance running? Exiting script."
         trap - INT TERM EXIT
         exit
 else
         mkdir /tmp/cake-autorate
 fi
 
-trap ":" USR1
-
 mkfifo /tmp/cake-autorate/sleep_fifo
 exec 3<> /tmp/cake-autorate/sleep_fifo
+
+no_reflectors=${#reflectors[@]} 
+
+# Check no_pingers <= no_reflectors
+(( $no_pingers > $no_reflectors)) && { echo "ERROR; number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
+
+# Check dl/if interface not the same
+[[ $dl_if == $ul_if ]] && { echo "ERROR; download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
+
+# Check bufferbloat detection threshold not greater than window length
+(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { echo "ERROR; bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
+
+# Passed error checks 
 
 # test if stdout is a tty (terminal)
 if [[ ! -t 1 ]]; then 
 	echo "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
 	>/tmp/cake-autorate.log # reset log file on startup
+	log_file_max_time_us=$(($log_file_max_time_mins*60000000))
+	mkfifo /tmp/cake-autorate/log_fifo
+	exec 5<> /tmp/cake-autorate/log_fifo
+	maintain_log_file&
+	maintain_log_file_pid=$!
 fi
 
-# Wait if $startup_wait_s > 0
-if (($startup_wait_s>0)); then
-        (($debug)) && log_msg "DEBUG" "Waiting $startup_wait_s seconds before startup."
-        sleep_s $startup_wait_s
-fi
-
+sleep 2
 
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
@@ -473,19 +645,14 @@ if (( $debug )) ; then
 	log_msg "DEBUG" "tx_bytes_path: $tx_bytes_path"
 fi
 
+# Wait if $startup_wait_s > 0
+if (($startup_wait_s>0)); then
+        (($debug)) && log_msg "DEBUG" "Waiting $startup_wait_s seconds before startup."
+        sleep_s $startup_wait_s
+fi
+
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
-
-no_reflectors=${#reflectors[@]} 
-
-# Check no_pingers <= no_reflectors
-(( $no_pingers > $no_reflectors)) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
-
-# Check dl/if interface not the same
-[[ $dl_if == $ul_if ]] && { log_msg "ERROR" "download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
-
-# Check bufferbloat detection threshold not greater than window length
-(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { log_msg "ERROR" "bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
 # Initialize variables
 
@@ -510,7 +677,6 @@ bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
 delay_thr_us=$(( 1000*$delay_thr_ms ))
 
-log_file_rotation_check_interval_us=$(($log_file_rotation_check_interval_mins*60000000))
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
@@ -553,16 +719,12 @@ t_dl_last_decay_us=$t_start_us
 
 t_sustained_connection_idle_us=0
 
-t_log_file_start_us=${EPOCHREALTIME/./}
-
-declare -a delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
-
-declare -A rtt_baselines_us
+declare -a dl_delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
+declare -a ul_delays=( $(for i in {1..$bufferbloat_detection_window}; do echo 0; done) )
 
 delays_idx=0
-sum_delays=0
-
-for (( pinger=0; pinger<$no_reflectors; pinger++)) do rtt_baselines_us[${reflectors[$pinger]}]=1000000; done
+sum_dl_delays=0
+sum_ul_delays=0
 
 mkfifo /tmp/cake-autorate/ping_fifo
 exec 4<> /tmp/cake-autorate/ping_fifo
@@ -586,47 +748,34 @@ fi
 
 while true
 do
-	while read -t $stall_detection_timeout_s -r timestamp reflector _ seq_rtt
+	while read -t $stall_detection_timeout_s timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_us
 	do 
+	
 		t_start_us=${EPOCHREALTIME/./}
-		if ((($t_start_us - 10#"${timestamp//[\[\].]}"0)>500000)); then
+		if ((($t_start_us - 10#"${timestamp//[.]}"0)>500000)); then
 			(($debug)) && log_msg "DEBUG" "processed response from [$reflector] that is > 500ms old. Skipping." 
 			continue
 		fi
 
-		[[ $seq_rtt =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
-
-		timestamp=${timestamp//[\[\]]}
-
-		seq=${BASH_REMATCH[1]}
-
-		rtt_us=${BASH_REMATCH[3]}000
-		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
-
-		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
-
-		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
-
-		rtt_baselines_us[$reflector]=$(( ( (1000-$alpha)*${rtt_baselines_us[$reflector]}+$alpha*$rtt_us )/1000 ))
-
-		timestamp_us=${timestamp//[[\[\].]}0
-
-		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
-		
-		printf '%s' "$timestamp_us" > /tmp/cake-autorate/reflectors_last_timestamp_us
-	
-		# Keep track of number of delays across detection window
-		(( ${delays[$delays_idx]} )) && ((sum_delays--))
-		delays[$delays_idx]=$(( $rtt_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
-		((delays[$delays_idx])) && ((sum_delays++))
+		# Keep track of number of dl delays across detection window
+		# .. for download:
+		(( ${dl_delays[$delays_idx]} )) && ((sum_dl_delays--))
+		dl_delays[$delays_idx]=$(( $dl_owd_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
+		((dl_delays[$delays_idx])) && ((sum_dl_delays++))
+		# .. for upload
+		(( ${ul_delays[$delays_idx]} )) && ((sum_ul_delays--))
+		ul_delays[$delays_idx]=$(( $ul_owd_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
+		((ul_delays[$delays_idx])) && ((sum_ul_delays++))
+	 	# .. and move index on	
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
 
-		bufferbloat_detected=$(( (($sum_delays>=$bufferbloat_detection_thr)) ? 1 : 0 ))
+		dl_bufferbloat_detected=$(( (($sum_dl_delays>=$bufferbloat_detection_thr)) ? 1 : 0 ))
+		ul_bufferbloat_detected=$(( (($sum_ul_delays>=$bufferbloat_detection_thr)) ? 1 : 0 ))
 
 		get_loads
 
-		classify_load $dl_load_percent $dl_achieved_rate_kbps dl_load_condition
-		classify_load $ul_load_percent $ul_achieved_rate_kbps ul_load_condition
+		classify_load $dl_load_percent $dl_achieved_rate_kbps $dl_bufferbloat_detected dl_load_condition
+		classify_load $ul_load_percent $ul_achieved_rate_kbps $ul_bufferbloat_detected ul_load_condition
 	
 		dl_load_condition="dl_"$dl_load_condition
 		ul_load_condition="ul_"$ul_load_condition
@@ -634,29 +783,12 @@ do
 		get_next_shaper_rate $min_dl_shaper_rate_kbps $base_dl_shaper_rate_kbps $max_dl_shaper_rate_kbps $dl_achieved_rate_kbps $dl_load_condition $t_start_us t_dl_last_bufferbloat_us t_dl_last_decay_us dl_shaper_rate_kbps
 		get_next_shaper_rate $min_ul_shaper_rate_kbps $base_ul_shaper_rate_kbps $max_ul_shaper_rate_kbps $ul_achieved_rate_kbps $ul_load_condition $t_start_us t_ul_last_bufferbloat_us t_ul_last_decay_us ul_shaper_rate_kbps
 
-		if (($output_processing_stats)); then 
-			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq ${rtt_baselines_us[$reflector]} $rtt_us $rtt_delta_us $compensated_delay_thr_us $sum_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
-			log_msg "DATA" "$processing_stats"
-
-			if [[ ! -t 1 ]]; then
-				if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_check_interval_us )); then
-
-					(($debug)) && log_msg "DEBUG" "configured log file rotation time: $log_file_rotation_check_interval_mins minute(s) has elapsed. Checking log file size."
-					read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
-					log_file_size_KB=${log_file_size_KB//[!0-9]/}
-					if (( $log_file_size_KB > $log_file_max_size_KB )); then
-						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
-						mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
-						(($output_processing_stats)) && print_header
-					else
-						(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has not exceeded configured maximum: $log_file_max_size_KB KB so not rotating log file"
-					fi
-					t_log_file_start_us=${EPOCHREALTIME/./}
-				fi
-			fi
-		fi
-	
 		set_shaper_rates
+
+		if (($output_processing_stats)); then 
+			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_us $compensated_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			log_msg "DATA" "$processing_stats"
+		fi
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 		if (($enable_sleep_function)); then
