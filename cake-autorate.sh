@@ -29,14 +29,15 @@ cleanup_and_killall()
 	# Initiate termination of ping processes and wait until complete
 	kill -CONT $maintain_pingers_pid 2> /dev/null
 	kill $maintain_pingers_pid 2> /dev/null
-	wait $maintain_pingers_pid
 	[[ ! -t 1 ]] && kill $maintain_log_file_pid 2> /dev/null
-	wait $maintain_log_file_pid
+
+	wait # wait for child processes to terminate
+
 	[[ -d /tmp/cake-autorate ]] && rm -r /tmp/cake-autorate
 	exit
 }
 
-# Format log entries
+# Send message to fifo for sending to log file w/ log file rotation check
 log_msg()
 {
 	local type=$1
@@ -47,6 +48,21 @@ log_msg()
 	else
 	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 	fi
+}
+
+# Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
+log_msg_bypass_fifo()
+{
+	
+	local type=$1
+	local msg=$2
+
+	if [[ ! -t 1 ]]; then
+	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> /tmp/cake-autorate.log
+	else
+	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
+	fi
+
 }
 
 print_header()
@@ -69,7 +85,7 @@ kill_maintain_log_file()
 	while read -t 0.1 log_line
 	do
 		printf '%s\n' "$log_line" >> /tmp/cake-autorate.log		
-	done
+	done</tmp/cake-autorate/log_fifo
 	exit
 }
 
@@ -89,12 +105,12 @@ maintain_log_file()
 		log_file_size_KB=${log_file_size_KB//[!0-9]/}
 
 		if (( $log_file_size_KB > $log_file_max_size_KB )); then
-			(($debug)) && echo "DEBUG; log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file" > /tmp/cake-autorate.log
+			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 			rotate_log_file
 		fi
 		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_max_time_us )); then
 
-			(($debug)) && echo "DEBUG; log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file" > /tmp/cake-autorate.log
+			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
 		fi
@@ -336,8 +352,6 @@ start_pingers_fping()
 
 kill_pingers_fping()
 {
-	echo "SHIT"
-	echo "${pinger_pids[@]}"
 	kill "${pinger_pids[@]}" 2> /dev/null
 	exit
 }
@@ -592,19 +606,22 @@ log_file()
 
 trap ":" USR1
 
-[[ ! -f $install_dir"cake-autorate-config.sh" ]] && echo "ERROR; No config file found. Exiting now." && exit
+
+[[ ! -f $install_dir"cake-autorate-config.sh" ]] && log_msg_bypass_fifo "ERROR" "No config file found. Exiting now." && exit
 . $install_dir"cake-autorate-config.sh"
-[[ $config_file_check != "cake-autorate" ]] && echo "ERROR; Config file error. Please check config file entries." && exit
+[[ $config_file_check != "cake-autorate" ]] && log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries." && exit
 
 # /tmp/cake-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d /tmp/cake-autorate ]]; then
-        echo "ERROR; /tmp/cake-autorate already exists. Is another instance running? Exiting script."
+        log_msg_bypass_fifo "ERROR" "/tmp/cake-autorate already exists. Is another instance running? Exiting script."
         trap - INT TERM EXIT
         exit
 else
         mkdir /tmp/cake-autorate
 fi
+
+>/tmp/cake-autorate.log # reset log file on startup
 
 mkfifo /tmp/cake-autorate/sleep_fifo
 exec 3<> /tmp/cake-autorate/sleep_fifo
@@ -612,28 +629,26 @@ exec 3<> /tmp/cake-autorate/sleep_fifo
 no_reflectors=${#reflectors[@]} 
 
 # Check no_pingers <= no_reflectors
-(( $no_pingers > $no_reflectors)) && { echo "ERROR; number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
+(( $no_pingers > $no_reflectors)) && { log_msg_bypass_fifo "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
 
 # Check dl/if interface not the same
-[[ $dl_if == $ul_if ]] && { echo "ERROR; download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
+[[ $dl_if == $ul_if ]] && { log_msg_bypass_fifo "ERROR" "download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
 
 # Check bufferbloat detection threshold not greater than window length
-(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { echo "ERROR; bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
+(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { log_msg_bypass_fifo "ERROR" "bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
 # Passed error checks 
 
 # test if stdout is a tty (terminal)
 if [[ ! -t 1 ]]; then 
-	echo "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
-	>/tmp/cake-autorate.log # reset log file on startup
+	 "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
 	log_file_max_time_us=$(($log_file_max_time_mins*60000000))
 	mkfifo /tmp/cake-autorate/log_fifo
-	exec 5<> /tmp/cake-autorate/log_fifo
+	exec 4<> /tmp/cake-autorate/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
+	exec &> /tmp/cake-autorate/log_fifo
 fi
-
-sleep 2
 
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
@@ -725,7 +740,7 @@ sum_dl_delays=0
 sum_ul_delays=0
 
 mkfifo /tmp/cake-autorate/ping_fifo
-exec 4<> /tmp/cake-autorate/ping_fifo
+exec 5<> /tmp/cake-autorate/ping_fifo
 
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
