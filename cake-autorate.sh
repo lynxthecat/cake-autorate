@@ -25,13 +25,13 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up /tmp files."
 
-	[[ ! -t 1 ]] && kill $maintain_log_file_pid 2> /dev/null
 	kill $monitor_achieved_rates_pid 2> /dev/null
-	wait $monitor_achieved_rates_pid
 	# Initiate termination of ping processes and wait until complete
 	kill -CONT $maintain_pingers_pid 2> /dev/null
 	kill $maintain_pingers_pid 2> /dev/null
 	wait $maintain_pingers_pid
+	[[ ! -t 1 ]] && kill $maintain_log_file_pid 2> /dev/null
+	wait $maintain_log_file_pid
 	[[ -d /tmp/cake-autorate ]] && rm -r /tmp/cake-autorate
 	exit
 }
@@ -41,8 +41,6 @@ log_msg()
 {
 	local type=$1
 	local msg=$2
-
-	echo $msg > /tmp/try3
 
 	if [[ ! -t 1 ]]; then
 	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > /tmp/cake-autorate/log_fifo
@@ -77,7 +75,7 @@ kill_maintain_log_file()
 
 maintain_log_file()
 {
-	trap "kill_maintian_log_file" TERM
+	trap "kill_maintain_log_file" TERM
 
 	t_log_file_start_us=${EPOCHREALTIME/./}
 
