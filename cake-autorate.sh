@@ -39,11 +39,8 @@ log_msg()
 	local type=$1
 	local msg=$2
 
-	if [[ ! -t 1 ]]; then
-	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > /tmp/cake-autorate/log_fifo
-	else
-	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
-	fi
+	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > /tmp/cake-autorate/log_fifo
+        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -53,21 +50,15 @@ log_msg_bypass_fifo()
 	local type=$1
 	local msg=$2
 
-	if [[ ! -t 1 ]]; then
-	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> /tmp/cake-autorate.log
-	else
-	        printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
-	fi
+        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> /tmp/cake-autorate.log
+        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 
 }
 
 print_header()
 {
-	if [[ ! -t 1 ]]; then
-		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" > /tmp/cake-autorate/log_fifo
-	else
-		printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
-	fi
+	(($log_to_file)) && printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" > /tmp/cake-autorate/log_fifo
+	[[ -t 1 ]] && printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 }
 
 rotate_log_file()
@@ -99,13 +90,12 @@ maintain_log_file()
 
 		# Verify log file size < configured maximum
 		# The following two lines with costly call to 'du':
-		# 	read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
-		# 	log_file_size_KB=${log_file_size_KB//[!0-9]/}
-		# can be more efficiently handled with these two lines:
+		# 	read log_file_size_bytes< <(du -b /tmp/cake-autorate.log)
+		# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
+		# can be more efficiently handled with this line:
 		((log_file_size_bytes=log_file_size_bytes+${#log_line}))
-		log_file_size_KB=$(($log_file_size_bytes/1024))
 
-		if (( $log_file_size_KB > $log_file_max_size_KB )); then
+		if (( $log_file_size_bytes > $log_file_max_size_bytes )); then
 			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
@@ -764,15 +754,19 @@ no_reflectors=${#reflectors[@]}
 
 # Passed error checks 
 
-# test if stdout is a tty (terminal)
-if [[ ! -t 1 ]]; then 
-	 "stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
+if (($log_to_file)); then
 	log_file_max_time_us=$(($log_file_max_time_mins*60000000))
+	log_file_max_size_bytes=$(($log_file_max_size_KB*1024))
 	mkfifo /tmp/cake-autorate/log_fifo
 	exec 4<> /tmp/cake-autorate/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
-	exec &> /tmp/cake-autorate/log_fifo
+fi
+
+# test if stdout is a tty (terminal)
+if [[ ! -t 1 ]]; then
+	"stdout not a terminal so redirecting output to: /tmp/cake-autorate.log"
+	(($log_to_file)) && exec &> /tmp/cake-autorate/log_fifo
 fi
 
 if (( $debug )) ; then
