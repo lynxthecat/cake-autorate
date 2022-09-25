@@ -7,9 +7,11 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
-cake_autorate_version="1.0.0"
+cake_autorate_version="1.1"
 
 # *** OUTPUT OPTIONS ***
+
+log_to_file=1             # enable (1) or disable (0) output logging to file (/tmp/cake-autorate.log)
 
 output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
 output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
@@ -22,7 +24,7 @@ ul_if=ifb-ul # upload interface
 
 # pinger selection can be any of:
 # fping - round robin pinging (rtts)
-# iputils-ping - individual pinging (rtts)
+# ping - (iputils-ping) individual pinging (rtts)
 # hping3 - individidual pinging (owds)
 pinger_binary=fping 
 
@@ -34,7 +36,7 @@ reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 # so e.g. if 6 reflectors are specified and the number of pingers is set to 4, the first 4 reflectors will be used initially
 # and the remaining 2 reflectors in the list will be used in the event any of the first 4 go bad
 # a bad reflector will go to the back of the queue on reflector rotation
-reflectors=("1.123.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
+reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
 no_pingers=4
 
 # delay threshold in ms is the extent of RTT increase to classify as a delay
