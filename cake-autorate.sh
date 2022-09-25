@@ -90,6 +90,7 @@ maintain_log_file()
 	trap "kill_maintain_log_file" TERM
 
 	t_log_file_start_us=${EPOCHREALTIME/./}
+	log_file_size_bytes=1 # EOF character
 
 	while read log_line
 	do
@@ -97,18 +98,27 @@ maintain_log_file()
 		printf '%s\n' "$log_line" >> /tmp/cake-autorate.log		
 
 		# Verify log file size < configured maximum
-		read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
-		log_file_size_KB=${log_file_size_KB//[!0-9]/}
+		# The following two lines with costly call to 'du':
+		# 	read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
+		# 	log_file_size_KB=${log_file_size_KB//[!0-9]/}
+		# can be more efficiently handled with these two lines:
+		((log_file_size_bytes=log_file_size_bytes+${#log_line}))
+		log_file_size_KB=$(($log_file_size_bytes/1024))
 
 		if (( $log_file_size_KB > $log_file_max_size_KB )); then
 			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 			rotate_log_file
+			t_log_file_start_us=${EPOCHREALTIME/./}
+			log_file_size_bytes=1
 		fi
+
+		# Verify log file time < configured maximum
 		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_max_time_us )); then
 
 			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
+			log_file_size_bytes=1 # EOF character
 		fi
 
 	done</tmp/cake-autorate/log_fifo
