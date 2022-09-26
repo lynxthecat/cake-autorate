@@ -57,8 +57,7 @@ log_msg_bypass_fifo()
 
 print_header()
 {
-	(($log_to_file)) && printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" > /tmp/cake-autorate/log_fifo
-	[[ -t 1 ]] && printf '%s\n' "HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	log_msg "HEADER" "PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" > /tmp/cake-autorate/log_fifo
 }
 
 rotate_log_file()
@@ -69,6 +68,7 @@ rotate_log_file()
 
 kill_maintain_log_file()
 {
+	trap - TERM EXIT
 	while read -t 0.1 log_line
 	do
 		printf '%s\n' "$log_line" >> /tmp/cake-autorate.log		
@@ -78,10 +78,10 @@ kill_maintain_log_file()
 
 maintain_log_file()
 {
-	trap "kill_maintain_log_file" TERM
+	trap "kill_maintain_log_file" TERM EXIT
 
 	t_log_file_start_us=${EPOCHREALTIME/./}
-	log_file_size_bytes=1 # EOF character
+	log_file_size_bytes=0
 
 	while read log_line
 	do
@@ -93,13 +93,13 @@ maintain_log_file()
 		# 	read log_file_size_bytes< <(du -b /tmp/cake-autorate.log)
 		# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
 		# can be more efficiently handled with this line:
-		((log_file_size_bytes=log_file_size_bytes+${#log_line}))
+		((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
 
 		if (( $log_file_size_bytes > $log_file_max_size_bytes )); then
 			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
-			log_file_size_bytes=1
+			log_file_size_bytes=0
 		fi
 
 		# Verify log file time < configured maximum
@@ -108,7 +108,7 @@ maintain_log_file()
 			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
-			log_file_size_bytes=1 # EOF character
+			log_file_size_bytes=0
 		fi
 
 	done</tmp/cake-autorate/log_fifo
@@ -349,6 +349,7 @@ start_pingers_fping()
 
 kill_pingers_fping()
 {
+	trap - TERM EXIT
 	kill "${pinger_pids[@]}" 2> /dev/null
 	[[ -p /tmp/cake-autorate/fping_fifo ]] && rm /tmp/cake-autorate/fping_fifo
 	exit
@@ -451,6 +452,7 @@ start_pingers_ping()
 
 kill_pingers_ping()
 {
+	trap - TERM EXIT
 	for (( pinger=0; pinger<$no_pingers; pinger++))
 	do
 		kill ${pinger_pids[$pinger]} 2> /dev/null
@@ -480,7 +482,7 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap 'kill_pingers_$pinger_binary' TERM
+ 	trap 'kill_pingers_$pinger_binary' TERM EXIT
 
 	trap 'pause_reflector_health_check=1' USR1
 	trap 'pause_reflector_health_check=0' USR2
@@ -722,9 +724,9 @@ log_file()
 trap ":" USR1
 
 
-[[ ! -f $install_dir"cake-autorate-config.sh" ]] && log_msg_bypass_fifo "ERROR" "No config file found. Exiting now." && exit
+[[ ! -f $install_dir"cake-autorate-config.sh" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
 . $install_dir"cake-autorate-config.sh"
-[[ $config_file_check != "cake-autorate" ]] && log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries." && exit
+[[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
 
 # /tmp/cake-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
@@ -742,6 +744,9 @@ mkfifo /tmp/cake-autorate/sleep_fifo
 exec 3<> /tmp/cake-autorate/sleep_fifo
 
 no_reflectors=${#reflectors[@]} 
+
+# Check ping binary exists
+command -v "$pinger_binary" &> /dev/null || { log_msg_bypass_fifo "ERROR" "ping binary $ping_binary does not exist. Exiting script."; exit; }
 
 # Check no_pingers <= no_reflectors
 (( $no_pingers > $no_reflectors)) && { log_msg_bypass_fifo "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
