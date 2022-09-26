@@ -57,7 +57,10 @@ log_msg_bypass_fifo()
 
 print_header()
 {
-	log_msg "HEADER" "PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; RTT_BASELINE; RTT_US; RTT_DELTA_US; ADJ_DELAY_THR; SUM_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS" > /tmp/cake-autorate/log_fifo
+	header="HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+
+ 	(($log_to_file)) && printf '%s\n' "$header" > /tmp/fifo
+ 	[[ -t 1 ]] && printf '%s\n' "$header"
 }
 
 rotate_log_file()
@@ -700,26 +703,6 @@ sleep_remaining_tick_time()
 	fi
 }
 
-log_file()
-{
-	if [[ ! -t 1 ]]; then
-		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_rotation_check_interval_us )); then
-
-			(($debug)) && log_msg "DEBUG" "configured log file rotation check interval time: $log_file_rotation_check_interval_mins minute(s) has elapsed. Checking log file size."
-			read log_file_size_KB< <(du -bk /tmp/cake-autorate.log)
-			log_file_size_KB=${log_file_size_KB//[!0-9]/}
-			if (( $log_file_size_KB > $log_file_max_size_KB )); then
-				(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
-				mv /tmp/cake-autorate.log /tmp/cake-autorate.log.old
-				(($output_processing_stats)) && print_header
-			else
-					(($debug)) && log_msg "DEBUG" "log file size: $log_file_size_KB KB has not exceeded configured maximum: $log_file_max_size_KB KB so not rotating log file"
-			fi
-				t_log_file_start_us=${EPOCHREALTIME/./}
-		fi
-	fi
-}
-
 # ======= Start of the Main Routine ========
 
 trap ":" USR1
@@ -923,7 +906,7 @@ do
 		set_shaper_rates
 
 		if (($output_processing_stats)); then 
-			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_us $compensated_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_us $compensated_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "DATA" "$processing_stats"
 		fi
 
