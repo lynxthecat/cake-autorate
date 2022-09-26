@@ -61,10 +61,10 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
 # ** Take care with these settings to ensure you won't run into OOM issues on your router ***
-# every write the cumulative write time and KB associated with each log line are checked
+# every write the cumulative write time and bytes associated with each log line are checked
 # and if either exceeds the configured values below, the log log file is rotated
 log_file_max_time_mins=10 # maximum time between log file rotations
-log_file_max_size_KB=2000 # maximum KB (base 2) of log lines between log file rotations
+log_file_max_size_KB=2000 # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
