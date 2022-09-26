@@ -95,18 +95,18 @@ maintain_log_file()
 		# can be more efficiently handled with this line:
 		((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
 
-		if (( $log_file_size_bytes > $log_file_max_size_bytes )); then
-			log_file_size_KB=$((log_file_size_bytes/1024))
-			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
+		# Verify log file time < configured maximum
+		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_max_time_us )); then
+
+			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
 			log_file_size_bytes=0
 		fi
 
-		# Verify log file time < configured maximum
-		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_max_time_us )); then
-
-			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
+		if (( $log_file_size_bytes > $log_file_max_size_bytes )); then
+			log_file_size_KB=$((log_file_size_bytes/1024))
+			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
 			log_file_size_bytes=0
