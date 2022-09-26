@@ -59,7 +59,7 @@ print_header()
 {
 	header="HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 
- 	(($log_to_file)) && printf '%s\n' "$header" > /tmp/fifo
+ 	(($log_to_file)) && printf '%s\n' "$header" > /tmp/cake-autorate/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 }
 
