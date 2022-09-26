@@ -150,7 +150,7 @@ case "${dl_if}" in
         rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
         ;;
     *)
-        rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
+        rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
         ;;
 esac
 
