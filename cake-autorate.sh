@@ -276,6 +276,7 @@ monitor_reflector_responses_fping()
 		
 	declare -A rtt_baselines_us
 
+	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
 	do
 		if [[ -f /tmp/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us ]]; then
@@ -323,9 +324,10 @@ monitor_reflector_responses_fping()
 
 	done</tmp/cake-autorate/fping_fifo
 
+	# Store baselines to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<$no_reflectors; reflector++))
 	do
-		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > /tmp/cake-autorate/reflector_${reflector//./-}_baseline_us
+		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > /tmp/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us
 	done
 }
 
@@ -412,7 +414,7 @@ monitor_reflector_responses_ping()
 
 	done</tmp/cake-autorate/pinger_${pinger}_fifo
 
-	printf '%s' $rtt_baseline_us > /tmp/cake-autorate/reflector_${pinger//./-}_baseline_us
+	printf '%s' $rtt_baseline_us > /tmp/cake-autorate/reflector_${reflectors[pinger]//./-}_baseline_us
 }
 
 start_pinger_binary_ping()
@@ -432,8 +434,7 @@ start_pinger_binary_ping()
 start_pinger_ping()
 {
 	local pinger=$1
-	start_pinger_next_pinger_time_slot $pinger pid
-	pinger_pids[$pinger]=$pid
+	start_pinger_next_pinger_time_slot $pinger
 }
 
 kill_pinger_ping()
@@ -449,8 +450,7 @@ start_pingers_ping()
 	# Initiate pingers
 	for ((pinger=0; pinger<$no_pingers; pinger++))
 	do
-		start_pinger_next_pinger_time_slot $pinger pid
-		pinger_pids[$pinger]=$pid
+		start_pinger_next_pinger_time_slot $pinger
 	done
 }
 
