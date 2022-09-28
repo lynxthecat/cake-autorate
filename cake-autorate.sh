@@ -423,12 +423,12 @@ start_pinger_binary_ping()
 
 	mkfifo /tmp/cake-autorate/pinger_${pinger}_fifo
 	if (($debug)); then
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
+		ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo &
 		pinger_pids[$pinger]=$!
 	else
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+		ping "${ping_extra_args[@]}" -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /tmp/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
 		pinger_pids[$pinger]=$!
-	fi	
+	fi
 }
 
 start_pinger_ping()
