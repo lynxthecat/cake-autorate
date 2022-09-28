@@ -6,7 +6,18 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
-## 2022-08-21 - Version 1.0.0
+## 2022-09-28 - Version 1.1
+
+Implemented several new features such as:
+
+- Switch default pinger binary to fping - it was identified that using concurrent instances of iputils-ping resulted in drift between ICMP requests, and fping solves this because it offers round robin pinging to multiple reflectors with tightly controlled timing between requests
+- Generalised pinger functions to support wrappers for different ping binaries - fping and iputils-ping now specifically supported and handled, and new ping binaries can easily be added by including appropriate wrapper functions. 
+- Generalised code to work with one way delays (OWDs) from RTTs in preparation to use ICMP type 13 requests
+- Only use capacity estimate on bufferbloat detection where the adjusted shaper rate based thereon would exceed the minimum configured shaper rate (avoiding the situation where e.g. idle load on download during upload-related bufferbloat would cause download shaper rate to get punished all the way down to the minimum)
+- Stall detection and handling
+- Much better log file handling including defaulting to logging, supporting logging even when running from console, log file rotation on configured time elapsed or configured bytes written to
+
+## 2022-08-21 - Version 1.0
 
 - New installer script - cake-autorate-setup.sh - now installs all required files 
 - Installer checks for presence of previous config and asks whether to overwrite 

@@ -4,12 +4,11 @@
 # https://www.shellcheck.net/ is your friend
 
 SRC_DIR="https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/"
-# SRC_DIR="https://raw.githubusercontent.com/richb-hanover/cake-autorate/setup-script/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
 # Retrieve required packages
 opkg update
-opkg install bash iputils-ping 
+opkg install bash iputils-ping fping
 
 # Set up CAKE-autorate files
 # cd to the /root directory
@@ -29,7 +28,7 @@ wget -q "$SRC_DIR"cake-autorate.sh
 
 # Check if the configuration script exists, and ask whether to keep it
 
-editmsg=$(printf "\nNow edit the cake-autorate-config.sh file as described in:\n   $DOC_URL")
+editmsg="\nNow edit the cake-autorate-config.sh file as described in:\n   $DOC_URL"
 
 if [ -f cake-autorate-config.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
@@ -43,6 +42,7 @@ if [ -f cake-autorate-config.sh ]; then
 else 
 	wget -q "$SRC_DIR"cake-autorate-config.sh 
 fi
+
 # make both .sh files executable
 chmod +x *.sh
 

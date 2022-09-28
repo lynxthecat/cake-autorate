@@ -4,6 +4,8 @@
 
 CAKE is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
+Present version is 1.1.0 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/9b19f8a7f9a47fe80ed1532e584647e6182b9c48/CHANGELOG.md) for details. 
+
 ## The Problem: CAKE on Variable Connections forces an Unpalatable Compromise
 
 The CAKE algorithm always uses fixed upload and download bandwidth settings to manage its queues. Variable bandwidth connections present a challenge because the actual bandwidth at any given moment is not known. 
@@ -48,8 +50,16 @@ There is a detailed and fun discussion with plenty of sketches relating to the d
 
 ## Required packages
 
+Only requires:
+
 - **bash** for its builtins, arithmetic and array handling
-- **iputils-ping** for more advanced ping with sub 1s ping frequency
+
+A pinger binary chosen from:
+
+- **fping** round robin pinging to multiple reflectors with tightly controlled timings (default selection)
+- **iputils-ping** advanced pinging than the default busybox ping with sub 1s ping frequency
+
+The pinger binary that cake-autorate uses is set using the $pinger_binary variable in the config file. 
 
 ## Installation on OpenWrt
 
@@ -84,36 +94,34 @@ copying and pasting each of the commands below:
       | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
       | Max. | `max_dl_shaper_rate_kbps` | `max_ul_shaper_rate_kbps` |
       
-  - Two variables control logging:
+  - The following variables control logging:
 
       | Variable | Setting | 
       |----: |   :-------- | 
       | `output_processing_stats` | If non-zero, log the results of every iteration through the process | 
-      | `output_cake_changes` | If non-zero, only log when changes are made to CAKE settings via `tc`. This shows when CAKE-autorate is adjusting the shaper. |
-   For long-term use, we recommend that `output_processing_stats` be set to zero (0);
-   `output_cake_changes` can be set to zero for minimal 
-
+      | `output_cake_changes` | If non-zero, log when changes are made to CAKE settings via `tc` - this shows when CAKE-autorate is adjusting the shaper |
+      | `debug` | If non-zero, debug lines will be output |
+      | `log_to_file` | If non-zero, log lines will be sent to /tmp/cake-autorate.log regardless of whether printing to console and after every write the log file will be rotated f either `log_file_max_time_mins` have elapsed or `log_file_max_size_KB` has been exceeded |
+      | `log_file_max_time_mins` | Number of minutes to elapse between log file rotaton |
+      | `log_file_max_size_KB` | Number of KB (i.e. bytes/1024) worth of log lines between log file rotations |
+  
 ## Example Starlink Configuration
 
-- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/main/Example_Starlink_config.sh).
+- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/main/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Startlink users.
 - See discussion on OpenWrt thread from [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
-- This might be a good starting point for Starlink users.
 
 ## Manual testing
 
 To run the `cake-autorate.sh` script:
 
-- In `cake-autorate-config.sh`, set `output_processing_stats` to '0'
-and `output_cake_changes` to '1'. Then run:
+- run:
 
    ```bash
    cd /root/cake-autorate # to the cake-autorate directory
-   bash ./cake-autorate.sh
+   ./cake-autorate.sh
    ```
 
-- This will output a line everytime CAKE-autorate adjusts a parameter
-Monitor the script output to see how it adjusts the download
-and upload rates as you use the connection. 
+- Monitor the script output to see how it adjusts the download and upload rates as you use the connection.
 - Press ^C to halt the process.
 
 ## Install as a service
@@ -132,7 +140,7 @@ To do this:
 
 When running as a service, the `cake-autorate.sh` script outputs to `/tmp/cake-autorate.log`.
 
-WARNING: Consider setting **output\_processing\_stats** to '0' in `cake-autorate-config.sh` to minimize the volume of log messages.
+WARNING: Take care to ensure sufficient free memory exists in router to handle selected logging parameters.
 
 ## Preserving CAKE-autorate files for backup or upgrades
 
@@ -149,4 +157,4 @@ so they will be saved in backups and preserved across snapshot upgrades.
   
 ## A Request to Testers
 
-If you use this script I have just one ask. Please post your experience on this [OpenWrt Forum thread](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/). Your feedback will help improve the script for the benefit of others.  
+If you use this script I have just one ask. Please post your experience on this [OpenWrt Forum thread](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/135379/). Your feedback will help improve the script for the benefit of others.  

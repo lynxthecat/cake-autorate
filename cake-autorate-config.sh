@@ -7,18 +7,31 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
-cake_autorate_version="1.0.0"
+cake_autorate_version="1.1.0"
 
-# *** OUTPUT OPTIONS ***
+# *** OUTPUT AND LOGGING OPTIONS ***
 
 output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
 output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
-debug=0			  # enable (1) or disable (0) out of debug lines
+debug=1 		  # enable (1) or disable (0) out of debug lines
+
+# ** Take care with these settings to ensure you won't run into OOM issues on your router ***
+# every write the cumulative write time and bytes associated with each log line are checked
+# and if either exceeds the configured values below, the log log file is rotated
+log_to_file=1             # enable (1) or disable (0) output logging to file (/tmp/cake-autorate.log)
+log_file_max_time_mins=10 # maximum time between log file rotations
+log_file_max_size_KB=2000 # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
-dl_if=ifb-wg-pbr # download interface
-ul_if=wan        # upload interface
+dl_if=ifb-dl # download interface
+ul_if=ifb-ul # upload interface
+
+# pinger selection can be any of:
+# fping - round robin pinging (rtts)
+# ping - (iputils-ping) individual pinging (rtts)
+# hping3 - individidual pinging (owds)
+pinger_binary=fping
 
 reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 
@@ -52,7 +65,13 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
+
 # *** ADVANCED CONFIGURATION OPTIONS ***
+
+# extra arguments for ping
+# e.g., when using mwan3, set up the correct outgoing interface and the firewall mark
+# ping_extra_args=(-I wwan0 -m $((0x300)))
+ping_extra_args=()
 
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
@@ -105,10 +124,15 @@ reflector_response_deadline_s=1 # (seconds)
 reflector_misbehaving_detection_window=60
 reflector_misbehaving_detection_thr=3
 
+# stall is detected when the following two conditions are met:
+# 1) no reflector responses within $stall_detection_thr*$ping_response_interval_us; and
+# 2) either $rx_achieved_rate or $tx_achieved_rate < $connection_stall_thr
+stall_detection_thr=5
+connection_stall_thr_kbps=10
+
 global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
 if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
-
 
 # Starlink satellite switch (sss) compensation options
 sss_compensation=0 # enable (1) or disable (0) Starlink handling
@@ -126,7 +150,7 @@ case "${dl_if}" in
         rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
         ;;
     *)
-        rx_bytes_path="/sys/class/net/${dl_if}/statistics/rx_bytes"
+        rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
         ;;
 esac
 
@@ -142,7 +166,4 @@ case "${ul_if}" in
         ;;
 esac
 
-if (( $debug )) ; then
-    echo "DEBUG rx_bytes_path: $rx_bytes_path"
-    echo "DEBUG tx_bytes_path: $tx_bytes_path"
-fi
+config_file_check="cake-autorate"
