@@ -4,7 +4,6 @@
 # https://www.shellcheck.net/ is your friend
 
 SRC_DIR="https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/"
-# SRC_DIR="https://raw.githubusercontent.com/richb-hanover/cake-autorate/setup-script/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
 # Retrieve required packages
