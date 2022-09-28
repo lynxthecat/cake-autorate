@@ -1,6 +1,6 @@
 # CAKE with Adaptive Bandwidth - "autorate"
 
-Present version is 1.1 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/9b19f8a7f9a47fe80ed1532e584647e6182b9c48/CHANGELOG.md) for details. 
+Present version is 1.1.0 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/9b19f8a7f9a47fe80ed1532e584647e6182b9c48/CHANGELOG.md) for details. 
 
 **CAKE-autorate** is a script that automatically adapts [CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/) bandwidth settings by measuring traffic load and RTT times. This is designed for variable bandwidth connections such as LTE, and is not intended for use on connections that have a stable, fixed bandwidth.
 
