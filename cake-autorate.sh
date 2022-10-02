@@ -619,6 +619,13 @@ set_cake_rate()
 	local -n time_rate_set_us=$3
 	
 	(($output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
+
+	time_rate_set_us=${EPOCHREALTIME/./}
+
+	if (($adjust_shaper_rates==0)); then
+		(($output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rates set to 0 in config, so skipping the tc qdisc change call"
+		return
+	fi
 	
 	if (($debug)); then
 		tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
@@ -626,7 +633,6 @@ set_cake_rate()
 		tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 2> /dev/null
 	fi
 
-	time_rate_set_us=${EPOCHREALTIME/./}
 }
 
 set_shaper_rates()
@@ -749,8 +755,8 @@ sleep_remaining_tick_time()
 trap ":" USR1
 
 
-[[ ! -f $install_dir"cake-autorate-config.sh" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
-. $install_dir"cake-autorate-config.sh"
+[[ ! -f $install_dir"cake-autorate_config.sh" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
+. $install_dir"cake-autorate_config.sh"
 [[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
 
 # /var/run/cake-autorate/ is used to store temporary files
