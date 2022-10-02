@@ -98,8 +98,10 @@ export_log_file()
 	# Now export with or without compression to the appropriate export path
 	if (($log_file_export_compress)); then
 		gzip -c /var/log/cake-autorate.log > ${log_file_export_path}.gz
+		[[ -f /var/log/cake-autorate.log.old ]] && gzip -c /var/log/cake-autorate.log.old > ${log_file_export_path}.old.gz
 	else
 		cp /var/log/cake-autorate.log $log_file_export_path
+		[[ -f /var/log/cake-autorate.log.old ]] && cp /var/log/cake-autorate.log.old ${log_file_export_path}.old
 	fi
 }
 
