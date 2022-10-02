@@ -73,15 +73,29 @@ rotate_log_file()
 
 export_log_file()
 {
-        printf -v log_file_export_datetime '%(%F-%H:%M:%S)T'
-	if [[ -z $log_file_export_path_override ]]; then
-        	(($debug)) && log_msg "DEBUG" "Exporting log file with default path: /var/log/cake-autorate_$log_file_export_datetime.log"
-        	log_file_export_path="/var/log/cake-autorate_$log_file_export_datetime.log"
-	else
-        	(($debug)) && log_msg "DEBUG" "Exporting log file with override path: $log_file_export_path_override"
-        	log_file_export_path=$log_file_export_path_override
-	fi
+	local export_type=$1
 
+	case $export_type in
+
+		default)
+	
+			printf -v log_file_export_datetime '%(%F-%H:%M:%S)T'
+        		(($debug)) && log_msg "DEBUG" "Exporting log file with default path: /var/log/cake-autorate_$log_file_export_datetime.log"
+        		log_file_export_path="/var/log/cake-autorate_$log_file_export_datetime.log"
+        		;;
+
+		alternative)
+			(($debug)) && log_msg "DEBUG" "Exporting log file with alternative path: $log_file_export_alternative_path"
+        		log_file_export_path=$log_file_export_alternative_path
+			;;
+
+		*)
+			(($debug)) && log_msg "DEBUG" "Unrecognised export type. Not exporting log file."
+			return
+		;;
+	esac
+
+	# Now export with or without compression to the appropriate export path
 	if (($log_file_export_compress)); then
 		gzip -c /var/log/cake-autorate.log > ${log_file_export_path}.gz
 	else
@@ -103,7 +117,8 @@ maintain_log_file()
 {
 	trap "kill_maintain_log_file" TERM EXIT
 
-	trap "export_log_file" USR1 
+	trap 'export_log_file "default"' USR1
+	trap 'export_log_file "alternative"' USR2
 
 	t_log_file_start_us=${EPOCHREALTIME/./}
 	log_file_size_bytes=0
