@@ -570,7 +570,12 @@ maintain_pingers()
 
 			(( ${reflector_offences[$reflector_offences_idx]} )) && ((sum_reflector_offences[$pinger]--))
 			reflector_offences[$reflector_offences_idx]=$(( (((${EPOCHREALTIME/./}-$reflector_last_timestamp_us) > $reflector_response_deadline_us)) ? 1 : 0 ))
-			((reflector_offences[$reflector_offences_idx])) && ((sum_reflector_offences[$pinger]++))
+			
+			if ((reflector_offences[$reflector_offences_idx])); then 
+				((sum_reflector_offences[$pinger]++))
+				log_msg "DEBUG" "no ping response from reflector: ${reflectors[$pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
+				log_msg "DEBUG" "reflector=${reflectors[$pinger]}, sum_reflector_offences=$sum_reflector_offences and reflector_misbehaving_detection_thr=$reflector_misbehaving_detection_thr"
+			fi
 
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
@@ -620,19 +625,19 @@ set_cake_rate()
 	
 	(($output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 
-	time_rate_set_us=${EPOCHREALTIME/./}
+	if (($adjust_shaper_rates)); then
 
-	if (($adjust_shaper_rates==0)); then
-		(($output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rates set to 0 in config, so skipping the tc qdisc change call"
-		return
-	fi
-	
-	if (($debug)); then
-		tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
+		if (($debug)); then
+			tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
+		else
+			tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 2> /dev/null
+		fi
+
+		time_rate_set_us=${EPOCHREALTIME/./}
+
 	else
-		tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit 2> /dev/null
+		(($output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rates set to 0 in config, so skipping the tc qdisc change call"
 	fi
-
 }
 
 set_shaper_rates()
@@ -689,7 +694,7 @@ concurrent_read_positive_integer()
 			if (($debug)); then
 				read -r caller_output< <(caller)
 				log_msg "DEBUG" "concurrent_read_positive_integer() misfire with the following particulars:"
-				log_msg "DEBUG" "caller=$caller_output; value=$value; and path=$path"
+				log_msg "DEBUG" "caller=$caller_output, value=$value and path=$path"
 			fi 
 			sleep_us $concurrent_read_positive_integer_interval_us
 			continue
