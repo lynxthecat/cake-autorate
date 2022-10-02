@@ -74,6 +74,7 @@ startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things
 # $maintain_log_file_pid can be read from /var/run/cake-autorate/maintain_log_file_pid
 # a USR1 signal will trigger an export to path: /var/log/cake-autorate_$datetime.log
 # a USR2 signal will trigger an export to the path set in $log_file_export_alternative_path below
+# in either case both the current .log and previously rotated .log.old (if it exists) will be exported
 log_file_export_alternative_path="/var/log/cake-autorate_export.log"
 log_file_export_compress=1 # compress the exported log file with its default/override path using gzip and append .gz to export filename
 
