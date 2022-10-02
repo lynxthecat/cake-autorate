@@ -73,9 +73,20 @@ rotate_log_file()
 
 export_log_file()
 {
-        printf -v date '%(%F-%H:%M:%S)T'
-        (($debug)) && log_msg "DEBUG" "Exporting log file to /var/log/cake-autorate-$date.log"
-        cp /var/log/cake-autorate.log /var/log/cake-autorate-$date.log
+        printf -v log_file_export_datetime '%(%F-%H:%M:%S)T'
+	if [[ -z $log_file_export_path_override ]]; then
+        	(($debug)) && log_msg "DEBUG" "Exporting log file with default path: /var/log/cake-autorate_$log_file_export_datetime.log"
+        	log_file_export_path="/var/log/cake-autorate_$log_file_export_datetime.log"
+	else
+        	(($debug)) && log_msg "DEBUG" "Exporting log file with override path: $log_file_export_path_override"
+        	log_file_export_path=$log_file_export_path_override
+	fi
+
+	if (($log_file_export_compress)); then
+		gzip -c /var/log/cake-autorate.log > ${log_file_export_path}.gz
+	else
+		cp /var/log/cake-autorate.log $log_file_export_path
+	fi
 }
 
 kill_maintain_log_file()
