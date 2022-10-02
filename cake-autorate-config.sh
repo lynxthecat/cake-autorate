@@ -70,11 +70,11 @@ startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things
 
 # cake-autorate facilitates triggering an export of the log file either within or outside cake-autorate
 # namely, to trigger a log file export:
-# send a USR1 signal to $maintain_log_file_pid: "kill -USR1 $maintain_log_file_pid"
+# send a USR1 or USR2 signal to $maintain_log_file_pid: "kill -USR1 $maintain_log_file_pid"
 # $maintain_log_file_pid can be read from /var/run/cake-autorate/maintain_log_file_pid
-# the default log file export path is: /var/log/cake-autorate-$datetime.log
-# or, alternatively, set this override path here:
-log_file_export_path_override=""
+# a USR1 signal will trigger an export to path: /var/log/cake-autorate_$datetime.log
+# a USR2 signal will trigger an export to the path set in $log_file_export_alternative_path below
+log_file_export_alternative_path="/var/log/cake-autorate_export.log"
 log_file_export_compress=1 # compress the exported log file with its default/override path using gzip and append .gz to export filename
 
 # extra arguments for ping
