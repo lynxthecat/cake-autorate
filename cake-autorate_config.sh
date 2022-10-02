@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and RTT
+# cake-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and RTT
 
-# cake-autorate-config.sh is a script that sets up defaults for CAKE-autorate
+# cake-autorate_config.sh is a script that sets up defaults for cake-autorate
 
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
@@ -49,6 +49,9 @@ no_pingers=4
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
 delay_thr_ms=25 # (milliseconds)
 
+# Set the below to 0 to simply use cake-autorate to monitor a connection
+adjust_shaper_rates=1 # enable (1) or disable (0) actually changing the shaper rates
+
 min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
 base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
 max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
@@ -64,7 +67,6 @@ connection_active_thr_kbps=500 # threshold in Kbit/s below which dl/ul is consid
 sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
-
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
