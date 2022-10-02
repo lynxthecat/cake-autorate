@@ -56,7 +56,7 @@ cd /etc/init.d || exit
 wget -q "$SRC_DIR"cake-autorate
 chmod +x cake-autorate
 
-printf "\n`grep cake_autorate_version /root/cake-autorate/cake-autorate-config.sh` successfully installed, but not yet running\n\n"
+printf "\n`grep cake_autorate_version /root/cake-autorate/cake-autorate_config.sh` successfully installed, but not yet running\n\n"
 printf "Start the software manually with:\n"
 printf "   cd /root/cake-autorate; bash ./cake-autorate.sh\n"
 printf "Run as a service with:\n"
