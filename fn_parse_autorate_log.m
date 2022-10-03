@@ -14,6 +14,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log")'
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
 
+	%gts = available_graphics_toolkits()
+	%qt_available = any(strcmp(gts, 'qt'))
+	%available_graphics_toolkits
+	%graphics_toolkit("gnuplot");
 
 	%if ~(isoctave)
 	dbstop if error;
@@ -154,7 +158,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(x_range(1):x_range(2)) * rates.scale_factor;
 		plot(x_vec, (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
-	legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+
+	if strcmp(graphics_toolkit, 'gnuplot')
+		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+	else
+		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+	end
 	hold off
 	xlabel('autorate samples');
 	ylabel('Rate [Mbps]');
@@ -169,7 +178,11 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(x_range(1):x_range(2)) * delays.scale_factor;
 		plot(x_vec, (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
-	legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+	if strcmp(graphics_toolkit, 'gnuplot')
+		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+	else
+		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+	end
 	hold off
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
