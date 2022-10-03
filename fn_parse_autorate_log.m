@@ -11,7 +11,7 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 	% dissect the fully qualified name
 	[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
-	align_rate_and_delay_zeros = 0; % so that delay and rate 0s are aligned, not implemented yet
+	align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned, not implemented yet
 	output_format_extension = '.pdf';
 	line_width = 1.0;
 
@@ -32,8 +32,10 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 	x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
 	x_vec = (x_range(1):1:x_range(end));
 
-
-
+	% for testing align_rate_and_delay_zeros
+%	autorate_log.DATA.LISTS.DL_OWD_US = 10*autorate_log.DATA.LISTS.DL_OWD_US;
+	% for testing align_rate_and_delay_zeros
+%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
 
 
 	% plot something
@@ -74,6 +76,7 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
 
+	% make sure the zeros of both axes align
 	if (align_rate_and_delay_zeros)
 		ylim_rates = get(AX(1), 'YLim');
 		ylim_delays = get(AX(2), 'YLim');
@@ -84,8 +87,17 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 		delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
 		delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
 
-		[min_abs_delay, min_idx] = min(abs(ylim_delays));
-		[max_abs_delay, max_idx] = max(abs(ylim_delays));
+		if (delay_up_ratio >= rate_up_ratio)
+			% we need to adjust the upper limit
+			new_lower_y_delay = ylim_delays(1);
+			new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
+
+		else
+			% we need to adjust the lower limit
+			new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
+			new_upper_y_delay = ylim_delays(2);
+		endif
+		set(AX(2), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
 	endif
 
 
