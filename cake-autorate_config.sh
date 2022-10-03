@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and RTT
+# cake-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and RTT
 
-# cake-autorate-config.sh is a script that sets up defaults for CAKE-autorate
+# cake-autorate_config.sh is a script that sets up defaults for cake-autorate
 
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
@@ -49,6 +49,9 @@ no_pingers=4
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
 delay_thr_ms=25 # (milliseconds)
 
+# Set the below to 0 to simply use cake-autorate to monitor a connection
+adjust_shaper_rates=1 # enable (1) or disable (0) actually changing the shaper rates
+
 min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
 base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
 max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
@@ -65,8 +68,17 @@ sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on susta
 
 startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
-
 # *** ADVANCED CONFIGURATION OPTIONS ***
+
+# cake-autorate facilitates triggering an export of the log file either within or outside cake-autorate
+# namely, to trigger a log file export:
+# send a USR1 or USR2 signal to $maintain_log_file_pid: "kill -USR1 $maintain_log_file_pid"
+# $maintain_log_file_pid can be read from /var/run/cake-autorate/maintain_log_file_pid
+# a USR1 signal will trigger an export to path: /var/log/cake-autorate_$datetime.log
+# a USR2 signal will trigger an export to the path set in $log_file_export_alternative_path below
+# in either case both the current .log and previously rotated .log.old (if it exists) will be exported
+log_file_export_alternative_path="/var/log/cake-autorate_export.log"
+log_file_export_compress=1 # compress the exported log file with its default/override path using gzip and append .gz to export filename
 
 # extra arguments for ping
 # e.g., when using mwan3, set up the correct outgoing interface and the firewall mark
