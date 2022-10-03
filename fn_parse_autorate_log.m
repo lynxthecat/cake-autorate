@@ -1,9 +1,19 @@
-function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
+function [ ] = fn_parse_autorate_log( log_FQN )
 	% This program is free software; you can redistribute it and/or modify
 	% it under the terms of the GNU General Public License version 2 as
 	% published by the Free Software Foundation.
 	%
 	%       Copyright (C) 2022 Sebastian Moeller
+
+	%if ~(isoctave)
+	dbstop if error;
+	%end
+
+	timestamps.(mfilename).start = tic;
+	fq_mfilename = mfilename('fullpath');
+	mfilepath = fileparts(fq_mfilename);
+
+	disp(mfilepath);
 
 
 	% load the data file
@@ -11,8 +21,15 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 	% dissect the fully qualified name
 	[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
+	% select the sample range to display:
+	% NOTE: on start up the delay measurements contain unrealistic large values to skip a few of the initial values
+	% otherwise just set these to match the area you want to "magnify"
+	% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
+	x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
+
+
 	align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned, not implemented yet
-	output_format_extension = '.pdf';
+	output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
 	line_width = 1.0;
 
 
@@ -21,21 +38,20 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 	rates.color_list = {[241,182,218]/254, [184,225,134]/254, [208,28,139]/254, [77,172,38]/254};
 	rates.linestyle_list = {'-', '-', '-', '-'};
 	rates.sign_list = {1, 1, 1, 1};
-	rates.sign_list = {1, -1, 1, -1};
-	rates.scale_factor = 1/1000;
+	rates.sign_list = {1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
+	rates.scale_factor = 1/1000;		% conversion factor from Kbps to Mbps
 	delays.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'ADJ_DELAY_THR', 'ADJ_DELAY_THR'};
 	delays.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
 	delays.linestyle_list = {'--', '--', '--', '--', '-', '-', '-', '-'};
-	delays.sign_list = {-1, -1, -1, -1, 1, 1, 1, 1};
-	delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};
-	delays.scale_factor = 1/1000;
-	x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
+	delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
+	delays.scale_factor = 1/1000;		% conversion factor frm µs to ms
+	%x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
 	x_vec = (x_range(1):1:x_range(end));
 
 	% for testing align_rate_and_delay_zeros
-%	autorate_log.DATA.LISTS.DL_OWD_US = 10*autorate_log.DATA.LISTS.DL_OWD_US;
+	%	autorate_log.DATA.LISTS.DL_OWD_US = 10*autorate_log.DATA.LISTS.DL_OWD_US;
 	% for testing align_rate_and_delay_zeros
-%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
+	%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
 
 
 	% plot something
@@ -133,22 +149,16 @@ function [ autorate_log ] = fn_parse_autorate_log( log_FQN )
 
 	write_out_figure(autorate_fh, fullfile(log_dir, [log_name, output_format_extension]), [], []);
 
-
+	% verbose exit
+	timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
+	disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end), ' seconds.']);
 
 	return
 endfunction
 
 function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command_string )
 
-	%if ~(isoctave)
-	dbstop if error;
-	%end
 
-	timestamps.(mfilename).start = tic;
-	fq_mfilename = mfilename('fullpath');
-	mfilepath = fileparts(fq_mfilename);
-
-	disp(mfilepath);
 
 	% variables
 	delimiter_string = ";";	% what separator is used in the log file
@@ -200,12 +210,22 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 
 	cur_record_type = "";
 	% get started
+	disp(['Parsing log file: ', log_FQN]);
+	disp('might take a while...');
+	line_count = 0;
 	while (!feof(log_fd) )
 		% get the next line
 		current_line = fgetl(log_fd);
+		line_count = line_count + 1;
 
 		cur_record_type = fn_get_record_type_4_line(current_line, delimiter_string, string_field_identifier_list);
 		fn_parse_current_line(cur_record_type, current_line, delimiter_string, line_increment);
+
+		if ~(mod(line_count, 1000))
+			% give some feed back, however this is expensive so do so rarely
+			disp(['Processed line: ', num2str(line_count)]);
+			fflush(stdout) ;
+		endif
 
 		%disp(current_line)
 	endwhile
@@ -223,11 +243,6 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% save autorate_log as mat file...
 	disp(['Saving parsed data fie as: ', fullfile(log_dir, [log_name, '.mat'])]);
 	save(fullfile(log_dir, [log_name, '.mat']), 'autorate_log', '-7');
-
-
-	% verbose exit
-	timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
-	disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end), ' seconds.']);
 
 	return
 endfunction
@@ -421,7 +436,7 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 
 		endif
 		% check for spurious delimiter characters in non DATA records (DEBUG/INFO/SHAPER)
-		if length(delimiter_idx) > (length(log_struct.(cur_record_type).listtypes) -1) ...
+		if length(delimiter_idx) > (length(log_struct.(cur_record_type).listtypes) -1)
 			extra_delimiter_idx = delimiter_idx(length(log_struct.(cur_record_type).listtypes) : end);
 			% replace by colon...
 			current_line(extra_delimiter_idx) = ":";
