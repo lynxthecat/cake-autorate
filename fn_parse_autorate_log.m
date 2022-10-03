@@ -5,6 +5,14 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 	%
 	%       Copyright (C) 2022 Sebastian Moeller
 
+	% HOWTO:
+	% you need to install octave (https://octave.org)
+	% then navigate to the directory containing fn_parse_autorate_log.m and either:
+	% run 'octave --gui' in a terminal and open the fle and run it (recommended if you want/need to edit values)
+	% or run 'octave ./fn_parse_autorate_log.m' from the terminal
+	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
+
+
 	%if ~(isoctave)
 	dbstop if error;
 	%end
