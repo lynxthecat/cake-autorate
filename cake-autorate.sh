@@ -97,11 +97,19 @@ export_log_file()
 
 	# Now export with or without compression to the appropriate export path
 	if (($log_file_export_compress)); then
-		gzip -c /var/log/cake-autorate.log > ${log_file_export_path}.gz
-		[[ -f /var/log/cake-autorate.log.old ]] && gzip -c /var/log/cake-autorate.log.old > ${log_file_export_path}.old.gz
+		if [[ -f /var/log/cake-autorate.log.old ]]; then 
+			gzip -c /var/log/cake-autorate.log.old > ${log_file_export_path}.gz
+			gzip -c /var/log/cake-autorate.log >> ${log_file_export_path}.gz
+		else
+			gzip -c /var/log/cake-autorate.log > ${log_file_export_path}.gz
+		fi
 	else
-		cp /var/log/cake-autorate.log $log_file_export_path
-		[[ -f /var/log/cake-autorate.log.old ]] && cp /var/log/cake-autorate.log.old ${log_file_export_path}.old
+		if [[ -f /var/log/cake-autorate.log.old ]]; then 
+			cp /var/log/cake-autorate.log.old ${log_file_export_path}.old
+			cp /var/log/cake-autorate.log >> $log_file_export_path
+		else
+			cp /var/log/cake-autorate.log $log_file_export_path
+		fi
 	fi
 }
 
@@ -621,11 +629,12 @@ set_cake_rate()
 {
 	local interface=$1
 	local shaper_rate_kbps=$2
-	local -n time_rate_set_us=$3
+	local adjust_shaper_rate=$3
+	local -n time_rate_set_us=$4
 	
 	(($output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 
-	if (($adjust_shaper_rates)); then
+	if (($adjust_shaper_rate)); then
 
 		if (($debug)); then
 			tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
@@ -645,8 +654,8 @@ set_shaper_rates()
 	if (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps || $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )); then 
      	
 		# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-		(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; } 
-		(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; } 
+		(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps $adjust_dl_shaper_rate t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; } 
+		(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps $adjust_ul_shaper_rate t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; } 
 
 		update_max_wire_packet_compensation
 	fi
