@@ -1,4 +1,4 @@
-function [ ] = fn_parse_autorate_log( log_FQN )
+function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% This program is free software; you can redistribute it and/or modify
 	% it under the terms of the GNU General Public License version 2 as
 	% published by the Free Software Foundation.
@@ -32,6 +32,16 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 		disp(['Processing log file: ', log_FQN]);
 		figure_visibility_string = 'off';
 	endif
+
+
+	if ~exist('plot_FQN', 'var') || isempty(plot_FQN)
+		plot_FQN = [];
+	else
+		disp(['Trying to save plot as: ', plot_FQN]);
+	endif
+
+
+
 
 	% load the data file
 	[ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN );
@@ -164,8 +174,12 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
 
-	disp(['Writing plot as: ', fullfile(log_dir, [log_name, output_format_extension])]);
-	write_out_figure(autorate_fh, fullfile(log_dir, [log_name, output_format_extension]), [], []);
+	if isempty(plot_FQN)
+		plot_FQN = fullfile(log_dir, [log_name, output_format_extension])
+	endif
+
+	disp(['Writing plot as: ', plot_FQN]);
+	write_out_figure(autorate_fh, plot_FQN, [], []);
 
 	% verbose exit
 	timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
