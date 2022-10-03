@@ -49,8 +49,10 @@ no_pingers=4
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
 delay_thr_ms=25 # (milliseconds)
 
-# Set the below to 0 to simply use cake-autorate to monitor a connection
-adjust_shaper_rates=1 # enable (1) or disable (0) actually changing the shaper rates
+# Set either of the below to 0 to adjust one direction only 
+# or alternatively set both to 0 to simply use cake-autorate to monitor a connection
+adjust_dl_shaper_rate=1 # enable (1) or disable (0) actually changing the dl shaper rate
+adjust_ul_shaper_rate=1 # enable (1) or disable (0) actually changing the ul shaper rate
 
 min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
 base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
