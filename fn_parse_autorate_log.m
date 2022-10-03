@@ -8,8 +8,10 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 	% HOWTO:
 	% you need to install octave (https://octave.org)
 	% then navigate to the directory containing fn_parse_autorate_log.m and either:
-	% run 'octave --gui' in a terminal and open the fle and run it (recommended if you want/need to edit values)
+	% run 'octave --gui' in a terminal and open the file and run it (recommended if you want/need to edit values)
 	% or run 'octave ./fn_parse_autorate_log.m' from the terminal
+	% the following will work on the console without requiring interaction
+	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log")'
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
 
 
@@ -23,9 +25,16 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 
 	disp(mfilepath);
 
+	figure_visibility_string = 'on';
+	if ~exist('log_FQN', 'var') || isempty(log_FQN)
+		log_FQN = [];
+	else
+		disp(['Processing log file: ', log_FQN]);
+		figure_visibility_string = 'off';
+	endif
 
 	% load the data file
-	[ autorate_log, log_FQN ] = fn_parse_autorate_logfile( [] );
+	[ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN );
 	% dissect the fully qualified name
 	[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
@@ -63,7 +72,8 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 
 
 	% plot something
-	autorate_fh = figure('Name', 'CAKE-autorate log file display');
+
+	autorate_fh = figure('Name', 'CAKE-autorate log file display', 'visible', figure_visibility_string);
 	[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
 
 
@@ -154,7 +164,7 @@ function [ ] = fn_parse_autorate_log( log_FQN )
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
 
-
+	disp(['Writing plot as: ', fullfile(log_dir, [log_name, output_format_extension])]);
 	write_out_figure(autorate_fh, fullfile(log_dir, [log_name, output_format_extension]), [], []);
 
 	% verbose exit
