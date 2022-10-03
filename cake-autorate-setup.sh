@@ -3,7 +3,7 @@
 # See https://github.com/lynxthecat/sqm-autorate for details
 # https://www.shellcheck.net/ is your friend
 
-SRC_DIR="https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/"
+SRC_DIR="https://raw.githubusercontent.com/lynxthecat/cake-autorate/main/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
 # Retrieve required packages
@@ -28,19 +28,19 @@ wget -q "$SRC_DIR"cake-autorate.sh
 
 # Check if the configuration script exists, and ask whether to keep it
 
-editmsg="\nNow edit the cake-autorate-config.sh file as described in:\n   $DOC_URL"
+editmsg="\nNow edit the cake-autorate_config.sh file as described in:\n   $DOC_URL"
 
-if [ -f cake-autorate-config.sh ]; then
+if [ -f cake-autorate_config.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
 	read keepIt
 	if [ "$keepIt" == "N" ] || [ "$keepIt" == "n" ]; then
-		rm ./cake-autorate-config.sh
-		wget -q "$SRC_DIR"cake-autorate-config.sh
+		rm ./cake-autorate_config.sh
+		wget -q "$SRC_DIR"cake-autorate_config.sh
 	else
 		editmsg="Using prior configuration"
 	fi
 else 
-	wget -q "$SRC_DIR"cake-autorate-config.sh 
+	wget -q "$SRC_DIR"cake-autorate_config.sh 
 fi
 
 # make both .sh files executable
