@@ -58,6 +58,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
 	x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
 
+	% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
+	% resulting in very high baseline values that cause poor autoscaling of the delay y-axis
+	% this parameter will control the minimum delay sample sequence number to use, allowing to
+	% ignore the early intialisation phase with small sequence numbers
+	% this issue only affects delay data, so this will be ignored for the rates
+	% set to 0 to show all delay samples,
+	min_sequence_number = 1;
 
 	align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned, not implemented yet
 	output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
@@ -77,7 +84,31 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
 	delays.scale_factor = 1/1000;		% conversion factor frm µs to ms
 	%x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
-	x_vec = (x_range(1):1:x_range(end));
+	%x_vec = (x_range(1):1:x_range(end));
+
+
+	x_vec = (1:1:length(autorate_log.DATA.LISTS.RECORD_TYPE));
+	rates_x_idx = x_vec;
+	% chop of the leading samples
+	rates_x_idx = setdiff(rates_x_idx, (1:1:x_range(1)));
+	% chop of the trailing samples
+	rates_x_idx = setdiff(rates_x_idx, (x_range(2):1:length(autorate_log.DATA.LISTS.RECORD_TYPE)));
+
+ 	sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
+	if ~isempty(sequence_too_small_idx)
+		delays_x_idx = setdiff(x_vec, sequence_too_small_idx);
+	else
+		delays_x_idx = x_vec;
+	endif
+
+	% chop of the leading samples
+	delays_x_idx = setdiff(delays_x_idx, (1:1:x_range(1)));
+	% chop of the trailing samples
+	delays_x_idx = setdiff(delays_x_idx, (x_range(2):1:length(autorate_log.DATA.LISTS.RECORD_TYPE)));
+
+
+
+
 
 	% for testing align_rate_and_delay_zeros
 	%	autorate_log.DATA.LISTS.DL_OWD_US = 10*autorate_log.DATA.LISTS.DL_OWD_US;
@@ -95,17 +126,17 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 
 	%plot data on both axes
 	% use this as dummy to create the axis:
-	cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{1})(x_range(1):x_range(2)) * rates.scale_factor;
-	cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{1})(x_range(1):x_range(2)) * delays.scale_factor;
+	cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{1})(rates_x_idx) * rates.scale_factor;
+	cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{1})(delays_x_idx) * delays.scale_factor;
 
-	[AX H1 H2] = plotyy(x_vec, (rates.sign_list{1} * cur_scaled_data_rates)', x_vec, (delays.sign_list{1} * cur_scaled_data_delays)', 'plot');
+	[AX H1 H2] = plotyy(x_vec(rates_x_idx)', (rates.sign_list{1} * cur_scaled_data_rates)', x_vec(delays_x_idx), (delays.sign_list{1} * cur_scaled_data_delays)', 'plot');
 	%hold both axes
 	hold(AX(1));
 	legend_list = {};
 	for i_field = 1 : length(rates.fields_to_plot_list)
 		legend_list{end+1} = rates.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(x_range(1):x_range(2)) * rates.scale_factor;
-		plot(AX(1), x_vec, (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
+		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(rates_x_idx) * rates.scale_factor;
+		plot(AX(1), x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
 	%legend(legend_list, 'Interpreter', 'none');
 	hold off
@@ -116,8 +147,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	hold(AX(2));
 	for i_field = 1 : length(delays.fields_to_plot_list)
 		legend_list{end+1} = delays.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(x_range(1):x_range(2)) * delays.scale_factor;
-		plot(AX(2), x_vec, (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
+		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
+		plot(AX(2), x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
 	%legend(legend_list, 'Interpreter', 'none');
 	hold off
@@ -155,8 +186,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	legend_list = {};
 	for i_field = 1 : length(rates.fields_to_plot_list)
 		legend_list{end+1} = rates.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(x_range(1):x_range(2)) * rates.scale_factor;
-		plot(x_vec, (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
+		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(rates_x_idx) * rates.scale_factor;
+		plot(x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
 
 	if strcmp(graphics_toolkit, 'gnuplot')
@@ -175,8 +206,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	legend_list = {};
 	for i_field = 1 : length(delays.fields_to_plot_list)
 		legend_list{end+1} = delays.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(x_range(1):x_range(2)) * delays.scale_factor;
-		plot(x_vec, (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
+		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
+		plot(x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
 	if strcmp(graphics_toolkit, 'gnuplot')
 		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
