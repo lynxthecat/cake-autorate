@@ -219,7 +219,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	ylabel('Delay [milliseconds]');
 
 	if isempty(plot_FQN)
-		plot_FQN = fullfile(log_dir, [log_name, output_format_extension])
+		plot_FQN = fullfile(log_dir, [log_name, log_ext, output_format_extension])
 	endif
 
 	disp(['Writing plot as: ', plot_FQN]);
@@ -260,7 +260,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	if ~exist('log_FQN', 'var') || isempty(log_FQN)
 		% open a ui file picker
 		%[log_name, log_dir, fld_idx] = uigetfile("*.log", "Select one or more autorate log files:", "MultiSelect", "on");
-		[log_name, log_dir, fld_idx] = uigetfile("*.log", "Select one or more autorate log files:");
+		[log_name, log_dir, fld_idx] = uigetfile({"*.log; *.log.gz; *.gz", "Known Log file extensions"}, "Select one or more autorate log files:");
 		log_FQN = fullfile(log_dir, log_name);
 	endif
 
@@ -271,9 +271,24 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% dissect the fully qualified name
 	[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
-	if exist(fullfile(log_dir, [log_name, '.mat']), 'file') && strcmp(command_string, 'load_existing')
-		disp(['Found already parsed log file (', fullfile(log_dir, [log_name, '.mat']), '), loading...']);
-		load(fullfile(log_dir, [log_name, '.mat']));
+
+	% deal with gzipped log files
+	if strcmp(log_ext, '.gz')
+		file_list = gunzip(log_FQN);
+		if length(file_list) ==1
+			orig_log_FQN = log_FQN;
+			log_FQN = file_list{1};
+			[log_dir, log_name, log_ext ] = fileparts(log_FQN);
+		else
+			error(['Archive contains more than one file, bailig out: ', log_FQN]);
+		endif
+	endif
+
+
+
+	if exist(fullfile(log_dir, [log_name, log_ext, '.mat']), 'file') && strcmp(command_string, 'load_existing')
+		disp(['Found already parsed log file (', fullfile(log_dir, [log_name, log_ext, '.mat']), '), loading...']);
+		load(fullfile(log_dir, [log_name, log_ext, '.mat']));
 		return
 	endif
 
@@ -317,8 +332,8 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	autorate_log = log_struct;
 
 	% save autorate_log as mat file...
-	disp(['Saving parsed data fie as: ', fullfile(log_dir, [log_name, '.mat'])]);
-	save(fullfile(log_dir, [log_name, '.mat']), 'autorate_log', '-7');
+	disp(['Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
+	save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
 
 	return
 endfunction
