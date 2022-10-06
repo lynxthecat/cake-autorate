@@ -884,8 +884,8 @@ last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
 get_max_wire_packet_size_bits $dl_if dl_max_wire_packet_size_bits  
 get_max_wire_packet_size_bits $ul_if ul_max_wire_packet_size_bits
 
-set_cake_rate $dl_if $dl_shaper_rate_kbps t_prev_dl_rate_set_us
-set_cake_rate $ul_if $ul_shaper_rate_kbps t_prev_ul_rate_set_us
+set_cake_rate $dl_if $dl_shaper_rate_kbps $adjust_dl_shaper_rate t_prev_dl_rate_set_us
+set_cake_rate $ul_if $ul_shaper_rate_kbps $adjust_ul_shaper_rate t_prev_ul_rate_set_us
 
 update_max_wire_packet_compensation
 
