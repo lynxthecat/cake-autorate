@@ -11,7 +11,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% run 'octave --gui' in a terminal and open the file and run it (recommended if you want/need to edit values)
 	% or run 'octave ./fn_parse_autorate_log.m' from the terminal
 	% the following will work on the console without requiring interaction
-	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log")'
+	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.png")'
+	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format")'
+	%	supported formats: pdf, png, tif.
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
 
 	%gts = available_graphics_toolkits()
@@ -56,7 +58,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% NOTE: on start up the delay measurements contain unrealistic large values to skip a few of the initial values
 	% otherwise just set these to match the area you want to "magnify"
 	% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
-	x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
+	x_range = [1, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
+	%x_range = [1, 500];
+
 
 	% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
 	% resulting in very high baseline values that cause poor autoscaling of the delay y-axis
@@ -66,7 +70,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% set to 0 to show all delay samples,
 	min_sequence_number = 1;
 
-	align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned, not implemented yet
+	align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
 	output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
 	line_width = 1.0;
 
@@ -80,7 +84,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	rates.scale_factor = 1/1000;		% conversion factor from Kbps to Mbps
 	delays.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'ADJ_DELAY_THR', 'ADJ_DELAY_THR'};
 	delays.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-	delays.linestyle_list = {'--', '--', '--', '--', '-', '-', '-', '-'};
+	delays.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
 	delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
 	delays.scale_factor = 1/1000;		% conversion factor frm µs to ms
 	%x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
@@ -253,14 +257,15 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.DEBUG = [];
 	log_struct.HEADER = [];
 	log_struct.DATA = [];
-	log_struct.INFO =[];
+	log_struct.INFO = [];
+	log_struct.metainformation = [];
 
 	%TODO: merge current and old log file if they can be found...
 
 	if ~exist('log_FQN', 'var') || isempty(log_FQN)
 		% open a ui file picker
 		%[log_name, log_dir, fld_idx] = uigetfile("*.log", "Select one or more autorate log files:", "MultiSelect", "on");
-		[log_name, log_dir, fld_idx] = uigetfile({"*.log; *.log.gz; *.gz", "Known Log file extensions"}, "Select one or more autorate log files:");
+		[log_name, log_dir, fld_idx] = uigetfile({"*.log; *.log.old; *log.old.gz; *.log.gz; *.gz", "Known Log file extensions"}, "Select one or more autorate log files:");
 		log_FQN = fullfile(log_dir, log_name);
 	endif
 
@@ -403,18 +408,60 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 	switch current_line(1:5)
 		case {"DEBUG"}
 			cur_record_type = "DEBUG";
+			if ~isfield(log_struct.metainformation, 'DEBUG')
+				log_struct.metainformation.DEBUG.count = 1;
+			else
+				log_struct.metainformation.DEBUG.count = log_struct.metainformation.DEBUG.count + 1;
+			endif
 		case {"HEADE"}
 			cur_record_type = "HEADER";
+			if ~isfield(log_struct.metainformation, 'HEADER')
+				log_struct.metainformation.HEADER.count = 1;
+			else
+				log_struct.metainformation.HEADER.count = log_struct.metainformation.HEADER.count + 1;
+			endif
 		case {"DATA;"}
 			cur_record_type = "DATA";
+			if ~isfield(log_struct.metainformation, 'DATA')
+				log_struct.metainformation.DATA.count = 1;
+			else
+				log_struct.metainformation.DATA.count = log_struct.metainformation.DATA.count + 1;
+			endif
 		case {"SHAPE"}
 			cur_record_type = "SHAPER";
+			if ~isfield(log_struct.metainformation, 'SHAPER')
+				log_struct.metainformation.SHAPER.count = 1;
+			else
+				log_struct.metainformation.SHAPER.count = log_struct.metainformation.SHAPER.count + 1;
+			endif
 		case {"INFO;"}
 			cur_record_type = "INFO";
+			if ~isfield(log_struct.metainformation, 'INFO')
+				log_struct.metainformation.INFO.count = 1;
+			else
+				log_struct.metainformation.INFO.count = log_struct.metainformation.INFO.count + 1;
+			endif
+		case {"/root"}
+			% example for single shot logging...
+			cur_record_type = "SKIP_root";
+			if ~isfield(log_struct.metainformation, 'SKIP_root')
+				log_struct.metainformation.SKIP_root.count = 1;
+				% only warn once
+				disp(["Unhandled type identifier encountered: ", current_line(1:5), ' only noting once...']);
+			else
+				log_struct.metainformation.SKIP_root.count = log_struct.metainformation.SKIP_root.count + 1;
+			endif
 		otherwise
-			disp(["Unhandled type identifier encountered: ", current_line(1:4)]);
-			error("Not handled yet, bailing out...");
-	endswitch
+			% this will be logged multiple times, but it can be triggered by different lines, so this seems OK.
+			disp(["Unhandled type identifier encountered: ", current_line(1:5), ' trying to ignore...']);
+			%error("Not handled yet, bailing out...");
+			cur_record_type = "SKIP";
+			if ~isfield(log_struct.metainformation, 'SKIP')
+				log_struct.metainformation.SKIP.count = 1;
+			else
+				log_struct.metainformation.SKIP.count = log_struct.metainformation.SKIP.count + 1;
+			endif
+		endswitch
 
 	% define the parsing strings
 	switch cur_record_type
@@ -452,8 +499,10 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				log_struct.INFO.listtypes = {"%s", "%s", "%f", "%s"};
 				log_struct.INFO.format_string = fn_compose_format_string(log_struct.INFO.listtypes);
 			endif
+		case {"SKIP_root", "SKIP"}
+			% ignore these.
 		otherwise
-			%disp(["Unhandled record_type  encountered: ", cur_record_type]);
+			disp(["Unhandled record_type  encountered: ", cur_record_type, ' trying to ignore...']);
 			%error("Not handled yet, bailing out...");
 	endswitch
 
