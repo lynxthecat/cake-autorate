@@ -105,6 +105,27 @@ copying and pasting each of the commands below:
       | `log_file_max_time_mins` | Number of minutes to elapse between log file rotaton |
       | `log_file_max_size_KB` | Number of KB (i.e. bytes/1024) worth of log lines between log file rotations |
   
+## Extracting and plotting logs ##
+
+A compressed log file can be extracted from a running cake-autorate instance using:
+
+```bash
+kill -USR1 $(cat /var/run/maintain_logs_pid)
+```
+
+This will place a compressed log file in /var/log with the date and time in its filename
+
+And a very helpful summary plot like this: 
+
+![image](https://user-images.githubusercontent.com/10721999/194724668-d8973bb6-5a37-4b05-a212-3514db8f56f1.png)
+
+can be created therefrom using the excellent Octave/Matlab utility put together by @moeller0 of OpenWrt, using something like:
+ 
+ ```bash
+ octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./outpug.png")'
+```
+(see the introductory notes in 'fn_parse_autorate_log.m' for more details). 
+
 ## Example Starlink Configuration
 
 - OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/main/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Startlink users.
