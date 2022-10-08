@@ -678,13 +678,12 @@ update_max_wire_packet_compensation()
 	# Compensate for delays imposed by active traffic shaper
 	# This will serve to increase the delay thr at rates below around 12Mbit/s
 
-	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
-	
 	# compensated OWD delay thresholds in microseconds
-	compensated_dl_delay_thr_us=$(( $dl_delay_thr_us + $max_wire_packet_rtt_us/2 ))
-	compensated_ul_delay_thr_us=$(( $ul_delay_thr_us + $max_wire_packet_rtt_us/2 ))
+	compensated_dl_delay_thr_us=$(( $dl_delay_thr_us + (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps ))
+	compensated_ul_delay_thr_us=$(( $ul_delay_thr_us + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps ))
 
-	# write out max_wire_packet_rtt_us
+	# determine and write out $max_wire_packet_rtt_us
+	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
 	printf '%s' "$max_wire_packet_rtt_us" > /var/run/cake-autorate/max_wire_packet_rtt_us
 }
 
