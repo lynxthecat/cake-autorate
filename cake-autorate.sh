@@ -57,7 +57,7 @@ log_msg_bypass_fifo()
 
 print_header()
 {
-	header="HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	header="HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 
  	(($log_to_file)) && printf '%s\n' "$header" > /var/run/cake-autorate/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
@@ -634,7 +634,7 @@ set_cake_rate()
 	
 	(($output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 
-	if (($adjust_shaper_rate)); then
+	if ((${!adjust_shaper_rate})); then
 
 		if (($debug)); then
 			tc qdisc change root dev $interface cake bandwidth ${shaper_rate_kbps}Kbit
@@ -645,7 +645,7 @@ set_cake_rate()
 		time_rate_set_us=${EPOCHREALTIME/./}
 
 	else
-		(($output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rates set to 0 in config, so skipping the tc qdisc change call"
+		(($output_cake_changes)) && log_msg "DEBUG" "$adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
 	fi
 }
 
@@ -654,8 +654,8 @@ set_shaper_rates()
 	if (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps || $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )); then 
      	
 		# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-		(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps $adjust_dl_shaper_rate t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; } 
-		(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps $adjust_ul_shaper_rate t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; } 
+		(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; } 
+		(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; } 
 
 		update_max_wire_packet_compensation
 	fi
@@ -680,8 +680,9 @@ update_max_wire_packet_compensation()
 
 	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
 	
-	# compensated OWD delay threshold in microseconds
-	compensated_delay_thr_us=$(( ($delay_thr_us + $max_wire_packet_rtt_us)/2 ))
+	# compensated OWD delay thresholds in microseconds
+	compensated_dl_delay_thr_us=$(( $dl_delay_thr_us + $max_wire_packet_rtt_us/2 ))
+	compensated_ul_delay_thr_us=$(( $ul_delay_thr_us + $max_wire_packet_rtt_us/2 ))
 
 	# write out max_wire_packet_rtt_us
 	printf '%s' "$max_wire_packet_rtt_us" > /var/run/cake-autorate/max_wire_packet_rtt_us
@@ -856,8 +857,9 @@ printf -v reflector_response_deadline_us %.0f\\n "${reflector_response_deadline_
 global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
-delay_thr_us=$(( 1000*$delay_thr_ms ))
 
+dl_delay_thr_us=$(( 1000*$dl_delay_thr_ms ))
+ul_delay_thr_us=$(( 1000*$ul_delay_thr_ms ))
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
@@ -884,8 +886,8 @@ last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
 get_max_wire_packet_size_bits $dl_if dl_max_wire_packet_size_bits  
 get_max_wire_packet_size_bits $ul_if ul_max_wire_packet_size_bits
 
-set_cake_rate $dl_if $dl_shaper_rate_kbps $adjust_dl_shaper_rate t_prev_dl_rate_set_us
-set_cake_rate $ul_if $ul_shaper_rate_kbps $adjust_ul_shaper_rate t_prev_ul_rate_set_us
+set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us
+set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us
 
 update_max_wire_packet_compensation
 
@@ -938,11 +940,11 @@ do
 		# Keep track of number of dl delays across detection window
 		# .. for download:
 		(( ${dl_delays[$delays_idx]} )) && ((sum_dl_delays--))
-		dl_delays[$delays_idx]=$(( $dl_owd_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
+		dl_delays[$delays_idx]=$(( $dl_owd_delta_us > $compensated_dl_delay_thr_us ? 1 : 0 ))
 		((dl_delays[$delays_idx])) && ((sum_dl_delays++))
 		# .. for upload
 		(( ${ul_delays[$delays_idx]} )) && ((sum_ul_delays--))
-		ul_delays[$delays_idx]=$(( $ul_owd_delta_us > $compensated_delay_thr_us ? 1 : 0 ))
+		ul_delays[$delays_idx]=$(( $ul_owd_delta_us > $compensated_ul_delay_thr_us ? 1 : 0 ))
 		((ul_delays[$delays_idx])) && ((sum_ul_delays++))
 	 	# .. and move index on	
 		(( delays_idx=(delays_idx+1)%$bufferbloat_detection_window ))
@@ -964,7 +966,7 @@ do
 		set_shaper_rates
 
 		if (($output_processing_stats)); then 
-			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_us $compensated_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_us $compensated_dl_delay_thr_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_us $compensated_ul_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "DATA" "$processing_stats"
 		fi
 
