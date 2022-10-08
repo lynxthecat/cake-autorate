@@ -33,237 +33,317 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 
 	try
 
-	figure_visibility_string = 'on';
-	if ~exist('log_FQN', 'var') || isempty(log_FQN)
-		log_FQN = [];
-	else
-		disp(['INFO: Processing log file: ', log_FQN]);
-		figure_visibility_string = 'off';
-	endif
-
-
-	if ~exist('plot_FQN', 'var') || isempty(plot_FQN)
-		plot_FQN = [];
-	else
-		disp(['INFO: Trying to save plot as: ', plot_FQN]);
-	endif
-
-	% load the data file
-	[ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN );
-	% dissect the fully qualified name
-	[log_dir, log_name, log_ext ] = fileparts(log_FQN);
-
-	% check whether we did successfully load some data, other wise bai out:
-	if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
-		disp('WARNING: No valid data found, nothing to plot?');
-		return
-	endif
-
-	n_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
-
-	% select the sample range to display:
-	% NOTE: on start up the delay measurements contain unrealistic large values to skip a few of the initial values
-	% otherwise just set these to match the area you want to "magnify"
-	% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
-	x_range = [1, n_samples]; % equivalent with x_range = [];
-	x_range = [33000, 60000];
-	x_range = [];
-
-	% sanitize x_range
-	[x_range, do_return] = fn_sanitize_x_range(x_range, n_samples);
-	if (do_return)
-		return
-	endif
-
-
-	% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
-	% resulting in very high baseline values that cause poor autoscaling of the delay y-axis
-	% this parameter will control the minimum delay sample sequence number to use, allowing to
-	% ignore the early intialisation phase with small sequence numbers
-	% this issue only affects delay data, so this will be ignored for the rates
-	% set to 0 to show all delay samples,
-	min_sequence_number = 1;
-
-	align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
-	output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
-	line_width = 1.0;
-
-
-	% set up the plots
-	rates.fields_to_plot_list = {'CAKE_DL_RATE_KBPS', 'CAKE_UL_RATE_KBPS', 'DL_ACHIEVED_RATE_KBPS', 'UL_ACHIEVED_RATE_KBPS'};
-	rates.color_list = {[241,182,218]/254, [184,225,134]/254, [208,28,139]/254, [77,172,38]/254};
-	rates.linestyle_list = {'-', '-', '-', '-'};
-	rates.sign_list = {1, 1, 1, 1};
-	rates.sign_list = {1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
-	rates.scale_factor = 1/1000;		% conversion factor from Kbps to Mbps
-	delays.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'ADJ_DELAY_THR', 'ADJ_DELAY_THR'};
-	delays.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-	delays.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
-	delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
-	delays.scale_factor = 1/1000;		% conversion factor frm µs to ms
-	%x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
-	%x_vec = (x_range(1):1:x_range(end));
-
-
-	x_vec = (1:1:n_samples);
-	rates_x_idx = x_vec;
-	% chop of the leading samples
-	rates_x_idx = setdiff(rates_x_idx, (1:1:x_range(1)));
-	% chop of the trailing samples
-	rates_x_idx = setdiff(rates_x_idx, (x_range(2):1:n_samples));
-
- 	sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
-	if ~isempty(sequence_too_small_idx)
-		delays_x_idx = setdiff(x_vec, sequence_too_small_idx);
-	else
-		delays_x_idx = x_vec;
-	endif
-
-	% chop of the leading samples
-	delays_x_idx = setdiff(delays_x_idx, (1:1:x_range(1)));
-	% chop of the trailing samples
-	delays_x_idx = setdiff(delays_x_idx, (x_range(2):1:length(autorate_log.DATA.LISTS.RECORD_TYPE)));
-
-
-
-
-
-	% for testing align_rate_and_delay_zeros
-	%	autorate_log.DATA.LISTS.DL_OWD_US = 10*autorate_log.DATA.LISTS.DL_OWD_US;
-	% for testing align_rate_and_delay_zeros
-	%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
-
-
-	% plot something
-
-	autorate_fh = figure('Name', 'CAKE-autorate log file display', 'visible', figure_visibility_string);
-	[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
-
-
-	cur_sph = subplot(2, 2, [1 2]);
-
-
-	%plot data on both axes
-	% use this as dummy to create the axis:
-	cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{1})(rates_x_idx) * rates.scale_factor;
-	cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{1})(delays_x_idx) * delays.scale_factor;
-
-	if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
-		disp('WARNING: We somehow ended up without data to plot, should not happen');
-		return
-	endif
-
-
-	[AX H1 H2] = plotyy(x_vec(rates_x_idx)', (rates.sign_list{1} * cur_scaled_data_rates)', x_vec(delays_x_idx), (delays.sign_list{1} * cur_scaled_data_delays)', 'plot');
-	%hold both axes
-	hold(AX(1));
-	legend_list = {};
-	for i_field = 1 : length(rates.fields_to_plot_list)
-		legend_list{end+1} = rates.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(rates_x_idx) * rates.scale_factor;
-		plot(AX(1), x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
-	endfor
-	%legend(legend_list, 'Interpreter', 'none');
-	hold off
-	xlabel(AX(1),'autorate samples');
-	ylabel(AX(1), 'Rate [Mbps]');
-	set(AX(1), 'XLim', x_range);
-
-	hold(AX(2));
-	for i_field = 1 : length(delays.fields_to_plot_list)
-		legend_list{end+1} = delays.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
-		plot(AX(2), x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
-	endfor
-	%legend(legend_list, 'Interpreter', 'none');
-	hold off
-	xlabel('autorate samples');
-	ylabel('Delay [milliseconds]');
-	set(AX(2), 'XLim', x_range);
-
-	% make sure the zeros of both axes align
-	if (align_rate_and_delay_zeros)
-		ylim_rates = get(AX(1), 'YLim');
-		ylim_delays = get(AX(2), 'YLim');
-
-		rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
-		rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
-
-		delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
-		delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
-
-		if (delay_up_ratio >= rate_up_ratio)
-			% we need to adjust the upper limit
-			new_lower_y_delay = ylim_delays(1);
-			new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
-
+		figure_visibility_string = 'on';
+		if ~exist('log_FQN', 'var') || isempty(log_FQN)
+			log_FQN = [];
 		else
-			% we need to adjust the lower limit
-			new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
-			new_upper_y_delay = ylim_delays(2);
+			disp(['INFO: Processing log file: ', log_FQN]);
+			figure_visibility_string = 'off';
 		endif
-		set(AX(2), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
-	endif
-
-	title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(1))); ...
-	'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end)))]);
 
 
-
-	cur_sph = subplot(2, 2, 3);
-	% rates
-	hold on
-	legend_list = {};
-	for i_field = 1 : length(rates.fields_to_plot_list)
-		legend_list{end+1} = rates.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(rates_x_idx) * rates.scale_factor;
-		plot(x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
-	endfor
-
-	if strcmp(graphics_toolkit, 'gnuplot')
-		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	else
-		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	end
-	hold off
-	xlabel('autorate samples');
-	ylabel('Rate [Mbps]');
-	set(cur_sph, 'XLim', x_range);
-
-	cur_sph = subplot(2, 2, 4);
-	% delays
-	hold on
-	legend_list = {};
-	for i_field = 1 : length(delays.fields_to_plot_list)
-		legend_list{end+1} = delays.fields_to_plot_list{i_field};
-		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
-		plot(x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
-	endfor
-	if strcmp(graphics_toolkit, 'gnuplot')
-		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	else
-		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	end
-	hold off
-	xlabel('autorate samples');
-	ylabel('Delay [milliseconds]');
-	set(cur_sph, 'XLim', x_range);
-
-	if isempty(plot_FQN)
-		if ((x_range(1) ~= 1) || (x_range(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
-			n_range_digits = ceil(max(log10(x_range)));
-			range_string = ['.', 'sample_', num2str(x_range(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range(2), ['%0', num2str(n_range_digits), 'd']), '.'];
+		if ~exist('plot_FQN', 'var') || isempty(plot_FQN)
+			plot_FQN = [];
 		else
-			range_string = '';
+			disp(['INFO: Trying to save plot as: ', plot_FQN]);
 		endif
-		plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension])
-	endif
 
-	disp(['INFO: Writing plot as: ', plot_FQN]);
-	write_out_figure(autorate_fh, plot_FQN, [], []);
+		% load the data file
+		[ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN );
+		% dissect the fully qualified name
+		[log_dir, log_name, log_ext ] = fileparts(log_FQN);
+
+		% check whether we did successfully load some data, other wise bai out:
+		if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
+			disp('WARNING: No valid data found, nothing to plot?');
+			return
+		endif
+
+		n_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
+
+		% select the sample range to display:
+		% NOTE: on start up the delay measurements contain unrealistic large values to skip a few of the initial values
+		% otherwise just set these to match the area you want to "magnify"
+		% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
+		x_range = [1, n_samples]; % equivalent with x_range = [];
+		x_range = [33000, 60000];
+		%x_range = [];
+
+		% sanitize x_range
+		[x_range, do_return] = fn_sanitize_x_range(x_range, n_samples);
+		if (do_return)
+			return
+		endif
+
+
+		% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
+		% resulting in very high baseline values that cause poor autoscaling of the delay y-axis
+		% this parameter will control the minimum delay sample sequence number to use, allowing to
+		% ignore the early intialisation phase with small sequence numbers
+		% this issue only affects delay data, so this will be ignored for the rates
+		% set to 0 to show all delay samples,
+		min_sequence_number = 1;
+
+		align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
+		output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
+		line_width = 1.0;
+		% a few outlier will make the delay plots unreadable, if this is not empty [],
+		% use this factor on max(ADJ_DELAY_THR) to scale the delay axis
+		% this is done before align_rate_and_delay_zeros is applied.
+		scale_delay_axis_by_ADJ_DELAY_THR_factor = 2.0;
+		% if the following is set make sure we also scale to the actual data
+		% we calculate both y-axis scales and take the maximum if both are requested
+		scale_delay_axis_by_OWD_DELTA_QUANTILE_factor = 5.0; % ignore if empty []
+		OWD_DELTA_QUANTILE_pct = 99.0; % what upper quantile to use for scaling, 100 is max value
+
+
+		% set up the plots
+		rates.fields_to_plot_list = {'CAKE_DL_RATE_KBPS', 'CAKE_UL_RATE_KBPS', 'DL_ACHIEVED_RATE_KBPS', 'UL_ACHIEVED_RATE_KBPS'};
+		rates.color_list = {[241,182,218]/254, [184,225,134]/254, [208,28,139]/254, [77,172,38]/254};
+		rates.linestyle_list = {'-', '-', '-', '-'};
+		rates.sign_list = {1, 1, 1, 1};
+		rates.sign_list = {1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
+		rates.scale_factor = 1/1000;		% conversion factor from Kbps to Mbps
+		delays.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US'};
+		% to allow old and new log files
+		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+			delays.fields_to_plot_list{end+1} = 'DL_ADJ_DELAY_THR';
+		else
+			delays.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		endif
+		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+			delays.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
+		else
+			delays.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		endif
+
+		delays.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
+		delays.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
+		delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
+		delays.scale_factor = 1/1000;		% conversion factor frm µs to ms
+		%x_range = [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
+		%x_vec = (x_range(1):1:x_range(end));
+
+
+		x_vec = (1:1:n_samples);
+		rates_x_idx = x_vec;
+		% chop of the leading samples
+		rates_x_idx = setdiff(rates_x_idx, (1:1:x_range(1)));
+		% chop of the trailing samples
+		rates_x_idx = setdiff(rates_x_idx, (x_range(2):1:n_samples));
+
+		sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
+		if ~isempty(sequence_too_small_idx)
+			delays_x_idx = setdiff(x_vec, sequence_too_small_idx);
+		else
+			delays_x_idx = x_vec;
+		endif
+
+		% chop of the leading samples
+		delays_x_idx = setdiff(delays_x_idx, (1:1:x_range(1)));
+		% chop of the trailing samples
+		delays_x_idx = setdiff(delays_x_idx, (x_range(2):1:length(autorate_log.DATA.LISTS.RECORD_TYPE)));
+
+
+		adjusted_ylim_delay = [];
+		if ~isempty(scale_delay_axis_by_ADJ_DELAY_THR_factor)
+			%ylim_delays = get(AX(2), 'YLim');
+			if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR);
+				dl_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR);
+			endif
+			if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.UL_ADJ_DELAY_THR);
+			endif
+			if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+				dl_max_adj_delay_thr = max(autorate_log.DATA.LISTS.DL_ADJ_DELAY_THR);
+			endif
+			% delays.sign_list is orderd DL*, UL*, DL*, ...
+			adjusted_ylim_delay(1) = (sign(delays.sign_list{2}) * ul_max_adj_delay_thr * scale_delay_axis_by_ADJ_DELAY_THR_factor);
+			adjusted_ylim_delay(2) = (sign(delays.sign_list{1}) * dl_max_adj_delay_thr * scale_delay_axis_by_ADJ_DELAY_THR_factor);
+			disp(['INFO: Adjusted y-limits based on ADJ_DELAY_THR_factor: ', num2str(adjusted_ylim_delay)]);
+			%set(AX(2), 'YLim', (adjusted_ylim_delay * delays.scale_factor));
+		end
+
+		% find the 99%ile for the actual relevant delay data
+
+		if ~isempty(scale_delay_axis_by_OWD_DELTA_QUANTILE_factor)
+			sorted_UL_OWD_DELTA_US = sort(autorate_log.DATA.LISTS.UL_OWD_DELTA_US(delays_x_idx));
+			n_UL_OWD_DELTA_US_samples = length(sorted_UL_OWD_DELTA_US);
+			UL_OWD_DELTA_US_upper_quantile = sorted_UL_OWD_DELTA_US(round(n_UL_OWD_DELTA_US_samples * (OWD_DELTA_QUANTILE_pct / 100)));
+			sorted_DL_OWD_DELTA_US = sort(autorate_log.DATA.LISTS.DL_OWD_DELTA_US(delays_x_idx));
+			n_DL_OWD_DELTA_US_samples = length(sorted_DL_OWD_DELTA_US);
+			DL_OWD_DELTA_US_upper_quantile = sorted_DL_OWD_DELTA_US(round(n_DL_OWD_DELTA_US_samples * (OWD_DELTA_QUANTILE_pct / 100)));
+			% use this to correct the delay y-axis scaling
+			% delays.sign_list is orderd DL*, UL*, DL*, ...
+			DELAY_adjusted_ylim_delay(1) = (sign(delays.sign_list{2}) * UL_OWD_DELTA_US_upper_quantile * scale_delay_axis_by_OWD_DELTA_QUANTILE_factor);
+			DELAY_adjusted_ylim_delay(2) = (sign(delays.sign_list{1}) * DL_OWD_DELTA_US_upper_quantile * scale_delay_axis_by_OWD_DELTA_QUANTILE_factor);
+
+			if isempty(adjusted_ylim_delay)
+				adjusted_ylim_delay = DELAY_adjusted_ylim_delay;
+				disp(['INFO: Adjusted y-limits based on OWD_DELTA_QUANTILE_factor: ', num2str(DELAY_adjusted_ylim_delay)]);
+			else
+				adjusted_ylim_delay(1) = sign(delays.sign_list{2})  * max([abs(adjusted_ylim_delay(1)), abs(DELAY_adjusted_ylim_delay(1))]);
+				adjusted_ylim_delay(2) = max([adjusted_ylim_delay(2), DELAY_adjusted_ylim_delay(2)]);
+				disp(['INFO: Grand adjusted y-limits based on OWD_DELTA_QUANTILE_factor and ADJ_DELAY_THR_factor: ', num2str(adjusted_ylim_delay)]);
+			endif
+		endif
+
+		% for testing align_rate_and_delay_zeros
+		%	autorate_log.DATA.LISTS.DL_OWD_US = 10*autorate_log.DATA.LISTS.DL_OWD_US;
+		% for testing align_rate_and_delay_zeros
+		%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
+
+
+		% plot something
+
+		autorate_fh = figure('Name', 'CAKE-autorate log file display', 'visible', figure_visibility_string);
+		[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
+
+
+		cur_sph = subplot(2, 2, [1 2]);
+
+
+		%plot data on both axes
+		% use this as dummy to create the axis:
+		cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{1})(rates_x_idx) * rates.scale_factor;
+		cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{1})(delays_x_idx) * delays.scale_factor;
+
+		if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
+			disp('WARNING: We somehow ended up without data to plot, should not happen');
+			return
+		endif
+
+		% this is a dummy plot so we get the dual axis handles...
+		[AX H1 H2] = plotyy(x_vec(delays_x_idx), (delays.sign_list{1} * cur_scaled_data_delays)', x_vec(rates_x_idx)', (rates.sign_list{1} * cur_scaled_data_rates)', 'plot');
+		%hold both axes
+		legend_list = {};
+		hold(AX(1));
+		for i_field = 1 : length(delays.fields_to_plot_list)
+			legend_list{end+1} = delays.fields_to_plot_list{i_field};
+			cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
+			plot(AX(1), x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
+		endfor
+		%legend(legend_list, 'Interpreter', 'none');
+		hold off
+		xlabel('autorate samples');
+		ylabel('Delay [milliseconds]');
+		set(AX(1), 'XLim', x_range);
+
+		if ~isempty(adjusted_ylim_delay)
+			set(AX(1), 'YLim', (adjusted_ylim_delay * delays.scale_factor));
+		end
+
+		hold(AX(2));
+		for i_field = 1 : length(rates.fields_to_plot_list)
+			legend_list{end+1} = rates.fields_to_plot_list{i_field};
+			cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(rates_x_idx) * rates.scale_factor;
+			plot(AX(2), x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
+		endfor
+		%legend(legend_list, 'Interpreter', 'none');
+		hold off
+		xlabel(AX(2),'autorate samples');
+		ylabel(AX(2), 'Rate [Mbps]');
+		set(AX(2), 'XLim', x_range);
+
+
+
+		% make sure the zeros of both axes align
+		if (align_rate_and_delay_zeros)
+			ylim_rates = get(AX(2), 'YLim');
+			ylim_delays = get(AX(1), 'YLim');
+
+			rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
+			rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
+
+			delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
+			delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
+
+			if (delay_up_ratio >= rate_up_ratio)
+				% we need to adjust the upper limit
+				new_lower_y_delay = ylim_delays(1);
+				new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
+
+			else
+				% we need to adjust the lower limit
+				new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
+				new_upper_y_delay = ylim_delays(2);
+			endif
+			set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
+		endif
+
+		title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(1))); ...
+		'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end)))]);
+
+
+
+		cur_sph = subplot(2, 2, 3);
+		% rates
+		hold on
+		legend_list = {};
+		for i_field = 1 : length(rates.fields_to_plot_list)
+			legend_list{end+1} = rates.fields_to_plot_list{i_field};
+			cur_scaled_data = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{i_field})(rates_x_idx) * rates.scale_factor;
+			plot(x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
+		endfor
+
+		try
+			if strcmp(graphics_toolkit, 'gnuplot')
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+			else
+				legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+			end
+		catch
+			disp(['Triggered']);
+			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+		end_try_catch
+		hold off
+		xlabel('autorate samples');
+		ylabel('Rate [Mbps]');
+		set(cur_sph, 'XLim', x_range);
+
+		cur_sph = subplot(2, 2, 4);
+		% delays
+		hold on
+		legend_list = {};
+		for i_field = 1 : length(delays.fields_to_plot_list)
+			legend_list{end+1} = delays.fields_to_plot_list{i_field};
+			cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
+			plot(x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
+		endfor
+		if ~isempty(adjusted_ylim_delay)
+			set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.scale_factor));
+		endif
+		try
+			if strcmp(graphics_toolkit, 'gnuplot')
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+			else
+				legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+			end
+		catch
+			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+		end_try_catch
+		hold off
+		xlabel('autorate samples');
+		ylabel('Delay [milliseconds]');
+		set(cur_sph, 'XLim', x_range);
+
+		if isempty(plot_FQN)
+			if ((x_range(1) ~= 1) || (x_range(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
+				n_range_digits = ceil(max(log10(x_range)));
+				range_string = ['.', 'sample_', num2str(x_range(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range(2), ['%0', num2str(n_range_digits), 'd']), '.'];
+			else
+				range_string = '';
+			endif
+			plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension]);
+		endif
+
+		disp(['INFO: Writing plot as: ', plot_FQN]);
+		write_out_figure(autorate_fh, plot_FQN, [], []);
 
 	catch err
   		warning(err.identifier, err.message);
+		err
 		disp('INFO: available graphics toolkits:');
 		disp(available_graphics_toolkits);
 		disp(['INFO: Selected graphics toolkit: ', graphics_toolkit]);
