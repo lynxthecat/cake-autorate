@@ -67,7 +67,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
 		x_range = [1, n_samples]; % equivalent with x_range = [];
 		x_range = [33000, 60000];
-		%x_range = [];
+		x_range = [];
 
 		% sanitize x_range
 		[x_range, do_return] = fn_sanitize_x_range(x_range, n_samples);
