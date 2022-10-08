@@ -104,7 +104,19 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		rates.sign_list = {1, 1, 1, 1};
 		rates.sign_list = {1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
 		rates.scale_factor = 1/1000;		% conversion factor from Kbps to Mbps
-		delays.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'ADJ_DELAY_THR', 'ADJ_DELAY_THR'};
+		delays.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US'};
+		% to allow old and new log files
+		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+			delays.fields_to_plot_list{end+1} = 'DL_ADJ_DELAY_THR';
+		else
+			delays.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		endif
+		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+			delays.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
+		else
+			delays.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		endif
+
 		delays.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
 		delays.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
 		delays.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
