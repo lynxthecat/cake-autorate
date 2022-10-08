@@ -220,11 +220,16 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		plot(x_vec(rates_x_idx)', (rates.sign_list{i_field} * cur_scaled_data)', 'Color', rates.color_list{i_field}, 'Linestyle', rates.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
 
-	if strcmp(graphics_toolkit, 'gnuplot')
-		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	else
-		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	end
+	try
+		if strcmp(graphics_toolkit, 'gnuplot')
+			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+		else
+			legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+		end
+	catch
+		disp(['Triggered']);
+		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+	end_try_catch
 	hold off
 	xlabel('autorate samples');
 	ylabel('Rate [Mbps]');
@@ -239,11 +244,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		cur_scaled_data = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{i_field})(delays_x_idx) * delays.scale_factor;
 		plot(x_vec(delays_x_idx)', (delays.sign_list{i_field} * cur_scaled_data)', 'Color', delays.color_list{i_field}, 'Linestyle', delays.linestyle_list{i_field}, 'LineWidth', line_width);
 	endfor
-	if strcmp(graphics_toolkit, 'gnuplot')
-		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	else
-		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-	end
+	try
+		if strcmp(graphics_toolkit, 'gnuplot')
+			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+		else
+			legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+		end
+	catch
+		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+	end_try_catch
 	hold off
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
@@ -256,7 +265,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		else
 			range_string = '';
 		endif
-		plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension])
+		plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension]);
 	endif
 
 	disp(['INFO: Writing plot as: ', plot_FQN]);
