@@ -29,13 +29,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	fq_mfilename = mfilename('fullpath');
 	mfilepath = fileparts(fq_mfilename);
 
-	disp(mfilepath);
+	disp(['INFO: ', mfilepath]);
+
+	try
 
 	figure_visibility_string = 'on';
 	if ~exist('log_FQN', 'var') || isempty(log_FQN)
 		log_FQN = [];
 	else
-		disp(['Processing log file: ', log_FQN]);
+		disp(['INFO: Processing log file: ', log_FQN]);
 		figure_visibility_string = 'off';
 	endif
 
@@ -43,11 +45,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	if ~exist('plot_FQN', 'var') || isempty(plot_FQN)
 		plot_FQN = [];
 	else
-		disp(['Trying to save plot as: ', plot_FQN]);
+		disp(['INFO: Trying to save plot as: ', plot_FQN]);
 	endif
-
-
-
 
 	% load the data file
 	[ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN );
@@ -56,15 +55,25 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 
 	% check whether we did successfully load some data, other wise bai out:
 	if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
-		disp('No valid data found, nothing to plot?');
+		disp('WARNING: No valid data found, nothing to plot?');
 		return
 	endif
+
+	n_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
+
 	% select the sample range to display:
 	% NOTE: on start up the delay measurements contain unrealistic large values to skip a few of the initial values
 	% otherwise just set these to match the area you want to "magnify"
 	% [20, length(autorate_log.DATA.LISTS.RECORD_TYPE)] skips the frist 20 values and display everything up to the last sample
-	x_range = [1, length(autorate_log.DATA.LISTS.RECORD_TYPE)];
-	%x_range = [1, 500];
+	x_range = [1, n_samples]; % equivalent with x_range = [];
+	x_range = [33000, 60000];
+	x_range = [];
+
+	% sanitize x_range
+	[x_range, do_return] = fn_sanitize_x_range(x_range, n_samples);
+	if (do_return)
+		return
+	endif
 
 
 	% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
@@ -96,12 +105,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	%x_vec = (x_range(1):1:x_range(end));
 
 
-	x_vec = (1:1:length(autorate_log.DATA.LISTS.RECORD_TYPE));
+	x_vec = (1:1:n_samples);
 	rates_x_idx = x_vec;
 	% chop of the leading samples
 	rates_x_idx = setdiff(rates_x_idx, (1:1:x_range(1)));
 	% chop of the trailing samples
-	rates_x_idx = setdiff(rates_x_idx, (x_range(2):1:length(autorate_log.DATA.LISTS.RECORD_TYPE)));
+	rates_x_idx = setdiff(rates_x_idx, (x_range(2):1:n_samples));
 
  	sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
 	if ~isempty(sequence_too_small_idx)
@@ -139,6 +148,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{1})(rates_x_idx) * rates.scale_factor;
 	cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.fields_to_plot_list{1})(delays_x_idx) * delays.scale_factor;
 
+	if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
+		disp('WARNING: We somehow ended up without data to plot, should not happen');
+		return
+	endif
+
+
 	[AX H1 H2] = plotyy(x_vec(rates_x_idx)', (rates.sign_list{1} * cur_scaled_data_rates)', x_vec(delays_x_idx), (delays.sign_list{1} * cur_scaled_data_delays)', 'plot');
 	%hold both axes
 	hold(AX(1));
@@ -152,7 +167,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	hold off
 	xlabel(AX(1),'autorate samples');
 	ylabel(AX(1), 'Rate [Mbps]');
-
+	set(AX(1), 'XLim', x_range);
 
 	hold(AX(2));
 	for i_field = 1 : length(delays.fields_to_plot_list)
@@ -164,6 +179,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	hold off
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
+	set(AX(2), 'XLim', x_range);
 
 	% make sure the zeros of both axes align
 	if (align_rate_and_delay_zeros)
@@ -190,7 +206,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	endif
 
 	title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(1))); ...
-					'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end)))]);
+	'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end)))]);
 
 
 
@@ -212,7 +228,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	hold off
 	xlabel('autorate samples');
 	ylabel('Rate [Mbps]');
-
+	set(cur_sph, 'XLim', x_range);
 
 	cur_sph = subplot(2, 2, 4);
 	% delays
@@ -231,17 +247,32 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	hold off
 	xlabel('autorate samples');
 	ylabel('Delay [milliseconds]');
+	set(cur_sph, 'XLim', x_range);
 
 	if isempty(plot_FQN)
-		plot_FQN = fullfile(log_dir, [log_name, log_ext, output_format_extension])
+		if ((x_range(1) ~= 1) || (x_range(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
+			n_range_digits = ceil(max(log10(x_range)));
+			range_string = ['.', 'sample_', num2str(x_range(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range(2), ['%0', num2str(n_range_digits), 'd']), '.'];
+		else
+			range_string = '';
+		endif
+		plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension])
 	endif
 
-	disp(['Writing plot as: ', plot_FQN]);
+	disp(['INFO: Writing plot as: ', plot_FQN]);
 	write_out_figure(autorate_fh, plot_FQN, [], []);
+
+	catch err
+  		warning(err.identifier, err.message);
+		disp('INFO: available graphics toolkits:');
+		disp(available_graphics_toolkits);
+		disp(['INFO: Selected graphics toolkit: ', graphics_toolkit]);
+		disp(['INFO: Octave version: ', version]);
+	end_try_catch
 
 	% verbose exit
 	timestamps.(mfilename).end = toc(timestamps.(mfilename).start);
-	disp([mfilename, ' took: ', num2str(timestamps.(mfilename).end), ' seconds.']);
+	disp(['INFO: ', mfilename, ' took: ', num2str(timestamps.(mfilename).end), ' seconds.']);
 
 	return
 endfunction
@@ -288,6 +319,12 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 
 
 	% deal with gzipped log files
+	if strcmp(log_ext, '.GZ')
+		disp('INFO: Octave gunzip does not tolerate upper-case .GZ extensions,  renaming to lower-case .gz');
+		movefile(log_FQN, fullfile(log_dir, [log_name, '.gz']));
+		log_FQN = fullfile(log_dir, [log_name, '.gz']);
+		[log_dir, log_name, log_ext ] = fileparts(log_FQN);
+	endif
 	if strcmp(log_ext, '.gz')
 		file_list = gunzip(log_FQN);
 		if length(file_list) ==1
@@ -295,14 +332,14 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 			log_FQN = file_list{1};
 			[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 		else
-			error(['Archive contains more than one file, bailig out: ', log_FQN]);
+			error(['WARNING: Archive contains more than one file, bailig out: ', log_FQN]);
 		endif
 	endif
 
 
 
 	if exist(fullfile(log_dir, [log_name, log_ext, '.mat']), 'file') && strcmp(command_string, 'load_existing')
-		disp(['Found already parsed log file (', fullfile(log_dir, [log_name, log_ext, '.mat']), '), loading...']);
+		disp(['INFO: Found already parsed log file (', fullfile(log_dir, [log_name, log_ext, '.mat']), '), loading...']);
 		load(fullfile(log_dir, [log_name, log_ext, '.mat']));
 		return
 	endif
@@ -311,13 +348,13 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% if this would not be intereaved things would be easier
 	log_fd = fopen(log_FQN);
 	if log_fd == -1
-		error(["Could not open: ", log_FQN]);
+		error(["ERROR: Could not open: ", log_FQN]);
 	endif
 
 	cur_record_type = "";
 	% get started
-	disp(['Parsing log file: ', log_FQN]);
-	disp('might take a while...');
+	disp(['INFO: Parsing log file: ', log_FQN]);
+	disp('INFO: might take a while...');
 	line_count = 0;
 	while (!feof(log_fd) )
 		% get the next line
@@ -329,7 +366,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 
 		if ~(mod(line_count, 1000))
 			% give some feed back, however this is expensive so do so rarely
-			disp(['Processed line: ', num2str(line_count)]);
+			disp(['INFO: Processed line: ', num2str(line_count)]);
 			fflush(stdout) ;
 		endif
 
@@ -347,7 +384,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	autorate_log = log_struct;
 
 	% save autorate_log as mat file...
-	disp(['Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
+	disp(['INFO: Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
 	save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
 
 	return
@@ -457,21 +494,21 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 			if ~isfield(log_struct.metainformation, 'SKIP_root')
 				log_struct.metainformation.SKIP_root.count = 1;
 				% only warn once
-				disp(["Unhandled type identifier encountered: ", current_line(1:5), ' only noting once...']);
+				disp(["WARNING: Unhandled type identifier encountered: ", current_line(1:5), ' only noting once...']);
 			else
 				log_struct.metainformation.SKIP_root.count = log_struct.metainformation.SKIP_root.count + 1;
 			endif
 		otherwise
 			% this will be logged multiple times, but it can be triggered by different lines, so this seems OK.
-			disp(["Unhandled type identifier encountered: ", current_line(1:5), ' trying to ignore...']);
-			%error("Not handled yet, bailing out...");
+			disp(["WARNING: Unhandled type identifier encountered: ", current_line(1:5), ' trying to ignore...']);
+			%error("ERROR: Not handled yet, bailing out...");
 			cur_record_type = "SKIP";
 			if ~isfield(log_struct.metainformation, 'SKIP')
 				log_struct.metainformation.SKIP.count = 1;
 			else
 				log_struct.metainformation.SKIP.count = log_struct.metainformation.SKIP.count + 1;
 			endif
-		endswitch
+	endswitch
 
 	% define the parsing strings
 	switch cur_record_type
@@ -512,8 +549,8 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 		case {"SKIP_root", "SKIP"}
 			% ignore these.
 		otherwise
-			disp(["Unhandled record_type  encountered: ", cur_record_type, ' trying to ignore...']);
-			%error("Not handled yet, bailing out...");
+			disp(["WARNING: Unhandled record_type  encountered: ", cur_record_type, ' trying to ignore...']);
+			%error("ERROR: Not handled yet, bailing out...");
 	endswitch
 
 	return
@@ -545,7 +582,7 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 				case {"%f"}
 					log_struct.(cur_record_type).LISTS.(cur_listname) = nan([line_increment, 1]);
 				otherwise
-					error(["Unhandled listtype encountered: ", cur_listtype]);
+					error(["ERROR: Unhandled listtype encountered: ", cur_listtype]);
 			endswitch
 		endfor
 	endif
@@ -562,7 +599,7 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 				case {"%f"}
 					empty_list =  nan([line_increment, 1]);
 				otherwise
-					error(["Unhandled listtype encountered: ", cur_listtype]);
+					error(["ERROR: Unhandled listtype encountered: ", cur_listtype]);
 			endswitch
 			log_struct.(cur_record_type).LISTS.(cur_listname) = [log_struct.(cur_record_type).LISTS.(cur_listname); empty_list];
 		endfor
@@ -746,9 +783,9 @@ function [ ret_val ] = write_out_figure(img_fh, outfile_fqn, verbosity_str, prin
 
 	if strcmp(verbosity_str, 'verbose')
 		if ~isnumeric(img_fh)
-			disp(['Saved figure (', num2str(img_fh.Number), ') to: ', outfile_fqn]);	% >R2014b have structure figure handles
+			disp(['INFO: Saved figure (', num2str(img_fh.Number), ') to: ', outfile_fqn]);	% >R2014b have structure figure handles
 		else
-			disp(['Saved figure (', num2str(img_fh), ') to: ', outfile_fqn]);			% older Matlab has numeric figure handles
+			disp(['INFO: Saved figure (', num2str(img_fh), ') to: ', outfile_fqn]);			% older Matlab has numeric figure handles
 		endif
 	endif
 
@@ -764,7 +801,7 @@ function [ output_rect ] = fn_set_figure_outputpos_and_size( figure_handle, left
 	output_rect = [];
 
 	if ~ ishandle(figure_handle)
-		error(['First argument needs to be a figure handle...']);
+		error(['ERROR: First argument needs to be a figure handle...']);
 	end
 
 
@@ -776,5 +813,41 @@ function [ output_rect ] = fn_set_figure_outputpos_and_size( figure_handle, left
 
 
 	return
-end
+endfunction
+
+function [ out_x_range, do_return ] = fn_sanitize_x_range( x_range, n_samples )
+	do_return = 0;
+	out_x_range = x_range;
+
+	if isempty(x_range)
+		disp('INFO: Empty x_range specified, plotting all samples.');
+		x_range = [1, n_samples];
+		out_x_range = x_range;
+	endif
+
+	if (x_range(1) < 1)
+		disp(['WARNING: Range start (', num2str(x_range(1)),') out of bounds, forcing to 1']);
+		out_x_range(1) = 1;
+		do_return = 0;
+	endif
+
+	if (x_range(2) > n_samples)
+		disp(['WARNING: Range end (', num2str(x_range(2)), ') out of bounds, forcing to number of samples (', num2str(n_samples),').']);
+		out_x_range(2) = n_samples;
+		do_return = 0;
+	endif
+
+	if (out_x_range(1) == out_x_range(2))
+		disp('WARNING: Requested range is of size 1, please fix...');
+		do_return = 1;
+	endif
+
+	if (out_x_range(1) > out_x_range(2))
+		disp('WARNING: Requested range start is larger than range end, please fix...');
+		do_return = 1;
+	endif
+
+	return
+endfunction
+
 
