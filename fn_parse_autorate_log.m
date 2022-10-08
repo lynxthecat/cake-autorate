@@ -54,6 +54,11 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 	% dissect the fully qualified name
 	[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
+	% check whether we did successfully load some data, other wise bai out:
+	if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
+		disp('No valid data found, nothing to plot?');
+		return
+	endif
 	% select the sample range to display:
 	% NOTE: on start up the delay measurements contain unrealistic large values to skip a few of the initial values
 	% otherwise just set these to match the area you want to "magnify"
@@ -128,6 +133,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 
 	cur_sph = subplot(2, 2, [1 2]);
 
+
 	%plot data on both axes
 	% use this as dummy to create the axis:
 	cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.fields_to_plot_list{1})(rates_x_idx) * rates.scale_factor;
@@ -182,6 +188,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		endif
 		set(AX(2), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
 	endif
+
+	title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(1))); ...
+					'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end)))]);
+
 
 
 	cur_sph = subplot(2, 2, 3);
