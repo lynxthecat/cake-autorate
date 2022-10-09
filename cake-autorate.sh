@@ -838,6 +838,9 @@ verify_ifs_up
 # Initialize variables
 
 # Convert human readable parameters to values that work with integer arithmetic
+
+printf -v dl_delay_thr_us %.0f\\n "${dl_delay_thr_ms}e3"
+printf -v ul_delay_thr_us %.0f\\n "${ul_delay_thr_ms}e3"
 printf -v alpha_baseline_increase %.0f\\n "${alpha_baseline_increase}e3"
 printf -v alpha_baseline_decrease %.0f\\n "${alpha_baseline_decrease}e3"   
 printf -v achieved_rate_adjust_down_bufferbloat %.0f\\n "${achieved_rate_adjust_down_bufferbloat}e3"
@@ -856,9 +859,6 @@ printf -v reflector_response_deadline_us %.0f\\n "${reflector_response_deadline_
 global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
 decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
-
-dl_delay_thr_us=$(( 1000*$dl_delay_thr_ms ))
-ul_delay_thr_us=$(( 1000*$ul_delay_thr_ms ))
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
