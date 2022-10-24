@@ -839,22 +839,22 @@ verify_ifs_up
 
 # Convert human readable parameters to values that work with integer arithmetic
 
-printf -v dl_delay_thr_us %.0f\\n "${dl_delay_thr_ms}e3"
-printf -v ul_delay_thr_us %.0f\\n "${ul_delay_thr_ms}e3"
-printf -v alpha_baseline_increase %.0f\\n "${alpha_baseline_increase}e3"
-printf -v alpha_baseline_decrease %.0f\\n "${alpha_baseline_decrease}e3"   
-printf -v achieved_rate_adjust_down_bufferbloat %.0f\\n "${achieved_rate_adjust_down_bufferbloat}e3"
-printf -v shaper_rate_adjust_down_bufferbloat %.0f\\n "${shaper_rate_adjust_down_bufferbloat}e3"
-printf -v shaper_rate_adjust_up_load_high %.0f\\n "${shaper_rate_adjust_up_load_high}e3"
-printf -v shaper_rate_adjust_down_load_low %.0f\\n "${shaper_rate_adjust_down_load_low}e3"
-printf -v shaper_rate_adjust_up_load_low %.0f\\n "${shaper_rate_adjust_up_load_low}e3"
-printf -v high_load_thr_percent %.0f\\n "${high_load_thr}e2"
-printf -v medium_load_thr_percent %.0f\\n "${medium_load_thr}e2"
-printf -v reflector_ping_interval_ms %.0f\\n "${reflector_ping_interval_s}e3"
-printf -v reflector_ping_interval_us %.0f\\n "${reflector_ping_interval_s}e6"
-printf -v monitor_achieved_rates_interval_us %.0f\\n "${monitor_achieved_rates_interval_ms}e3"
-printf -v sustained_idle_sleep_thr_us %.0f\\n "${sustained_idle_sleep_thr_s}e6"
-printf -v reflector_response_deadline_us %.0f\\n "${reflector_response_deadline_s}e6"
+printf -v dl_delay_thr_us %.0f "${dl_delay_thr_ms}e3"
+printf -v ul_delay_thr_us %.0f "${ul_delay_thr_ms}e3"
+printf -v alpha_baseline_increase %.0f "${alpha_baseline_increase}e3"
+printf -v alpha_baseline_decrease %.0f "${alpha_baseline_decrease}e3"   
+printf -v achieved_rate_adjust_down_bufferbloat %.0f "${achieved_rate_adjust_down_bufferbloat}e3"
+printf -v shaper_rate_adjust_down_bufferbloat %.0f "${shaper_rate_adjust_down_bufferbloat}e3"
+printf -v shaper_rate_adjust_up_load_high %.0f "${shaper_rate_adjust_up_load_high}e3"
+printf -v shaper_rate_adjust_down_load_low %.0f "${shaper_rate_adjust_down_load_low}e3"
+printf -v shaper_rate_adjust_up_load_low %.0f "${shaper_rate_adjust_up_load_low}e3"
+printf -v high_load_thr_percent %.0f "${high_load_thr}e2"
+printf -v medium_load_thr_percent %.0f "${medium_load_thr}e2"
+printf -v reflector_ping_interval_ms %.0f "${reflector_ping_interval_s}e3"
+printf -v reflector_ping_interval_us %.0f "${reflector_ping_interval_s}e6"
+printf -v monitor_achieved_rates_interval_us %.0f "${monitor_achieved_rates_interval_ms}e3"
+printf -v sustained_idle_sleep_thr_us %.0f "${sustained_idle_sleep_thr_s}e6"
+printf -v reflector_response_deadline_us %.0f "${reflector_response_deadline_s}e6"
 
 global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
 bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
@@ -864,8 +864,8 @@ for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
 	printf -v sss_times_us[i] %.0f\\n "${sss_times_s[i]}e6"
 done
-printf -v sss_compensation_pre_duration_us %.0f\\n "${sss_compensation_pre_duration_ms}e3"
-printf -v sss_compensation_post_duration_us %.0f\\n "${sss_compensation_post_duration_ms}e3"
+printf -v sss_compensation_pre_duration_us %.0f "${sss_compensation_pre_duration_ms}e3"
+printf -v sss_compensation_post_duration_us %.0f "${sss_compensation_post_duration_ms}e3"
 
 ping_response_interval_us=$(($reflector_ping_interval_us/$no_pingers))
 ping_response_interval_ms=$(($ping_response_interval_us/1000))
@@ -1069,7 +1069,16 @@ do
 	do
 		t_start_us=${EPOCHREALTIME/./}	
 		get_loads
-		(($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)) && break 
+
+		if (($output_processing_stats)); then 
+			
+			printf -v load_stats '%s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			log_msg "LOAD" "$load_stats"
+		fi
+		if (($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)); then
+			(($debug)) && log_msg "DEBUG" "dl load percent: $dl_load_percent or ul load percent: $ul_load_percent exceeded medium load threshold percent: ${medium_load_thr_percent}. Resuming normal operation."
+			break 
+		fi
 		sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
 	done
 
