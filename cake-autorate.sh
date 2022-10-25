@@ -55,12 +55,16 @@ log_msg_bypass_fifo()
 
 }
 
-print_header()
+print_headers()
 {
-	header="HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
-
+	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	(($log_to_file)) && printf '%s\n' "$header" > /var/run/cake-autorate/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
+
+	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS"
+ 	(($log_to_file)) && printf '%s\n' "$header" > /var/run/cake-autorate/log_fifo
+ 	[[ -t 1 ]] && printf '%s\n' "$header"
+
 }
 
 # MAINTAIN_LOG_FILE + HELPER FUNCTIONS
@@ -68,7 +72,7 @@ print_header()
 rotate_log_file()
 {
 	mv /var/log/cake-autorate.log /var/log/cake-autorate.log.old
-	(($output_processing_stats)) && print_header
+	(($output_processing_stats)) && print_headers
 }
 
 export_log_file()
@@ -260,6 +264,12 @@ monitor_achieved_rates()
 	
 		printf '%s' "$dl_achieved_rate_kbps" > /var/run/cake-autorate/dl_achieved_rate_kbps
 		printf '%s' "$ul_achieved_rate_kbps" > /var/run/cake-autorate/ul_achieved_rate_kbps
+		
+		if (($output_load_stats)); then 
+			
+			printf -v load_stats '%s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps
+			log_msg "LOAD" "$load_stats"
+		fi
 
 		prev_rx_bytes=$rx_bytes
        		prev_tx_bytes=$tx_bytes
@@ -1070,11 +1080,6 @@ do
 		t_start_us=${EPOCHREALTIME/./}	
 		get_loads
 
-		if (($output_processing_stats)); then 
-			
-			printf -v load_stats '%s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $dl_shaper_rate_kbps $ul_shaper_rate_kbps
-			log_msg "LOAD" "$load_stats"
-		fi
 		if (($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)); then
 			(($debug)) && log_msg "DEBUG" "dl load percent: $dl_load_percent or ul load percent: $ul_load_percent exceeded medium load threshold percent: ${medium_load_thr_percent}. Resuming normal operation."
 			break 
