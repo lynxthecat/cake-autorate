@@ -12,6 +12,7 @@ cake_autorate_version="1.1.0"
 # *** OUTPUT AND LOGGING OPTIONS ***
 
 output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
+output_load_stats=1       # enable (1) or disable (0) output monitoring lines showing achieved loads
 output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
 debug=1 		  # enable (1) or disable (0) out of debug lines
 
@@ -47,8 +48,8 @@ no_pingers=4
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=12 # (milliseconds)
-ul_delay_thr_ms=12 # (milliseconds)
+dl_delay_thr_ms=40 # (milliseconds)
+ul_delay_thr_ms=40 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -56,11 +57,11 @@ adjust_dl_shaper_rate=1 # enable (1) or disable (0) actually changing the dl sha
 adjust_ul_shaper_rate=1 # enable (1) or disable (0) actually changing the ul shaper rate
 
 min_dl_shaper_rate_kbps=10000  # minimum bandwidth for download (Kbit/s)
-base_dl_shaper_rate_kbps=25000 # steady state bandwidth for download (Kbit/s)
-max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
+base_dl_shaper_rate_kbps=40000 # steady state bandwidth for download (Kbit/s)
+max_dl_shaper_rate_kbps=75000  # maximum bandwidth for download (Kbit/s)
 
-min_ul_shaper_rate_kbps=25000  # minimum bandwidth for upload (Kbit/s)
-base_ul_shaper_rate_kbps=30000 # steady state bandwidth for upload (KBit/s)
+min_ul_shaper_rate_kbps=5000  # minimum bandwidth for upload (Kbit/s)
+base_ul_shaper_rate_kbps=25000 # steady state bandwidth for upload (KBit/s)
 max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 
 # sleep functionality saves unecessary pings and CPU cycles by
@@ -95,8 +96,8 @@ monitor_achieved_rates_interval_ms=200 # (milliseconds)
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
-bufferbloat_detection_window=4  # number of samples to retain in detection window
-bufferbloat_detection_thr=2     # number of delayed samples for bufferbloat detection
+bufferbloat_detection_window=10  # number of samples to retain in detection window
+bufferbloat_detection_thr=5      # number of delayed samples for bufferbloat detection
 
 # RTT baseline against which to measure delays
 # the idea is that the baseline is allowed to increase slowly to allow for path changes
