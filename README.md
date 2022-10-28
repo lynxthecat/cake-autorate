@@ -110,7 +110,7 @@ copying and pasting each of the commands below:
 A compressed log file can be extracted from a running cake-autorate instance using:
 
 ```bash
-kill -USR1 $(cat /var/run/maintain_logs_pid)
+kill -USR1 $(cat /var/run/cake-autorate/maintain_log_file_pid)
 ```
 
 This will place a compressed log file in /var/log with the date and time in its filename
