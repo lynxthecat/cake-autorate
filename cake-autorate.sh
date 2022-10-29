@@ -71,7 +71,7 @@ print_headers()
 
 rotate_log_file()
 {
-	mv ${log_file_path}/cake-autorate.log ${log_file_path}/cake-autorate.log.old
+	[[ -f ${log_file_path}/cake-autorate.log ]] && mv ${log_file_path}/cake-autorate.log ${log_file_path}/cake-autorate.log.old
 	(($output_processing_stats)) && print_headers
 }
 
@@ -137,7 +137,7 @@ maintain_log_file()
 	t_log_file_start_us=${EPOCHREALTIME/./}
 	log_file_size_bytes=0
 
-	[[ -f ${log_file_path}/cake-autorate.log ]] && rotate_log_file
+	rotate_log_file
 
 	while read log_line
 	do
