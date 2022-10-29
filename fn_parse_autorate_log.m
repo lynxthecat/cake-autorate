@@ -144,19 +144,28 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		% chop of the trailing samples
 		delays_x_idx = setdiff(delays_x_idx, (x_range(2):1:length(autorate_log.DATA.LISTS.RECORD_TYPE)));
 
+		% use real sample times, PROC_TIME_US is seconds.NNNNNN
+		% to make things less odd report times in seconds since the log start
+		x_vec = (autorate_log.DATA.LISTS.PROC_TIME_US .- autorate_log.DATA.LISTS.PROC_TIME_US(1));
+		x_label_string = 'time from log file start [sec]'; % or 'autorate samples'
+		disp(['Selected sample indices: ', num2str(x_range)]);
+
+		%TODO detect sleep periods and mark in graphs
+
+
 
 		adjusted_ylim_delay = [];
 		if ~isempty(scale_delay_axis_by_ADJ_DELAY_THR_factor)
 			%ylim_delays = get(AX(2), 'YLim');
 			if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
-				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR);
-				dl_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR);
+				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR(delays_x_idx));
+				dl_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR(delays_x_idx));
 			endif
 			if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
-				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.UL_ADJ_DELAY_THR);
+				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.UL_ADJ_DELAY_THR(delays_x_idx));
 			endif
 			if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
-				dl_max_adj_delay_thr = max(autorate_log.DATA.LISTS.DL_ADJ_DELAY_THR);
+				dl_max_adj_delay_thr = max(autorate_log.DATA.LISTS.DL_ADJ_DELAY_THR(delays_x_idx));
 			endif
 			% delays.sign_list is orderd DL*, UL*, DL*, ...
 			adjusted_ylim_delay(1) = (sign(delays.sign_list{2}) * ul_max_adj_delay_thr * scale_delay_axis_by_ADJ_DELAY_THR_factor);
@@ -226,9 +235,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		endfor
 		%legend(legend_list, 'Interpreter', 'none');
 		hold off
-		xlabel('autorate samples');
+		xlabel(x_label_string);
 		ylabel('Delay [milliseconds]');
-		set(AX(1), 'XLim', x_range);
+		set(AX(1), 'XLim', x_vec(x_range));
 
 		if ~isempty(adjusted_ylim_delay)
 			set(AX(1), 'YLim', (adjusted_ylim_delay * delays.scale_factor));
@@ -242,9 +251,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 		endfor
 		%legend(legend_list, 'Interpreter', 'none');
 		hold off
-		xlabel(AX(2),'autorate samples');
+		xlabel(AX(2), x_label_string);
 		ylabel(AX(2), 'Rate [Mbps]');
-		set(AX(2), 'XLim', x_range);
+		set(AX(2), 'XLim', x_vec(x_range));
 
 
 
@@ -272,8 +281,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 			set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
 		endif
 
-		title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(1))); ...
-		'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end)))]);
+		title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(1))), '; sample index: ', num2str(x_range(1)); ...
+		'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(rates_x_idx(end))), '; sample index: ', num2str(x_range(2))]);
 
 
 
@@ -298,9 +307,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
 		end_try_catch
 		hold off
-		xlabel('autorate samples');
+		xlabel(x_label_string);
 		ylabel('Rate [Mbps]');
-		set(cur_sph, 'XLim', x_range);
+		set(cur_sph, 'XLim', x_vec(x_range));
 
 		cur_sph = subplot(2, 2, 4);
 		% delays
@@ -324,9 +333,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN )
 			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
 		end_try_catch
 		hold off
-		xlabel('autorate samples');
+		xlabel(x_label_string);
 		ylabel('Delay [milliseconds]');
-		set(cur_sph, 'XLim', x_range);
+		set(cur_sph, 'XLim', x_vec(x_range));
 
 		if isempty(plot_FQN)
 			if ((x_range(1) ~= 1) || (x_range(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
@@ -378,6 +387,8 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.DEBUG = [];
 	log_struct.HEADER = [];
 	log_struct.DATA = [];
+	log_struct.LOAD_HEADER = [];
+	log_struct.LOAD = [];
 	log_struct.INFO = [];
 	log_struct.metainformation = [];
 
@@ -540,7 +551,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 			else
 				log_struct.metainformation.DEBUG.count = log_struct.metainformation.DEBUG.count + 1;
 			endif
-		case {"HEADE"}
+		case {"DATA_", "HEADE"}
 			cur_record_type = "HEADER";
 			if ~isfield(log_struct.metainformation, 'HEADER')
 				log_struct.metainformation.HEADER.count = 1;
@@ -553,6 +564,20 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				log_struct.metainformation.DATA.count = 1;
 			else
 				log_struct.metainformation.DATA.count = log_struct.metainformation.DATA.count + 1;
+			endif
+		case {"LOAD_"}
+			cur_record_type = "LOAD_HEADER";
+			if ~isfield(log_struct.metainformation, 'LOAD_HEADER')
+				log_struct.metainformation.LOAD_HEADER.count = 1;
+			else
+				log_struct.metainformation.LOAD_HEADER.count = log_struct.metainformation.HEADER.count + 1;
+			endif
+		case {"LOAD;"}
+			cur_record_type = "LOAD";
+			if ~isfield(log_struct.metainformation, 'LOAD')
+				log_struct.metainformation.LOAD.count = 1;
+			else
+				log_struct.metainformation.LOAD.count = log_struct.metainformation.LOAD.count + 1;
 			endif
 		case {"SHAPE"}
 			cur_record_type = "SHAPER";
@@ -598,9 +623,9 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				log_struct.DEBUG.listtypes = {"%s", "%s", "%f", "%s"};
 				log_struct.DEBUG.format_string = fn_compose_format_string(log_struct.DEBUG.listtypes);
 			endif
-		case {"HEADER"}
+		case {"HEADER", "DATA_"}
 			if ~isfield(log_struct.HEADER, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
-				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list);
+				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'HEADER', 'DATA');
 				% HEADER stays mostly empty
 				%log_struct.HEADER.format_string = "";
 				%log_struct.HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
@@ -613,6 +638,22 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				log_struct.DATA.format_string = "";
 				log_struct.DATA.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
 				log_struct.DATA.listtypes = {};
+			endif
+		case {"LOAD_HEADER"}
+			if ~isfield(log_struct.LOAD_HEADER, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
+				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'LOAD_HEADER', 'LOAD');
+				% HEADER stays mostly empty
+				%log_struct.HEADER.format_string = "";
+				%log_struct.HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+				%log_struct.HEADER.listtypes = {};
+			endif
+		case {"LOAD"}
+			if ~isfield(log_struct.LOAD, 'listtypes') || isempty(log_struct.LOAD.listtypes)
+				%throw error as this needs to be filled from header already...
+				% fill this from the header
+				log_struct.LOAD.format_string = "";
+				log_struct.LOAD.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+				log_struct.LOAD.listtypes = {};
 			endif
 		case {"SHAPER"}
 			if ~isfield(log_struct.SHAPER, 'listtypes') || isempty(log_struct.SHAPER.listtypes)
@@ -722,7 +763,7 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 	return
 endfunction
 
-function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, delimiter_string, string_field_identifier_list )
+function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, delimiter_string, string_field_identifier_list, HEADER_RECORD_name, DATA_RECORD_name )
 	global log_struct
 
 	% dissect the names
@@ -731,8 +772,8 @@ function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, del
 	cell_array_of_field_names{1} = 'RECORD_TYPE'; % give this a better name than HEADER...
 
 	for i_field = 1 : length(cell_array_of_field_names)
-		log_struct.HEADER.listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
-		log_struct.DATA.listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
+		log_struct.(HEADER_RECORD_name).listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
+		log_struct.(DATA_RECORD_name).listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
 
 		cur_type_string = '%f'; % default to numeric
 		for i_string_identifier = 1 : length(string_field_identifier_list)
@@ -743,10 +784,10 @@ function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, del
 		endfor
 
 		%strcmp(log_struct.DATA.listnames{i_field}, 'TYPE')
-		log_struct.DATA.listtypes{i_field} = cur_type_string;
+		log_struct.(DATA_RECORD_name).listtypes{i_field} = cur_type_string;
 	end
 
-	log_struct.DATA.format_string = fn_compose_format_string(log_struct.DATA.listtypes);
+	log_struct.(DATA_RECORD_name).format_string = fn_compose_format_string(log_struct.(DATA_RECORD_name).listtypes);
 
 	return
 endfunction
@@ -917,15 +958,16 @@ function [ out_x_range, do_return ] = fn_sanitize_x_range( x_range, n_samples )
 		do_return = 0;
 	endif
 
+	if (out_x_range(1) > out_x_range(2))
+		disp('WARNING: Requested range start is larger than range end, please fix...');
+		do_return = 1;
+	endif
+
 	if (out_x_range(1) == out_x_range(2))
 		disp('WARNING: Requested range is of size 1, please fix...');
 		do_return = 1;
 	endif
 
-	if (out_x_range(1) > out_x_range(2))
-		disp('WARNING: Requested range start is larger than range end, please fix...');
-		do_return = 1;
-	endif
 
 	return
 endfunction
