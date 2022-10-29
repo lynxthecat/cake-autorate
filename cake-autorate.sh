@@ -22,8 +22,8 @@ cleanup_and_killall()
 {
 	trap - INT TERM EXIT
 
-	log_msg "INFO" ""
-	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
+	log_msg_bypass_fifo "INFO" ""
+	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 
 	kill $monitor_achieved_rates_pid $maintain_pingers_pid $maintain_log_file_pid 2> /dev/null
 
@@ -50,7 +50,7 @@ log_msg_bypass_fifo()
 	local type=$1
 	local msg=$2
 
-        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> /var/log/cake-autorate.log
+        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> ${log_file_path}/cake-autorate.log
         [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 
 }
@@ -71,7 +71,7 @@ print_headers()
 
 rotate_log_file()
 {
-	mv /var/log/cake-autorate.log /var/log/cake-autorate.log.old
+	mv ${log_file_path}/cake-autorate.log ${log_file_path}/cake-autorate.log.old
 	(($output_processing_stats)) && print_headers
 }
 
@@ -83,9 +83,9 @@ export_log_file()
 
 		default)
 	
-			printf -v log_file_export_datetime '%(%F-%H:%M:%S)T'
-        		(($debug)) && log_msg "DEBUG" "Exporting log file with default path: /var/log/cake-autorate_$log_file_export_datetime.log"
-        		log_file_export_path="/var/log/cake-autorate_$log_file_export_datetime.log"
+			printf -v log_file_export_datetime '%(%F_%H_%M_%S)T'
+        		(($debug)) && log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path}/cake-autorate_$log_file_export_datetime.log"
+        		log_file_export_path="${log_file_path}/cake-autorate_$log_file_export_datetime.log"
         		;;
 
 		alternative)
@@ -101,18 +101,18 @@ export_log_file()
 
 	# Now export with or without compression to the appropriate export path
 	if (($log_file_export_compress)); then
-		if [[ -f /var/log/cake-autorate.log.old ]]; then 
-			gzip -c /var/log/cake-autorate.log.old > ${log_file_export_path}.gz
-			gzip -c /var/log/cake-autorate.log >> ${log_file_export_path}.gz
+		if [[ -f ${log_file_path}/cake-autorate.log.old ]]; then 
+			gzip -c ${log_file_path}/cake-autorate.log.old > ${log_file_export_path}.gz
+			gzip -c ${log_file_path}/cake-autorate.log >> ${log_file_export_path}.gz
 		else
-			gzip -c /var/log/cake-autorate.log > ${log_file_export_path}.gz
+			gzip -c ${log_file_path}/cake-autorate.log > ${log_file_export_path}.gz
 		fi
 	else
-		if [[ -f /var/log/cake-autorate.log.old ]]; then 
-			cp /var/log/cake-autorate.log.old ${log_file_export_path}.old
-			cp /var/log/cake-autorate.log >> $log_file_export_path
+		if [[ -f ${log_file_path}/cake-autorate.log.old ]]; then 
+			cp ${log_file_path}/cake-autorate.log.old ${log_file_export_path}.old
+			cp ${log_file_path}/cake-autorate.log >> $log_file_export_path
 		else
-			cp /var/log/cake-autorate.log $log_file_export_path
+			cp ${log_file_path}/cake-autorate.log $log_file_export_path
 		fi
 	fi
 }
@@ -122,7 +122,7 @@ kill_maintain_log_file()
 	trap - TERM EXIT
 	while read -t 0.1 log_line
 	do
-		printf '%s\n' "$log_line" >> /var/log/cake-autorate.log		
+		printf '%s\n' "$log_line" >> ${log_file_path}/cake-autorate.log		
 	done</var/run/cake-autorate/log_fifo
 	exit
 }
@@ -137,16 +137,16 @@ maintain_log_file()
 	t_log_file_start_us=${EPOCHREALTIME/./}
 	log_file_size_bytes=0
 
-	[[ -f /var/log/cake-autorate.log ]] && rotate_log_file
+	[[ -f ${log_file_path}/cake-autorate.log ]] && rotate_log_file
 
 	while read log_line
 	do
 
-		printf '%s\n' "$log_line" >> /var/log/cake-autorate.log		
+		printf '%s\n' "$log_line" >> ${log_file_path}/cake-autorate.log		
 
 		# Verify log file size < configured maximum
 		# The following two lines with costly call to 'du':
-		# 	read log_file_size_bytes< <(du -b /var/log/cake-autorate.log)
+		# 	read log_file_size_bytes< <(du -b ${log_file_path}/cake-autorate.log)
 		# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
 		# can be more efficiently handled with this line:
 		((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
@@ -778,10 +778,12 @@ sleep_remaining_tick_time()
 
 trap ":" USR1
 
+log_file_path=/var/log
 
 [[ ! -f $install_dir"cake-autorate_config.sh" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
 . $install_dir"cake-autorate_config.sh"
 [[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
+[[ ! -d $log_file_path ]] && { broken_log_file_path=$log_file_path; log_file_path=/var/log log_msg_bypass_fifo "ERROR" "Log file path: '$broken_log_file_path' does not exist. Exiting now."; exit; }
 
 # /var/run/cake-autorate/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
@@ -824,7 +826,7 @@ fi
 
 # test if stdout is a tty (terminal)
 if [[ ! -t 1 ]]; then
-	"stdout not a terminal so redirecting output to: /var/log/cake-autorate.log"
+	"stdout not a terminal so redirecting output to: ${log_file_path}/cake-autorate.log"
 	(($log_to_file)) && exec &> /var/run/cake-autorate/log_fifo
 fi
 
@@ -834,6 +836,7 @@ if (( $debug )) ; then
 	log_msg "DEBUG" "Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
 	log_msg "DEBUG" "rx_bytes_path: $rx_bytes_path"
 	log_msg "DEBUG" "tx_bytes_path: $tx_bytes_path"
+	log_msg "DEBUG" "log_file_path: $log_file_path"
 fi
 
 # Wait if $startup_wait_s > 0
