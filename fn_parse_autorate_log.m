@@ -60,6 +60,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			plot_FQN = [];
 		else
 			disp(['INFO: Trying to save plot as: ', plot_FQN]);
+			[plot_path, plot_name, plot_ext] = fileparts(plot_FQN);
 		endif
 
 		% load the data file
@@ -214,6 +215,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		endif
 		%TODO detect sleep periods and mark in graphs
 
+		% for plot naming
+		if ((x_range.DATA(1) ~= 1) || (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
+			n_range_digits = ceil(max(log10(x_range.DATA)));
+			range_string = ['.', 'sample_', num2str(x_range.DATA(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range.DATA(2), ['%0', num2str(n_range_digits), 'd'])];
+		else
+			range_string = '';
+		endif
 
 
 		adjusted_ylim_delay = [];
@@ -266,9 +274,211 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
 
 
-		% plot something
+		% create CDFs for each reflector, for both DL_OWD_US and UL_OWD_US
+		% for low congestion state (low achieved rate with shaper at baseline rate)
+		% and for high congestion state (high achieved rate close ot shaper rate)?
 
-		autorate_fh = figure('Name', 'CAKE-autorate log file display', 'visible', figure_visibility_string);
+		disp('Doh...');
+		% load conditions, ideally we want congestion condition, but the best estimate we have
+		% are load conditions, since we want to look at differences in delay we should not
+		% directly classify based on delay, hence load it is.
+		LowLoad_threshold_percent = 20;
+		HighLoad_threshold_percent = 80;
+		UL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT <= LowLoad_threshold_percent);
+		UL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT >= HighLoad_threshold_percent);
+		DL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT <= LowLoad_threshold_percent);
+		DL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT >= HighLoad_threshold_percent);
+
+
+		% what range to calculate the CDFs over? We can always reduce the plotted range later
+		CDF_range_ms = [0, 1000];
+		CDF_x_vec = (CDF_range_ms(1):0.01:CDF_range_ms(end));
+		unique_reflector_list = unique(autorate_log.DATA.LISTS.REFLECTOR);
+		n_unique_reflectors = length(unique_reflector_list);
+
+		UL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+		UL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+		UL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+		DL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+		DL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+		DL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+		for i_reflector = 1:n_unique_reflectors
+			cur_reflector = unique_reflector_list{i_reflector};
+			cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, {cur_reflector}));
+			% get the sub groups
+			cur_All_sample_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+			cur_UL_LowLoad_sample_idx = intersect(cur_All_sample_idx, UL_LowLoad_sample_idx);
+			cur_UL_HighLoad_sample_idx = intersect(cur_All_sample_idx, UL_HighLoad_sample_idx);
+			cur_DL_LowLoad_sample_idx = intersect(cur_All_sample_idx, DL_LowLoad_sample_idx);
+			cur_DL_HighLoad_sample_idx = intersect(cur_All_sample_idx, DL_HighLoad_sample_idx);
+			% calculate the CDFs
+			if ~isempty(cur_All_sample_idx)
+				UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.UL_OWD_US(cur_All_sample_idx) * delays.DATA.scale_factor));
+			endif
+			if ~isempty(cur_UL_LowLoad_sample_idx)
+				UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.UL_OWD_US(cur_UL_LowLoad_sample_idx) * delays.DATA.scale_factor));
+			endif
+			if ~isempty(cur_UL_HighLoad_sample_idx)
+				UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.UL_OWD_US(cur_UL_HighLoad_sample_idx) * delays.DATA.scale_factor));
+			endif
+			if ~isempty(cur_All_sample_idx)
+				DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.DL_OWD_US(cur_All_sample_idx) * delays.DATA.scale_factor));
+			endif
+			if ~isempty(cur_DL_LowLoad_sample_idx)
+				DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.DL_OWD_US(cur_DL_LowLoad_sample_idx) * delays.DATA.scale_factor));
+			endif
+			if ~isempty(cur_DL_HighLoad_sample_idx)
+				DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.DL_OWD_US(cur_DL_HighLoad_sample_idx) * delays.DATA.scale_factor));
+			endif
+		endfor
+
+
+		autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_visibility_string);
+		[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
+
+		% do a 2 by 2 matrix:
+		% upper row col1: DL all samples
+		%			col2: UL all samples
+		% lower row col1: DL low vs high load
+		%			col2: UL low vs high load
+		% common properties
+		cummulative_range_percent = [0, 99.9];
+		% get unique colors but avoid black and white
+		tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
+		color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
+
+
+		cur_sph = subplot(2, 2, 1);
+		hold on
+		% the range of CDF to plot
+		cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
+		cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
+		for i_reflector = 1:n_unique_reflectors
+			cur_reflector_color = color_by_reflector_array(i_reflector, :);
+			cur_data = 100* DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
+			plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+			% also get the 99.9 % index
+			if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+			endif
+		endfor
+		hold off
+		set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
+		set(cur_sph, 'YLim', [0, 100]);
+		xlabel(cur_sph, 'delay [ms]');
+		ylabel(cur_sph, 'cummulative density [%]')
+		title(cur_sph, 'Download OWD, all samples');
+
+		cur_sph = subplot(2, 2, 2);
+		hold on
+		% the range of CDF to plot
+		cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
+		cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
+		for i_reflector = 1:n_unique_reflectors
+			cur_reflector_color = color_by_reflector_array(i_reflector, :);
+			cur_data = 100* UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
+			plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+			% also get the 99.9 % index
+			if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+			endif
+		endfor
+		hold off
+		set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
+		set(cur_sph, 'YLim', [0, 100]);
+		xlabel(cur_sph, 'delay [ms]');
+		ylabel(cur_sph, 'cummulative density [%]')
+		title(cur_sph, 'Upload OWD, all samples');
+
+		cur_sph = subplot(2, 2, 3);
+		hold on
+		% the range of CDF to plot
+		cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
+		cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
+		for i_reflector = 1:n_unique_reflectors
+			cur_reflector_color = color_by_reflector_array(i_reflector, :);
+			cur_data = 100* DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+			plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+			% also get the 99.9 % index
+			% also get the 99.9 % index
+			if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+			endif
+
+			cur_data = 100* DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+			plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
+			% also get the 99.9 % index
+			if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+			endif
+		endfor
+		hold off
+		set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
+		set(cur_sph, 'YLim', [0, 100]);
+		xlabel(cur_sph, 'delay [ms]');
+		ylabel(cur_sph, 'cummulative density [%]')
+		title(cur_sph, 'Download OWD, high versus low load');
+
+		cur_sph = subplot(2, 2, 4);
+		hold on
+		% the range of CDF to plot
+		cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
+		cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
+		for i_reflector = 1:n_unique_reflectors
+			cur_reflector_color = color_by_reflector_array(i_reflector, :);
+			cur_data = 100* UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+			plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+			% also get the 99.9 % index
+			if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+			endif
+
+			cur_data = 100* UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+			plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
+			% also get the 99.9 % index
+			if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+			endif
+		endfor
+		hold off
+		set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
+		set(cur_sph, 'YLim', [0, 100]);
+		xlabel(cur_sph, 'delay [ms]');
+		ylabel(cur_sph, 'cummulative density [%]')
+		title(cur_sph, 'Upload OWD, high versus low load');
+
+		if isempty(plot_FQN)
+			cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.CDFs', range_string, output_format_extension]);
+		else
+			cur_plot_FQN = fullfile(plot_path, [plot_name, '.CDFs', range_string, plot_ext]);
+		endif
+
+		disp(['INFO: Writing plot as: ', cur_plot_FQN]);
+		write_out_figure(autorate_CDF_fh, cur_plot_FQN, [], []);
+
+
+
+		% plot timecourses
+
+		autorate_fh = figure('Name', 'CAKE-autorate log: rate & delay timecourses', 'visible', figure_visibility_string);
 		[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
 
 
@@ -416,17 +626,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		set(cur_sph, 'XLim', x_vec_range);
 
 		if isempty(plot_FQN)
-			if ((x_range.DATA(1) ~= 0) || (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
-				n_range_digits = ceil(max(log10(x_range.DATA)));
-				range_string = ['.', 'sample_', num2str(x_range.DATA(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range.DATA(2), ['%0', num2str(n_range_digits), 'd']), '.'];
-			else
-				range_string = '';
-			endif
-			plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension]);
+			cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, output_format_extension]);
+		else
+			cur_plot_FQN = fullfile(plot_path, [plot_name, '.timecourse', range_string, plot_ext]);
 		endif
 
-		disp(['INFO: Writing plot as: ', plot_FQN]);
-		write_out_figure(autorate_fh, plot_FQN, [], []);
+		disp(['INFO: Writing plot as: ', cur_plot_FQN]);
+		write_out_figure(autorate_fh, cur_plot_FQN, [], []);
 
 	catch err
   		warning(err.identifier, err.message);
