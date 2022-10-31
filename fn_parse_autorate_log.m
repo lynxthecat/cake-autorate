@@ -42,6 +42,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 
 	% for debugging anything else than '' or 'load_existing' will force the file to be reparsed
 	parse_command_string = ''; % load_existing or reload
+	plot_CDFs = 1;
+	plot_timecourse = 1;
 
 	try
 
@@ -49,7 +51,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		if ~exist('log_FQN', 'var') || isempty(log_FQN)
 			log_FQN = [];
 			% for debugging
-			log_FQN = "./SCRATCH/cake-autorate_2022-10-29_23_29_45.log";
+			%log_FQN = "./SCRATCH/cake-autorate_2022-10-29_23_29_45.log";
 		else
 			disp(['INFO: Processing log file: ', log_FQN]);
 			figure_visibility_string = 'off';
@@ -60,6 +62,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			plot_FQN = [];
 		else
 			disp(['INFO: Trying to save plot as: ', plot_FQN]);
+			[plot_path, plot_name, plot_ext] = fileparts(plot_FQN);
 		endif
 
 		% load the data file
@@ -214,6 +217,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		endif
 		%TODO detect sleep periods and mark in graphs
 
+		% for plot naming
+		if ((x_range.DATA(1) ~= 1) || (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
+			n_range_digits = ceil(max(log10(x_range.DATA)));
+			range_string = ['.', 'sample_', num2str(x_range.DATA(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range.DATA(2), ['%0', num2str(n_range_digits), 'd'])];
+		else
+			range_string = '';
+		endif
 
 
 		adjusted_ylim_delay = [];
@@ -266,168 +276,421 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
 
 
-		% plot something
+		% create CDFs for each reflector, for both DL_OWD_US and UL_OWD_US
+		% for low congestion state (low achieved rate with shaper at baseline rate)
+		% and for high congestion state (high achieved rate close ot shaper rate)?
 
-		autorate_fh = figure('Name', 'CAKE-autorate log file display', 'visible', figure_visibility_string);
-		[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
+		if (plot_CDFs)
+			% load conditions, ideally we want congestion condition, but the best estimate we have
+			% are load conditions, since we want to look at differences in delay we should not
+			% directly classify based on delay, hence load it is.
+			LowLoad_threshold_percent = 20;
+			HighLoad_threshold_percent = 80;
+			UL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT <= LowLoad_threshold_percent);
+			UL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT >= HighLoad_threshold_percent);
+			DL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT <= LowLoad_threshold_percent);
+			DL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT >= HighLoad_threshold_percent);
 
 
-		cur_sph = subplot(2, 2, [1 2]);
+			% what range to calculate the CDFs over? We can always reduce the plotted range later
+			CDF_range_ms = [0, 1000];
+			CDF_x_vec = (CDF_range_ms(1):0.01:CDF_range_ms(end));
+			unique_reflector_list = unique(autorate_log.DATA.LISTS.REFLECTOR);
+			n_unique_reflectors = length(unique_reflector_list);
 
-
-		%plot data on both axes
-		% use this as dummy to create the axis:
-		cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-		cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{1})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-
-		if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
-			disp('WARNING: We somehow ended up without data to plot, should not happen');
-			return
-		endif
-
-		% this is a dummy plot so we get the dual axis handles...
-		[AX H1 H2] = plotyy(x_vec.DATA(DATA_delays_x_idx), (delays.DATA.sign_list{1} * cur_scaled_data_delays)', x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{1} * cur_scaled_data_rates)', 'plot');
-		%hold both axes
-		legend_list = {};
-		hold(AX(1));
-		for i_field = 1 : length(delays.DATA.fields_to_plot_list)
-			legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
-			cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-			plot(AX(1), x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-		endfor
-		%legend(legend_list, 'Interpreter', 'none');
-		hold off
-		xlabel(x_label_string);
-		ylabel('Delay [milliseconds]');
-		set(AX(1), 'XLim', x_vec_range);
-
-		if ~isempty(adjusted_ylim_delay)
-			set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
-		end
-
-		hold(AX(2));
-		for i_field = 1 : length(rates.DATA.fields_to_plot_list)
-			legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
-			cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-			plot(AX(2), x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-		endfor
-
-		if (n_LOAD_samples > 0)
-			for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
-				legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
-				plot(AX(2), x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
+			UL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+			UL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+			UL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+			DL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+			DL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+			DL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+			for i_reflector = 1:n_unique_reflectors
+				cur_reflector = unique_reflector_list{i_reflector};
+				cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, {cur_reflector}));
+				% get the sub groups
+				cur_All_sample_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+				cur_UL_LowLoad_sample_idx = intersect(cur_All_sample_idx, UL_LowLoad_sample_idx);
+				cur_UL_HighLoad_sample_idx = intersect(cur_All_sample_idx, UL_HighLoad_sample_idx);
+				cur_DL_LowLoad_sample_idx = intersect(cur_All_sample_idx, DL_LowLoad_sample_idx);
+				cur_DL_HighLoad_sample_idx = intersect(cur_All_sample_idx, DL_HighLoad_sample_idx);
+				% calculate the CDFs
+				if ~isempty(cur_All_sample_idx)
+					UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.UL_OWD_US(cur_All_sample_idx) * delays.DATA.scale_factor));
+				endif
+				if ~isempty(cur_UL_LowLoad_sample_idx)
+					UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.UL_OWD_US(cur_UL_LowLoad_sample_idx) * delays.DATA.scale_factor));
+				endif
+				if ~isempty(cur_UL_HighLoad_sample_idx)
+					UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.UL_OWD_US(cur_UL_HighLoad_sample_idx) * delays.DATA.scale_factor));
+				endif
+				if ~isempty(cur_All_sample_idx)
+					DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.DL_OWD_US(cur_All_sample_idx) * delays.DATA.scale_factor));
+				endif
+				if ~isempty(cur_DL_LowLoad_sample_idx)
+					DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.DL_OWD_US(cur_DL_LowLoad_sample_idx) * delays.DATA.scale_factor));
+				endif
+				if ~isempty(cur_DL_HighLoad_sample_idx)
+					DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (autorate_log.DATA.LISTS.DL_OWD_US(cur_DL_HighLoad_sample_idx) * delays.DATA.scale_factor));
+				endif
 			endfor
-		endif
-		%legend(legend_list, 'Interpreter', 'none');
-		hold off
-		xlabel(AX(2), x_label_string);
-		ylabel(AX(2), 'Rate [Mbps]');
-		set(AX(2), 'XLim', x_vec_range);
 
 
+			autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_visibility_string);
+			[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
 
-		% make sure the zeros of both axes align
-		if (align_rate_and_delay_zeros)
-			ylim_rates = get(AX(2), 'YLim');
-			ylim_delays = get(AX(1), 'YLim');
+			% do a 2 by 2 matrix:
+			% upper row col1: DL all samples
+			%			col2: UL all samples
+			% lower row col1: DL low vs high load
+			%			col2: UL low vs high load
+			% common properties
+			cummulative_range_percent = [0.001, 97.5];
+			% get unique colors but avoid black and white
+			tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
+			color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
 
-			rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
-			rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
-
-			delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
-			delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
-
-			if (delay_up_ratio >= rate_up_ratio)
-				% we need to adjust the upper limit
-				new_lower_y_delay = ylim_delays(1);
-				new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
-
-			else
-				% we need to adjust the lower limit
-				new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
-				new_upper_y_delay = ylim_delays(2);
-			endif
-			set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
-		endif
-
-		% TODO: look at both DATA and LOAD timestamps to deduce the start and end timestamps
-		title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(1))), '; sample index: ', num2str(x_range.DATA(1)); ...
-		'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(end))), '; sample index: ', num2str(x_range.DATA(2))]);
-
-
-
-		cur_sph = subplot(2, 2, 3);
-		% rates
-		hold on
-		legend_list = {};
-		for i_field = 1 : length(rates.DATA.fields_to_plot_list)
-			legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
-			cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-			plot(x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-		endfor
-		if (n_LOAD_samples > 0)
-			for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
-				legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
-				plot(cur_sph, x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
+			cur_sph = subplot(2, 2, 1);
+			hold on
+			% the range of CDF to plot
+			cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
+			cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
+			legend_list = {};
+			for i_reflector = 1:n_unique_reflectors
+				legend_list{end+1} = unique_reflector_list{i_reflector};
+				cur_reflector_color = color_by_reflector_array(i_reflector, :);
+				cur_data = 100* DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
+				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+				% also get the 99.9 % index
+				if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+					cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+				endif
+				if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+					cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+				endif
 			endfor
-		endif
+			hold off
+			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
+			set(cur_sph, 'YLim', [0, 100]);
+			xlabel(cur_sph, 'delay [ms]');
+			ylabel(cur_sph, 'cummulative density [%]')
+			title(cur_sph, 'Download OWD, all samples');
+			try
+				if strcmp(graphics_toolkit, 'gnuplot')
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				else
+					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				end
+			catch
+				disp(['Triggered']);
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
+			end_try_catch
 
-		try
-			if strcmp(graphics_toolkit, 'gnuplot')
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-			else
-				legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-			end
-		catch
-			disp(['Triggered']);
-			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
-		end_try_catch
-		hold off
-		xlabel(x_label_string);
-		ylabel('Rate [Mbps]');
-		set(cur_sph, 'XLim', x_vec_range);
 
-		cur_sph = subplot(2, 2, 4);
-		% delays
-		hold on
-		legend_list = {};
-		for i_field = 1 : length(delays.DATA.fields_to_plot_list)
-			legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
-			cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-			plot(x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-		endfor
-		if ~isempty(adjusted_ylim_delay)
-			set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
-		endif
-		try
-			if strcmp(graphics_toolkit, 'gnuplot')
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-			else
-				legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-			end
-		catch
-			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
-		end_try_catch
-		hold off
-		xlabel(x_label_string);
-		ylabel('Delay [milliseconds]');
-		set(cur_sph, 'XLim', x_vec_range);
 
-		if isempty(plot_FQN)
-			if ((x_range.DATA(1) ~= 0) || (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
-				n_range_digits = ceil(max(log10(x_range.DATA)));
-				range_string = ['.', 'sample_', num2str(x_range.DATA(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range.DATA(2), ['%0', num2str(n_range_digits), 'd']), '.'];
+			cur_sph = subplot(2, 2, 2);
+			hold on
+			% the range of CDF to plot
+			cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
+			cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
+			legend_list = {};
+			for i_reflector = 1:n_unique_reflectors
+				legend_list{end+1} = unique_reflector_list{i_reflector};
+				cur_reflector_color = color_by_reflector_array(i_reflector, :);
+				cur_data = 100* UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
+				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+				% also get the 99.9 % index
+				if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+					cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+				endif
+				if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+					cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+				endif
+			endfor
+			hold off
+			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
+			set(cur_sph, 'YLim', [0, 100]);
+			xlabel(cur_sph, 'delay [ms]');
+			ylabel(cur_sph, 'cummulative density [%]')
+			title(cur_sph, 'Upload OWD, all samples');
+			try
+				if strcmp(graphics_toolkit, 'gnuplot')
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				else
+					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				end
+			catch
+				disp(['Triggered']);
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
+			end_try_catch
+
+
+
+			cur_sph = subplot(2, 2, 3);
+			hold on
+			% the range of CDF to plot
+			cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
+			cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
+			legend_list = {};
+			for i_reflector = 1:n_unique_reflectors
+				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': low load'];
+				cur_reflector_color = color_by_reflector_array(i_reflector, :);
+				cur_data = 100* DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+				% also get the 99.9 % index
+				% also get the 99.9 % index
+				if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+					cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+				endif
+				if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+					cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+				endif
+
+				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': high load'];
+				cur_data = 100* DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
+				% also get the 99.9 % index
+				if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+					cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+				endif
+				if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+					cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+				endif
+			endfor
+			hold off
+			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
+			set(cur_sph, 'YLim', [0, 100]);
+			xlabel(cur_sph, 'delay [ms]');
+			ylabel(cur_sph, 'cummulative density [%]')
+			title(cur_sph, 'Download OWD, high versus low load');
+			try
+				if strcmp(graphics_toolkit, 'gnuplot')
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				else
+					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				end
+			catch
+				disp(['Triggered']);
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
+			end_try_catch
+
+
+			cur_sph = subplot(2, 2, 4);
+			hold on
+			% the range of CDF to plot
+			cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
+			cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
+			legend_list = {};
+			for i_reflector = 1:n_unique_reflectors
+				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': low load'];
+				cur_reflector_color = color_by_reflector_array(i_reflector, :);
+				cur_data = 100* UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
+				% also get the 99.9 % index
+				if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+					cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+				endif
+				if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+					cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+				endif
+
+				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': high load'];
+				cur_data = 100* UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
+				% also get the 99.9 % index
+				if ~isempty(find(cur_data >= cummulative_range_percent(1), 1, 'first'))
+					cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cummulative_range_percent(1), 1, 'first');
+				endif
+				if ~isempty(find(cur_data <= cummulative_range_percent(2), 1, 'last'))
+					cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cummulative_range_percent(2), 1, 'last');
+				endif
+			endfor
+			hold off
+			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
+			set(cur_sph, 'YLim', [0, 100]);
+			xlabel(cur_sph, 'delay [ms]');
+			ylabel(cur_sph, 'cummulative density [%]')
+			title(cur_sph, 'Upload OWD, high versus low load');
+			try
+				if strcmp(graphics_toolkit, 'gnuplot')
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				else
+					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+				end
+			catch
+				disp(['Triggered']);
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
+			end_try_catch
+
+
+			if isempty(plot_FQN)
+				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.CDFs', range_string, output_format_extension]);
 			else
-				range_string = '';
+				cur_plot_FQN = fullfile(plot_path, [plot_name, '.CDFs', range_string, plot_ext]);
 			endif
-			plot_FQN = fullfile(log_dir, [log_name, range_string, log_ext, output_format_extension]);
+
+			disp(['INFO: Writing plot as: ', cur_plot_FQN]);
+			write_out_figure(autorate_CDF_fh, cur_plot_FQN, [], []);
 		endif
 
-		disp(['INFO: Writing plot as: ', plot_FQN]);
-		write_out_figure(autorate_fh, plot_FQN, [], []);
+		if (plot_timecourse)
+			% plot timecourses
 
+			autorate_fh = figure('Name', 'CAKE-autorate log: rate & delay timecourses', 'visible', figure_visibility_string);
+			[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
+
+
+			cur_sph = subplot(2, 2, [1 2]);
+
+
+			%plot data on both axes
+			% use this as dummy to create the axis:
+			cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+			cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{1})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+
+			if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
+				disp('WARNING: We somehow ended up without data to plot, should not happen');
+				return
+			endif
+
+			% this is a dummy plot so we get the dual axis handles...
+			[AX H1 H2] = plotyy(x_vec.DATA(DATA_delays_x_idx), (delays.DATA.sign_list{1} * cur_scaled_data_delays)', x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{1} * cur_scaled_data_rates)', 'plot');
+			%hold both axes
+			legend_list = {};
+			hold(AX(1));
+			for i_field = 1 : length(delays.DATA.fields_to_plot_list)
+				legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
+				cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+				plot(AX(1), x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+			endfor
+			%legend(legend_list, 'Interpreter', 'none');
+			hold off
+			xlabel(x_label_string);
+			ylabel('Delay [milliseconds]');
+			set(AX(1), 'XLim', x_vec_range);
+
+			if ~isempty(adjusted_ylim_delay)
+				set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+			end
+
+			hold(AX(2));
+			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
+				legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
+				cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+				plot(AX(2), x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+			endfor
+
+			if (n_LOAD_samples > 0)
+				for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
+					legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
+					plot(AX(2), x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+			endif
+			%legend(legend_list, 'Interpreter', 'none');
+			hold off
+			xlabel(AX(2), x_label_string);
+			ylabel(AX(2), 'Rate [Mbps]');
+			set(AX(2), 'XLim', x_vec_range);
+
+
+
+			% make sure the zeros of both axes align
+			if (align_rate_and_delay_zeros)
+				ylim_rates = get(AX(2), 'YLim');
+				ylim_delays = get(AX(1), 'YLim');
+
+				rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
+				rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
+
+				delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
+				delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
+
+				if (delay_up_ratio >= rate_up_ratio)
+					% we need to adjust the upper limit
+					new_lower_y_delay = ylim_delays(1);
+					new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
+
+				else
+					% we need to adjust the lower limit
+					new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
+					new_upper_y_delay = ylim_delays(2);
+				endif
+				set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
+			endif
+
+			% TODO: look at both DATA and LOAD timestamps to deduce the start and end timestamps
+			title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(1))), '; sample index: ', num2str(x_range.DATA(1)); ...
+			'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(end))), '; sample index: ', num2str(x_range.DATA(2))]);
+
+
+
+			cur_sph = subplot(2, 2, 3);
+			% rates
+			hold on
+			legend_list = {};
+			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
+				legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
+				cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+				plot(x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+			endfor
+			if (n_LOAD_samples > 0)
+				for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
+					legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
+					plot(cur_sph, x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+			endif
+
+			try
+				if strcmp(graphics_toolkit, 'gnuplot')
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+				else
+					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+				end
+			catch
+				disp(['Triggered']);
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+			end_try_catch
+			hold off
+			xlabel(x_label_string);
+			ylabel('Rate [Mbps]');
+			set(cur_sph, 'XLim', x_vec_range);
+
+			cur_sph = subplot(2, 2, 4);
+			% delays
+			hold on
+			legend_list = {};
+			for i_field = 1 : length(delays.DATA.fields_to_plot_list)
+				legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
+				cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+				plot(x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+			endfor
+			if ~isempty(adjusted_ylim_delay)
+				set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+			endif
+			try
+				if strcmp(graphics_toolkit, 'gnuplot')
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+				else
+					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+				end
+			catch
+				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+			end_try_catch
+			hold off
+			xlabel(x_label_string);
+			ylabel('Delay [milliseconds]');
+			set(cur_sph, 'XLim', x_vec_range);
+
+			if isempty(plot_FQN)
+				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, output_format_extension]);
+			else
+				cur_plot_FQN = fullfile(plot_path, [plot_name, '.timecourse', range_string, plot_ext]);
+			endif
+
+			disp(['INFO: Writing plot as: ', cur_plot_FQN]);
+			write_out_figure(autorate_fh, cur_plot_FQN, [], []);
+		endif
 	catch err
   		warning(err.identifier, err.message);
 		err
