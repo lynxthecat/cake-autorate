@@ -43,7 +43,15 @@ reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
 # so e.g. if 6 reflectors are specified and the number of pingers is set to 4, the first 4 reflectors will be used initially
 # and the remaining 2 reflectors in the list will be used in the event any of the first 4 go bad
 # a bad reflector will go to the back of the queue on reflector rotation
-reflectors=("1.1.1.1" "1.0.0.1" "8.8.8.8" "8.8.4.4" "9.9.9.9" "9.9.9.10")
+reflectors=(
+"1.1.1.1" "1.0.0.1"  # Cloudflare
+"8.8.8.8" "8.8.4.4"  # Google
+"9.9.9.9" "9.9.9.10" "9.9.9.11" # Quad9
+"94.140.14.15" "94.140.14.140" "94.140.14.141" "94.140.15.15" "94.140.15.16" # AdGuard
+"64.6.65.6" "156.154.70.1" "156.154.70.2" "156.154.70.3" "156.154.70.4" "156.154.70.5" "156.154.71.1" "156.154.71.2" "156.154.71.3" "156.154.71.4" "156.154.71.5" # Neustar
+"208.67.220.2" "208.67.220.123" "208.67.220.220" "208.67.222.2" "208.67.222.123" # OpenDNS
+"185.228.168.9" "185.228.168.10" "185.228.169.11" "185.228.169.9" "185.228.169.168" # CleanBrowsing
+)
 no_pingers=4
 
 # delay threshold in ms is the extent of OWD increase to classify as a delay
@@ -58,20 +66,20 @@ adjust_dl_shaper_rate=1 # enable (1) or disable (0) actually changing the dl sha
 adjust_ul_shaper_rate=1 # enable (1) or disable (0) actually changing the ul shaper rate
 
 min_dl_shaper_rate_kbps=5000  # minimum bandwidth for download (Kbit/s)
-base_dl_shaper_rate_kbps=20000 # steady state bandwidth for download (Kbit/s)
+base_dl_shaper_rate_kbps=10000 # steady state bandwidth for download (Kbit/s)
 max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
 
 min_ul_shaper_rate_kbps=5000  # minimum bandwidth for upload (Kbit/s)
-base_ul_shaper_rate_kbps=20000 # steady state bandwidth for upload (KBit/s)
+base_ul_shaper_rate_kbps=10000 # steady state bandwidth for upload (KBit/s)
 max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 
 # sleep functionality saves unecessary pings and CPU cycles by
 # pausing all active pingers when connection is not in active use
 enable_sleep_function=1 # enable (1) or disable (0) sleep functonality 
-connection_active_thr_kbps=500 # threshold in Kbit/s below which dl/ul is considered idle
-sustained_idle_sleep_thr_s=60  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
+connection_active_thr_kbps=500   # threshold in Kbit/s below which dl/ul is considered idle
+sustained_idle_sleep_thr_s=60.0  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
-startup_wait_s=0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
+startup_wait_s=0.0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
@@ -130,9 +138,9 @@ bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
 # interval for checking reflector health
-reflector_health_check_interval_s=1 # (seconds)
+reflector_health_check_interval_s=1.0 # (seconds)
 # deadline for reflector response not to be classified as an offence against reflector
-reflector_response_deadline_s=1 # (seconds)
+reflector_response_deadline_s=1.0 # (seconds)
 
 # reflector misbehaving is detected when $reflector_misbehaving_detection_thr samples
 # out of the last (reflector misbehaving detection window) samples are offences
@@ -147,9 +155,9 @@ reflector_misbehaving_detection_thr=3
 stall_detection_thr=5
 connection_stall_thr_kbps=10
 
-global_ping_response_timeout_s=10 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
+global_ping_response_timeout_s=10.0 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
-if_up_check_interval_s=10 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
+if_up_check_interval_s=10.0 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
 
 # Starlink satellite switch (sss) compensation options
 sss_compensation=0 # enable (1) or disable (0) Starlink handling
