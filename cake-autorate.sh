@@ -774,6 +774,20 @@ sleep_remaining_tick_time()
 	fi
 }
 
+randomize_array()
+{
+	local -n array=$1
+	subset=(${array[@]})
+	array=()
+	for ((set=${#subset[@]}; set>0; set--))
+	do
+		idx=$((RANDOM%set))
+		array+=("${subset[$idx]}")
+		unset subset[$idx]
+        	subset=(${subset[@]})
+	done
+}
+
 # ======= Start of the Main Routine ========
 
 trap ":" USR1
@@ -839,12 +853,6 @@ if (( $debug )) ; then
 	log_msg "DEBUG" "log_file_path: $log_file_path"
 fi
 
-# Wait if $startup_wait_s > 0
-if (($startup_wait_s>0)); then
-        (($debug)) && log_msg "DEBUG" "Waiting $startup_wait_s seconds before startup."
-        sleep_s $startup_wait_s
-fi
-
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
 
@@ -868,10 +876,10 @@ printf -v reflector_ping_interval_us %.0f "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f "${sustained_idle_sleep_thr_s}e6"
 printf -v reflector_response_deadline_us %.0f "${reflector_response_deadline_s}e6"
-
-global_ping_response_timeout_us=$(( 1000000*$global_ping_response_timeout_s ))
-bufferbloat_refractory_period_us=$(( 1000*$bufferbloat_refractory_period_ms ))
-decay_refractory_period_us=$(( 1000*$decay_refractory_period_ms ))
+printf -v startup_wait_us %.0f "${startup_wait_s}e6"
+printf -v global_ping_response_timeout_us %.0f "${global_ping_response_timeout_s}e6"
+printf -v bufferbloat_refractory_period_us %.0f "${bufferbloat_refractory_period_ms}e3"
+printf -v decay_refractory_period_us %.0f "${decay_refractory_period_ms}e3"
 
 for (( i=0; i<${#sss_times_s[@]}; i++ ));
 do
@@ -924,6 +932,15 @@ sum_ul_delays=0
 mkfifo /var/run/cake-autorate/ping_fifo
 exec 5<> /var/run/cake-autorate/ping_fifo
 
+# Wait if $startup_wait_s > 0
+if (($startup_wait_us>0)); then
+        (($debug)) && log_msg "DEBUG" "Waiting $startup_wait_s seconds before startup."
+        sleep_us $startup_wait_us
+fi
+
+# Randomize reflectors array
+randomize_array reflectors
+
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
@@ -936,6 +953,10 @@ if (($debug)); then
 		log_msg "DEBUG" "Warning: bufferbloat refractory period: $bufferbloat_refractory_period_us us."
 		log_msg "DEBUG" "Warning: but expected time to overwrite samples in bufferbloat detection window is: $(($bufferbloat_detection_window*$ping_response_interval_us)) us." 
 		log_msg "DEBUG" "Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
+	fi
+	if (( $reflector_response_deadline_us < 5*$reflector_ping_interval_us )); then 
+		log_msg "DEBUG" "Warning: reflector_response_deadline_s < 5*reflector_ping_interval_s"
+		log_msg "DEBUG" "Warning: consider setting an increased reflector_response_deadline."
 	fi
 fi
 
