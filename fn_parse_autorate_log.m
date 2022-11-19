@@ -18,11 +18,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
 
 	% TODO:
-	%	switch from fixed indices to time based ranges (probably seconds since first time stamp)
-	%	replace the achieved rate plots with the new LOAD record type if that exists.
 	%	add CDF plots for RTTs/OWDs per reflector for low and high achieved rate states
 	%		the goal is to show low versus high load delay CDFs, but we do not really know about the relative load so
 	%		this ill only be a heuristic, albeit a useful one, hopefully.
+	%		- add OWD/RTT plots for both load directions
+	%		- report 95 and 99%-iles of lowest load conditions as output to help selecting delay thresholds
+	%		- report the N for each subgroup in the CDF plots
 
 
 	%gts = available_graphics_toolkits()
@@ -43,6 +44,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	% for debugging anything else than '' or 'load_existing' will force the file to be reparsed
 	parse_command_string = ''; % load_existing or reload
 	plot_CDFs = 1;
+	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
+	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
+	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
+
 	plot_timecourse = 1;
 
 	try
@@ -260,6 +265,16 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			DELAY_adjusted_ylim_delay(1) = (sign(delays.DATA.sign_list{2}) * UL_OWD_DELTA_US_upper_quantile * scale_delay_axis_by_OWD_DELTA_QUANTILE_factor);
 			DELAY_adjusted_ylim_delay(2) = (sign(delays.DATA.sign_list{1}) * DL_OWD_DELTA_US_upper_quantile * scale_delay_axis_by_OWD_DELTA_QUANTILE_factor);
 
+			% setting the range smaller or larger than minumum or maximum makes little sense...
+			sorted_UL_OWD_US = sort(autorate_log.DATA.LISTS.UL_OWD_US(DATA_delays_x_idx));
+			if DELAY_adjusted_ylim_delay(1) < (sign(delays.DATA.sign_list{2}) * 1.05 * sorted_UL_OWD_US(end))
+				DELAY_adjusted_ylim_delay(1) = (sign(delays.DATA.sign_list{2}) * 1.05 * sorted_UL_OWD_US(end));
+			endif
+			sorted_DL_OWD_US = sort(autorate_log.DATA.LISTS.DL_OWD_US(DATA_delays_x_idx));
+			if DELAY_adjusted_ylim_delay(2) > (sign(delays.DATA.sign_list{1}) * 1.05 * sorted_DL_OWD_US(end))
+				DELAY_adjusted_ylim_delay(2) = (sign(delays.DATA.sign_list{1}) * 1.05 * sorted_DL_OWD_US(end));
+			endif
+
 			if isempty(adjusted_ylim_delay)
 				adjusted_ylim_delay = DELAY_adjusted_ylim_delay;
 				disp(['INFO: Adjusted y-limits based on OWD_DELTA_QUANTILE_factor: ', num2str(DELAY_adjusted_ylim_delay)]);
@@ -284,12 +299,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			% load conditions, ideally we want congestion condition, but the best estimate we have
 			% are load conditions, since we want to look at differences in delay we should not
 			% directly classify based on delay, hence load it is.
-			LowLoad_threshold_percent = 20;
-			HighLoad_threshold_percent = 80;
-			UL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT <= LowLoad_threshold_percent);
-			UL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT >= HighLoad_threshold_percent);
-			DL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT <= LowLoad_threshold_percent);
-			DL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT >= HighLoad_threshold_percent);
+			UL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT <= CDF.LowLoad_threshold_percent);
+			UL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT >= CDF.HighLoad_threshold_percent);
+			DL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT <= CDF.LowLoad_threshold_percent);
+			DL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT >= CDF.HighLoad_threshold_percent);
+
+			ANY_LowLoad_sample_idx = union(UL_LowLoad_sample_idx, DL_LowLoad_sample_idx);
+			ANY_HighLoad_sample_idx = union(UL_HighLoad_sample_idx, DL_HighLoad_sample_idx);
+			ALL_LowLoad_sample_idx = intersect(UL_LowLoad_sample_idx, DL_LowLoad_sample_idx);
+			ALL_Highoad_sample_idx = intersect(UL_HighLoad_sample_idx, DL_HighLoad_sample_idx);
 
 			UL_OWD_sample_list = autorate_log.DATA.LISTS.UL_OWD_US;
 			DL_OWD_sample_list = autorate_log.DATA.LISTS.DL_OWD_US;
@@ -305,13 +323,27 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			UL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 			UL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 			UL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+
+			n_UL_All_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			n_UL_LowLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			n_UL_HighLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+
 			DL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 			DL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 			DL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 
+			n_DL_All_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			n_DL_LowLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			n_DL_HighLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+
 			RTT_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 			RTT_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
 			RTT_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
+
+			n_RTT_All_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			n_RTT_LowLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			n_RTT_HighLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+
 
 			for i_reflector = 1:n_unique_reflectors
 				cur_reflector = unique_reflector_list{i_reflector};
@@ -326,32 +358,41 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 				% UL
 				if ~isempty(cur_All_sample_idx)
 					UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (UL_OWD_sample_list(cur_All_sample_idx) * delays.DATA.scale_factor));
+					n_UL_All_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_All_sample_idx);
 				endif
 				if ~isempty(cur_UL_LowLoad_sample_idx)
 					UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (UL_OWD_sample_list(cur_UL_LowLoad_sample_idx) * delays.DATA.scale_factor));
+					n_UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_UL_LowLoad_sample_idx);
 				endif
 				if ~isempty(cur_UL_HighLoad_sample_idx)
 					UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (UL_OWD_sample_list(cur_UL_HighLoad_sample_idx) * delays.DATA.scale_factor));
+					n_UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_UL_HighLoad_sample_idx);
 				endif
 				% DL
 				if ~isempty(cur_All_sample_idx)
 					DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (DL_OWD_sample_list(cur_All_sample_idx) * delays.DATA.scale_factor));
+					n_DL_All_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_All_sample_idx);
 				endif
 				if ~isempty(cur_DL_LowLoad_sample_idx)
 					DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (DL_OWD_sample_list(cur_DL_LowLoad_sample_idx) * delays.DATA.scale_factor));
+					n_DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_DL_LowLoad_sample_idx);
 				endif
 				if ~isempty(cur_DL_HighLoad_sample_idx)
 					DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (DL_OWD_sample_list(cur_DL_HighLoad_sample_idx) * delays.DATA.scale_factor));
+					n_DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_DL_HighLoad_sample_idx);
 				endif
 				% RTT
 				if ~isempty(cur_All_sample_idx)
 					RTT_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (RTT_sample_list(cur_All_sample_idx) * delays.DATA.scale_factor));
+					n_RTT_All_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_All_sample_idx);
 				endif
 				if ~isempty(union(cur_DL_LowLoad_sample_idx, cur_UL_LowLoad_sample_idx))
 					RTT_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (RTT_sample_list(union(cur_DL_LowLoad_sample_idx, cur_UL_LowLoad_sample_idx)) * delays.DATA.scale_factor));
+					n_RTT_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(union(cur_DL_LowLoad_sample_idx, cur_UL_LowLoad_sample_idx));
 				endif
 				if ~isempty(union(cur_DL_HighLoad_sample_idx, cur_UL_HighLoad_sample_idx))
 					RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (RTT_sample_list(union(cur_DL_HighLoad_sample_idx, cur_UL_HighLoad_sample_idx)) * delays.DATA.scale_factor));
+					n_RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(union(cur_DL_HighLoad_sample_idx, cur_UL_HighLoad_sample_idx));
 				endif
 			endfor
 
@@ -367,268 +408,42 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			%			col2: DL low vs high load
 			%			col3: UL low vs high load
 			% common properties
-			cumulative_range_percent = [0.001, 97.5];
 			% get unique colors but avoid black and white
 			tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
 			color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
+			xlabel_string = 'delay [ms]';
+			ylabel_string = 'cumulative density [%]';
+
 
 			cur_sph = subplot(2, 3, 1);
-			hold on
-			% the range of CDF to plot
-			cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
-			cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
-			legend_list = {};
-			for i_reflector = 1:n_unique_reflectors
-				legend_list{end+1} = unique_reflector_list{i_reflector};
-				cur_reflector_color = color_by_reflector_array(i_reflector, :);
-				cur_data = 100 * RTT_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-			endfor
-			hold off
-			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
-			set(cur_sph, 'YLim', [0, 100]);
-			xlabel(cur_sph, 'delay [ms]');
-			ylabel(cur_sph, 'cumulative density [%]')
-			title(cur_sph, 'RTT, all samples');
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
-			end_try_catch
-
-
+			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
+										xlabel_string, ylabel_string, 'RTT, all samples', ...
+										{''}, {n_RTT_All_sample_delay_CDF_by_reflector_array}, {RTT_All_sample_delay_CDF_by_reflector_array}, {'-'}, {line_width});
 
 			cur_sph = subplot(2, 3, 2);
-			hold on
-			% the range of CDF to plot
-			cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
-			cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
-			legend_list = {};
-			for i_reflector = 1:n_unique_reflectors
-				legend_list{end+1} = unique_reflector_list{i_reflector};
-				cur_reflector_color = color_by_reflector_array(i_reflector, :);
-				cur_data = 100* DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-			endfor
-			hold off
-			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
-			set(cur_sph, 'YLim', [0, 100]);
-			xlabel(cur_sph, 'delay [ms]');
-			ylabel(cur_sph, 'cumulative density [%]')
-			title(cur_sph, 'Download OWD, all samples');
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
-			end_try_catch
-
-
+			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
+										xlabel_string, ylabel_string, 'Download OWD, all samples', ...
+										{''}, {n_DL_All_sample_delay_CDF_by_reflector_array}, {DL_All_sample_delay_CDF_by_reflector_array}, {'-'}, {line_width});
 
 			cur_sph = subplot(2, 3, 3);
-			hold on
-			% the range of CDF to plot
-			cur_x_low_quantile_idx = nan([n_unique_reflectors, 1]);
-			cur_x_high_quantile_idx = nan([n_unique_reflectors, 1]);
-			legend_list = {};
-			for i_reflector = 1:n_unique_reflectors
-				legend_list{end+1} = unique_reflector_list{i_reflector};
-				cur_reflector_color = color_by_reflector_array(i_reflector, :);
-				cur_data = 100* UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-			endfor
-			hold off
-			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx)), CDF_x_vec(max(cur_x_high_quantile_idx))]);
-			set(cur_sph, 'YLim', [0, 100]);
-			xlabel(cur_sph, 'delay [ms]');
-			ylabel(cur_sph, 'cumulative density [%]')
-			title(cur_sph, 'Upload OWD, all samples');
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
-			end_try_catch
-
+			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
+										xlabel_string, ylabel_string, 'Upload OWD, all samples', ...
+										{''}, {n_UL_All_sample_delay_CDF_by_reflector_array}, {UL_All_sample_delay_CDF_by_reflector_array}, {'-'}, {line_width});
 
 			cur_sph = subplot(2, 3, 4);
-			hold on
-			% the range of CDF to plot
-			cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
-			cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
-			legend_list = {};
-			for i_reflector = 1:n_unique_reflectors
-				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': low load'];
-				cur_reflector_color = color_by_reflector_array(i_reflector, :);
-				cur_data = 100 * RTT_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-
-				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': high load'];
-				cur_data = 100 * RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-			endfor
-			hold off
-			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
-			set(cur_sph, 'YLim', [0, 100]);
-			xlabel(cur_sph, 'delay [ms]');
-			ylabel(cur_sph, 'cumulative density [%]')
-			title(cur_sph, 'RTT, high versus low load');
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
-			end_try_catch
+			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
+										xlabel_string, ylabel_string, 'RTT, high versus low load', ...
+										{': low', ': high'}, {n_RTT_LowLoad_sample_delay_CDF_by_reflector_array, n_RTT_HighLoad_sample_delay_CDF_by_reflector_array}, {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}, {'-', ':'}, {line_width, line_width});
 
 			cur_sph = subplot(2, 3, 5);
-			hold on
-			% the range of CDF to plot
-			cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
-			cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
-			legend_list = {};
-			for i_reflector = 1:n_unique_reflectors
-				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': low load'];
-				cur_reflector_color = color_by_reflector_array(i_reflector, :);
-				cur_data = 100* DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-
-				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': high load'];
-				cur_data = 100* DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-			endfor
-			hold off
-			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
-			set(cur_sph, 'YLim', [0, 100]);
-			xlabel(cur_sph, 'delay [ms]');
-			ylabel(cur_sph, 'cumulative density [%]')
-			title(cur_sph, 'Download OWD, high versus low load');
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
-			end_try_catch
-
+			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
+										xlabel_string, ylabel_string, 'Download OWD, high versus low load', ...
+										{': low', ': high'}, {n_DL_LowLoad_sample_delay_CDF_by_reflector_array, n_DL_HighLoad_sample_delay_CDF_by_reflector_array}, {DL_LowLoad_sample_delay_CDF_by_reflector_array, DL_HighLoad_sample_delay_CDF_by_reflector_array}, {'-', ':'}, {line_width, line_width});
 
 			cur_sph = subplot(2, 3, 6);
-			hold on
-			% the range of CDF to plot
-			cur_x_low_quantile_idx = nan([n_unique_reflectors, 2]);
-			cur_x_high_quantile_idx = nan([n_unique_reflectors, 2]);
-			legend_list = {};
-			for i_reflector = 1:n_unique_reflectors
-				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': low load'];
-				cur_reflector_color = color_by_reflector_array(i_reflector, :);
-				cur_data = 100* UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', '-', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector, 1) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector, 1) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-
-				legend_list{end+1} = [unique_reflector_list{i_reflector}, ': high load'];
-				cur_data = 100* UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-				plot(cur_sph, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
-				% also get the 99.9 % index
-				if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-					cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-				endif
-				if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-					cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-				endif
-			endfor
-			hold off
-			set(cur_sph, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
-			set(cur_sph, 'YLim', [0, 100]);
-			xlabel(cur_sph, 'delay [ms]');
-			ylabel(cur_sph, 'cumulative density [%]')
-			title(cur_sph, 'Upload OWD, high versus low load');
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
-			end_try_catch
-
+			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
+										xlabel_string, ylabel_string, 'Upload OWD, high versus low load', ...
+										{': low', ': high'}, {n_UL_LowLoad_sample_delay_CDF_by_reflector_array, n_UL_HighLoad_sample_delay_CDF_by_reflector_array}, {UL_LowLoad_sample_delay_CDF_by_reflector_array, UL_HighLoad_sample_delay_CDF_by_reflector_array}, {'-', ':'}, {line_width, line_width});
 
 			if isempty(plot_FQN)
 				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.CDFs', range_string, output_format_extension]);
@@ -839,6 +654,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.LOAD_HEADER = [];
 	log_struct.LOAD = [];
 	log_struct.INFO = [];
+	log_struct.SHAPER = [];
 	log_struct.metainformation = [];
 
 	%TODO: merge current and old log file if they can be found...
@@ -1464,4 +1280,76 @@ function [ x_range ] = fn_get_range_indices_from_range_timestamps( x_range_sec_a
 	x_range(1) = find(timestamp_list >= x_range_sec_absolute(1), 1, 'first');
 	% find the index of the last timestamp equal or smaller than x_range_sec(2)
 	x_range(2) = find(timestamp_list <= x_range_sec_absolute(2), 1, 'last');
+endfunction
+
+function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, title_string, ...
+	set_name_list, n_sample_per_reflector_list, cur_data_XDF_list, linestyle_list, linewidth_list)
+
+%	xlabel_string = 'delay [ms]';
+%	ylabel_string = 'cumulative density [%]';
+%	title_string = 'RTT, high versus low load';
+%	set_name_list = {': low load', ': high load'}
+%	n_sample_per_reflector_list = {};
+%	cur_data_XDF_list = {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}
+%	linestyle_list = {'-', ':'};
+%	linewidth_list = {line_width, line_width};
+	n_unique_reflectors = length(unique_reflector_list);
+	n_sets = length(set_name_list);
+	cur_x_low_quantile_idx = nan([n_unique_reflectors, n_sets]);
+	cur_x_high_quantile_idx = nan([n_unique_reflectors, n_sets]);
+	legend_list = {};
+	hold on
+	for i_reflector = 1:n_unique_reflectors
+		cur_reflector_color = color_by_reflector_array(i_reflector, :);
+
+		for i_set = 1 : n_sets
+			cur_set_name = set_name_list{i_set};
+			cur_n_sample_per_reflector = n_sample_per_reflector_list{i_set};
+			cur_n_sample = cur_n_sample_per_reflector(i_reflector);
+			cur_data_XDF = cur_data_XDF_list{i_set};
+			cur_linestle = linestyle_list{i_set};
+			cur_linewidth = linewidth_list{i_set};
+
+			legend_list{end+1} = [unique_reflector_list{i_reflector}, [cur_set_name, ':(N:', num2str(cur_n_sample),')']];
+			cur_data = 100 * cur_data_XDF(i_reflector, :);
+			plot(ax_h, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', cur_linestle, 'LineWidth', cur_linewidth);
+			% find high and low x values
+			if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
+				cur_x_low_quantile_idx(i_reflector, i_set) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
+			endif
+			if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
+				cur_x_high_quantile_idx(i_reflector, i_set) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
+			endif
+
+##			legend_list{end+1} = [unique_reflector_list{i_reflector}, [cur_set_name, ]];
+##			cur_data = 100 * RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
+##			plot(ax_h, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
+##			% also get the 99.9 % index
+##			if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
+##				cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
+##			endif
+##			if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
+##				cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
+##			endif
+		endfor
+	endfor
+	hold off
+	set(ax_h, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
+	set(ax_h, 'YLim', [0, 100]);
+	xlabel(ax_h, xlabel_string);
+	ylabel(ax_h, ylabel_string)
+	title(ax_h, title_string);
+	try
+		if strcmp(graphics_toolkit, 'gnuplot')
+			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+		else
+			legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+		end
+	catch
+		disp(['Triggered']);
+		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
+	end_try_catch
+
+	return
 	endfunction
