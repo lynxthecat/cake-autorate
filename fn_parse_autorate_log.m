@@ -43,12 +43,16 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 
 	% for debugging anything else than '' or 'load_existing' will force the file to be reparsed
 	parse_command_string = ''; % load_existing or reload
-	plot_CDFs = 1;
+
+
+	% specific cofiguration options for different plot types
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
 	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
+	CDF.calc_range_ms = [0, 1000];	% what range to calculate the CDFs over? We can always reduce the plotted range later
 
-	plot_timecourse = 1;
+	% add all defined plots that should be created and saved
+	plot_list = {'rawCDFs', 'deltaCDFs', 'timecourse'};
 
 	try
 
@@ -61,7 +65,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			disp(['INFO: Processing log file: ', log_FQN]);
 			figure_visibility_string = 'off';
 		endif
-
+		figure_opts.figure_visibility_string = figure_visibility_string;
 
 		if ~exist('plot_FQN', 'var') || isempty(plot_FQN)
 			plot_FQN = [];
@@ -144,6 +148,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
 		output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
 		line_width = 1.0;
+		figure_opts.line_width = line_width;
+		figure_opts.output_format_extension = output_format_extension;
 		% a few outlier will make the delay plots unreadable, if this is not empty [],
 		% use this factor on max(ADJ_DELAY_THR) to scale the delay axis
 		% this is done before align_rate_and_delay_zeros is applied.
@@ -295,176 +301,44 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		% for low congestion state (low achieved rate with shaper at baseline rate)
 		% and for high congestion state (high achieved rate close ot shaper rate)?
 
-		if (plot_CDFs)
 			% load conditions, ideally we want congestion condition, but the best estimate we have
 			% are load conditions, since we want to look at differences in delay we should not
 			% directly classify based on delay, hence load it is.
-			UL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT <= CDF.LowLoad_threshold_percent);
-			UL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.UL_LOAD_PERCENT >= CDF.HighLoad_threshold_percent);
-			DL_LowLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT <= CDF.LowLoad_threshold_percent);
-			DL_HighLoad_sample_idx = find(autorate_log.DATA.LISTS.DL_LOAD_PERCENT >= CDF.HighLoad_threshold_percent);
-
-			ANY_LowLoad_sample_idx = union(UL_LowLoad_sample_idx, DL_LowLoad_sample_idx);
-			ANY_HighLoad_sample_idx = union(UL_HighLoad_sample_idx, DL_HighLoad_sample_idx);
-			ALL_LowLoad_sample_idx = intersect(UL_LowLoad_sample_idx, DL_LowLoad_sample_idx);
-			ALL_Highoad_sample_idx = intersect(UL_HighLoad_sample_idx, DL_HighLoad_sample_idx);
-
-			UL_OWD_sample_list = autorate_log.DATA.LISTS.UL_OWD_US;
-			DL_OWD_sample_list = autorate_log.DATA.LISTS.DL_OWD_US;
-			% the next needs checking for true OWDs and RTTs
-			RTT_sample_list = UL_OWD_sample_list .+ DL_OWD_sample_list;
-
-			% what range to calculate the CDFs over? We can always reduce the plotted range later
-			CDF_range_ms = [0, 1000];
-			CDF_x_vec = (CDF_range_ms(1):0.01:CDF_range_ms(end));
-			unique_reflector_list = unique(autorate_log.DATA.LISTS.REFLECTOR);
-			n_unique_reflectors = length(unique_reflector_list);
-
-			UL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-			UL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-			UL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-
-			n_UL_All_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-			n_UL_LowLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-			n_UL_HighLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-
-			DL_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-			DL_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-			DL_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-
-			n_DL_All_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-			n_DL_LowLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-			n_DL_HighLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-
-			RTT_All_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-			RTT_LowLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-			RTT_HighLoad_sample_delay_CDF_by_reflector_array = nan([n_unique_reflectors, length(CDF_x_vec)]);
-
-			n_RTT_All_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-			n_RTT_LowLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
-			n_RTT_HighLoad_sample_delay_CDF_by_reflector_array = zeros([n_unique_reflectors, 1]);
+			sample_idx_by_load = fn_get_samples_by_load(autorate_log.DATA.LISTS, 'LOAD_PERCENT', {'UL', 'DL'}, {'UL_LOAD_PERCENT', 'DL_LOAD_PERCENT'}, CDF.LowLoad_threshold_percent, CDF.HighLoad_threshold_percent);
 
 
-			for i_reflector = 1:n_unique_reflectors
-				cur_reflector = unique_reflector_list{i_reflector};
-				cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, {cur_reflector}));
-				% get the sub groups
-				cur_All_sample_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
-				cur_UL_LowLoad_sample_idx = intersect(cur_All_sample_idx, UL_LowLoad_sample_idx);
-				cur_UL_HighLoad_sample_idx = intersect(cur_All_sample_idx, UL_HighLoad_sample_idx);
-				cur_DL_LowLoad_sample_idx = intersect(cur_All_sample_idx, DL_LowLoad_sample_idx);
-				cur_DL_HighLoad_sample_idx = intersect(cur_All_sample_idx, DL_HighLoad_sample_idx);
-				% calculate the CDFs
-				% UL
-				if ~isempty(cur_All_sample_idx)
-					UL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (UL_OWD_sample_list(cur_All_sample_idx) * delays.DATA.scale_factor));
-					n_UL_All_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_All_sample_idx);
+			if ismember('rawCDFs', plot_list);
+				% measures for raw RTT/OWD data
+				[raw_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
+				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				if isempty(plot_FQN)
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, figure_opts.output_format_extension]);
+				else
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCDFs', range_string, plot_ext]);
 				endif
-				if ~isempty(cur_UL_LowLoad_sample_idx)
-					UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (UL_OWD_sample_list(cur_UL_LowLoad_sample_idx) * delays.DATA.scale_factor));
-					n_UL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_UL_LowLoad_sample_idx);
-				endif
-				if ~isempty(cur_UL_HighLoad_sample_idx)
-					UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (UL_OWD_sample_list(cur_UL_HighLoad_sample_idx) * delays.DATA.scale_factor));
-					n_UL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_UL_HighLoad_sample_idx);
-				endif
-				% DL
-				if ~isempty(cur_All_sample_idx)
-					DL_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (DL_OWD_sample_list(cur_All_sample_idx) * delays.DATA.scale_factor));
-					n_DL_All_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_All_sample_idx);
-				endif
-				if ~isempty(cur_DL_LowLoad_sample_idx)
-					DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (DL_OWD_sample_list(cur_DL_LowLoad_sample_idx) * delays.DATA.scale_factor));
-					n_DL_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_DL_LowLoad_sample_idx);
-				endif
-				if ~isempty(cur_DL_HighLoad_sample_idx)
-					DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (DL_OWD_sample_list(cur_DL_HighLoad_sample_idx) * delays.DATA.scale_factor));
-					n_DL_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_DL_HighLoad_sample_idx);
-				endif
-				% RTT
-				if ~isempty(cur_All_sample_idx)
-					RTT_All_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (RTT_sample_list(cur_All_sample_idx) * delays.DATA.scale_factor));
-					n_RTT_All_sample_delay_CDF_by_reflector_array(i_reflector) = length(cur_All_sample_idx);
-				endif
-				if ~isempty(union(cur_DL_LowLoad_sample_idx, cur_UL_LowLoad_sample_idx))
-					RTT_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (RTT_sample_list(union(cur_DL_LowLoad_sample_idx, cur_UL_LowLoad_sample_idx)) * delays.DATA.scale_factor));
-					n_RTT_LowLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(union(cur_DL_LowLoad_sample_idx, cur_UL_LowLoad_sample_idx));
-				endif
-				if ~isempty(union(cur_DL_HighLoad_sample_idx, cur_UL_HighLoad_sample_idx))
-					RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :) = empirical_cdf(CDF_x_vec, (RTT_sample_list(union(cur_DL_HighLoad_sample_idx, cur_UL_HighLoad_sample_idx)) * delays.DATA.scale_factor));
-					n_RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector) = length(union(cur_DL_HighLoad_sample_idx, cur_UL_HighLoad_sample_idx));
-				endif
-			endfor
-
-
-			autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_visibility_string);
-			[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 1, 1, 50, 19, 1, 'landscape', 'centimeters' );
-
-			% do a 3 by 2 matrix:
-			% upper row col1: RTT all samples
-			%			col2: DL all samples
-			%			col3: UL all samples
-			% lower row col1: RTT low vs high load
-			%			col2: DL low vs high load
-			%			col3: UL low vs high load
-			% common properties
-			% get unique colors but avoid black and white
-			tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
-			color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
-			xlabel_string = 'delay [ms]';
-			ylabel_string = 'cumulative density [%]';
-
-
-			cur_sph = subplot(2, 3, 1);
-			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
-										xlabel_string, ylabel_string, 'RTT, all samples', ...
-										{''}, {n_RTT_All_sample_delay_CDF_by_reflector_array}, {RTT_All_sample_delay_CDF_by_reflector_array}, {'-'}, {line_width});
-
-			cur_sph = subplot(2, 3, 2);
-			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
-										xlabel_string, ylabel_string, 'Download OWD, all samples', ...
-										{''}, {n_DL_All_sample_delay_CDF_by_reflector_array}, {DL_All_sample_delay_CDF_by_reflector_array}, {'-'}, {line_width});
-
-			cur_sph = subplot(2, 3, 3);
-			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
-										xlabel_string, ylabel_string, 'Upload OWD, all samples', ...
-										{''}, {n_UL_All_sample_delay_CDF_by_reflector_array}, {UL_All_sample_delay_CDF_by_reflector_array}, {'-'}, {line_width});
-
-			cur_sph = subplot(2, 3, 4);
-			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
-										xlabel_string, ylabel_string, 'RTT, high versus low load', ...
-										{': low', ': high'}, {n_RTT_LowLoad_sample_delay_CDF_by_reflector_array, n_RTT_HighLoad_sample_delay_CDF_by_reflector_array}, {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}, {'-', ':'}, {line_width, line_width});
-
-			cur_sph = subplot(2, 3, 5);
-			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
-										xlabel_string, ylabel_string, 'Download OWD, high versus low load', ...
-										{': low', ': high'}, {n_DL_LowLoad_sample_delay_CDF_by_reflector_array, n_DL_HighLoad_sample_delay_CDF_by_reflector_array}, {DL_LowLoad_sample_delay_CDF_by_reflector_array, DL_HighLoad_sample_delay_CDF_by_reflector_array}, {'-', ':'}, {line_width, line_width});
-
-			cur_sph = subplot(2, 3, 6);
-			[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, CDF.cumulative_range_percent, ...
-										xlabel_string, ylabel_string, 'Upload OWD, high versus low load', ...
-										{': low', ': high'}, {n_UL_LowLoad_sample_delay_CDF_by_reflector_array, n_UL_HighLoad_sample_delay_CDF_by_reflector_array}, {UL_LowLoad_sample_delay_CDF_by_reflector_array, UL_HighLoad_sample_delay_CDF_by_reflector_array}, {'-', ':'}, {line_width, line_width});
-
-			if isempty(plot_FQN)
-				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.CDFs', range_string, output_format_extension]);
-			else
-				cur_plot_FQN = fullfile(plot_path, [plot_name, '.CDFs', range_string, plot_ext]);
+				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition(figure_opts, raw_CDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'cumulative density [%]', cur_plot_FQN);
 			endif
 
-			disp(['INFO: Writing plot as: ', cur_plot_FQN]);
-			write_out_figure(autorate_CDF_fh, cur_plot_FQN, [], []);
-		endif
+			if ismember('deltaCDFs', plot_list);
+				% measures for base-loine corrected delta(RTT)/delta(OWD) data
+				[delta_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
+				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				if isempty(plot_FQN)
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, figure_opts.output_format_extension]);
+				else
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaCDFs', range_string, plot_ext]);
+				endif
+				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition(figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'cumulative density [%]', cur_plot_FQN);
+			endif
 
-		if (plot_timecourse)
+
+		if ismember('timecourse', plot_list);
 			% plot timecourses
 
 			autorate_fh = figure('Name', 'CAKE-autorate log: rate & delay timecourses', 'visible', figure_visibility_string);
 			[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
 
-
 			cur_sph = subplot(2, 2, [1 2]);
-
-
 			%plot data on both axes
 			% use this as dummy to create the axis:
 			cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
@@ -630,16 +504,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	return
 endfunction
 
+
 function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command_string )
-
-
-
 	% variables
 	delimiter_string = ";";	% what separator is used in the log file
 	line_increment = 100;		%  by what size to increment data structures on hitting the end
 	% enumerate all field names in HEADER that denote a string field on DATA records, otherwise default to numeric
 	string_field_identifier_list = {'RECORD_TYPE', 'LOG_DATETIME', 'REFLECTOR', '_LOAD_CONDITION'};
-
 
 	autorate_log = struct();
 
@@ -692,8 +563,6 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 		endif
 	endif
 
-
-
 	if exist(fullfile(log_dir, [log_name, log_ext, '.mat']), 'file') && strcmp(command_string, 'load_existing')
 		disp(['INFO: Found already parsed log file (', fullfile(log_dir, [log_name, log_ext, '.mat']), '), loading...']);
 		load(fullfile(log_dir, [log_name, log_ext, '.mat']));
@@ -732,7 +601,6 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% clean-up
 	fclose(log_fd);
 
-
 	% shrink global datastructures
 	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER"});
 
@@ -758,6 +626,7 @@ function in = isoctave()
 	return;
 endfunction
 
+
 function [ sanitized_name ]  = sanitize_name_for_matlab( input_name )
 	% some characters are not really helpful inside matlab variable names, so
 	% replace them with something that should not cause problems
@@ -773,8 +642,6 @@ function [ sanitized_name ]  = sanitize_name_for_matlab( input_name )
 	if ~isempty(taboo_first_char_idx)
 		sanitized_name = [replacement_firts_char_list{taboo_first_char_idx}, input_name(2:end)];
 	end
-
-
 
 	for i_taboo_char = 1: length(taboo_char_list)
 		current_taboo_string = taboo_char_list{i_taboo_char};
@@ -942,6 +809,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 	return
 endfunction
 
+
 function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_string, line_increment)
 	global log_struct
 
@@ -953,8 +821,6 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 	##	if ismember(cur_record_type, {'HEADER'})
 	##		return
 	##	endif
-
-
 
 	if ~isfield(log_struct.(cur_record_type), "LISTS") || isempty(log_struct.(cur_record_type).LISTS )
 		log_struct.(cur_record_type).last_valid_data_idx = 0;
@@ -1027,6 +893,7 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 	log_struct.(cur_record_type).last_valid_data_idx = cur_valid_data_idx;
 	return
 endfunction
+
 
 function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, delimiter_string, string_field_identifier_list, HEADER_RECORD_name, DATA_RECORD_name )
 	global log_struct
@@ -1190,16 +1057,14 @@ function [ output_rect ] = fn_set_figure_outputpos_and_size( figure_handle, left
 		error(['ERROR: First argument needs to be a figure handle...']);
 	end
 
-
 	cm2inch = 1/2.54;
 	fraction = 1;
 	output_rect = [left_edge_cm bottom_edge_cm rect_w rect_h] * cm2inch;	% left, bottom, width, height
 	set(figure_handle, 'Units', Units_string, 'Position', output_rect, 'PaperPosition', output_rect);
 	set(figure_handle, 'PaperSize', [rect_w+2*left_edge_cm*fraction rect_h+2*bottom_edge_cm*fraction] * cm2inch, 'PaperOrientation', PaperOrientation_string, 'PaperUnits', Units_string);
-
-
 	return
 endfunction
+
 
 function [ out_x_range, do_return ] = fn_sanitize_x_range( x_range, n_samples )
 	do_return = 0;
@@ -1236,6 +1101,7 @@ function [ out_x_range, do_return ] = fn_sanitize_x_range( x_range, n_samples )
 
 	return
 endfunction
+
 
 function [ out_x_range_sec, do_return ] = fn_sanitize_x_range_sec( x_range_sec, first_sample_timestamp, last_sample_timestamp )
 	do_return = 0;
@@ -1274,6 +1140,7 @@ function [ out_x_range_sec, do_return ] = fn_sanitize_x_range_sec( x_range_sec, 
 
 endfunction
 
+
 function [ x_range ] = fn_get_range_indices_from_range_timestamps( x_range_sec_absolute, timestamp_list )
 	% x_range_sec_absolute needs to be in absolute timestamps, not relative to log file start
 	% find the index of the first timestamp equal or larger than x_range_sec(1)
@@ -1282,18 +1149,19 @@ function [ x_range ] = fn_get_range_indices_from_range_timestamps( x_range_sec_a
 	x_range(2) = find(timestamp_list <= x_range_sec_absolute(2), 1, 'last');
 endfunction
 
+
 function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
 	xlabel_string, ylabel_string, title_string, ...
 	set_name_list, n_sample_per_reflector_list, cur_data_XDF_list, linestyle_list, linewidth_list)
 
-%	xlabel_string = 'delay [ms]';
-%	ylabel_string = 'cumulative density [%]';
-%	title_string = 'RTT, high versus low load';
-%	set_name_list = {': low load', ': high load'}
-%	n_sample_per_reflector_list = {};
-%	cur_data_XDF_list = {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}
-%	linestyle_list = {'-', ':'};
-%	linewidth_list = {line_width, line_width};
+	%	xlabel_string = 'delay [ms]';
+	%	ylabel_string = 'cumulative density [%]';
+	%	title_string = 'RTT, high versus low load';
+	%	set_name_list = {': low load', ': high load'}
+	%	n_sample_per_reflector_list = {};
+	%	cur_data_XDF_list = {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}
+	%	linestyle_list = {'-', ':'};
+	%	linewidth_list = {line_width, line_width};
 	n_unique_reflectors = length(unique_reflector_list);
 	n_sets = length(set_name_list);
 	cur_x_low_quantile_idx = nan([n_unique_reflectors, n_sets]);
@@ -1321,17 +1189,6 @@ function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, 
 			if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
 				cur_x_high_quantile_idx(i_reflector, i_set) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
 			endif
-
-##			legend_list{end+1} = [unique_reflector_list{i_reflector}, [cur_set_name, ]];
-##			cur_data = 100 * RTT_HighLoad_sample_delay_CDF_by_reflector_array(i_reflector, :);
-##			plot(ax_h, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', ':', 'LineWidth', line_width);
-##			% also get the 99.9 % index
-##			if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
-##				cur_x_low_quantile_idx(i_reflector, 2) = find(cur_data >= cumulative_range_percent(1), 1, 'first');
-##			endif
-##			if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
-##				cur_x_high_quantile_idx(i_reflector, 2) = find(cur_data <= cumulative_range_percent(2), 1, 'last');
-##			endif
 		endfor
 	endfor
 	hold off
@@ -1352,4 +1209,175 @@ function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, 
 	end_try_catch
 
 	return
-	endfunction
+endfunction
+
+
+function [ load_struct ] = fn_get_samples_by_load(DATA_LISTS_struct, method_string, direction_list, data_field_name_list, LowLoad_threshold, HighLoad_threshold);
+	load_struct = struct();
+	% direction_list = {'UL', 'DL'};
+	% data_field_name_list = {'UL_LOAD_PERCENT', 'DL_LOAD_PERCENT'};
+	switch method_string
+		case 'LOAD_PERCENT'
+			% just take the load percentage as calculated by autorate
+			for i_direction = 1 : length(direction_list)
+				cur_direction_string = direction_list{i_direction};
+				cur_data_fieldname = data_field_name_list{i_direction};
+				load_struct.(cur_direction_string).AnyLoad = find(ones(size(DATA_LISTS_struct.(cur_data_fieldname))));
+				load_struct.(cur_direction_string).LowLoad = find(DATA_LISTS_struct.(cur_data_fieldname) <= LowLoad_threshold);
+				load_struct.(cur_direction_string).HighLoad = find(DATA_LISTS_struct.(cur_data_fieldname) >= HighLoad_threshold);
+			endfor
+
+
+			load_struct.ULorDL.AnyLoad = [];
+			load_struct.ULorDL.LowLoad = [];
+			load_struct.ULorDL.HighLoad = [];
+			% both UL and DL
+			load_struct.ULandDL.AnyLoad = [];
+			load_struct.ULandDL.LowLoad = [];
+			load_struct.ULandDL.HighLoad = [];
+
+			if isfield(load_struct, 'UL') && isfield(load_struct, 'DL')
+				% either DL or UL
+				load_struct.ULorDL.AnyLoad = load_struct.UL.AnyLoad;
+				load_struct.ULorDL.LowLoad = union(load_struct.UL.LowLoad, load_struct.DL.LowLoad);
+				load_struct.ULorDL.HighLoad = union(load_struct.UL.HighLoad, load_struct.DL.HighLoad);
+				% both UL and DL
+				load_struct.ULandDL.AnyLoad = load_struct.UL.AnyLoad;
+				load_struct.ULandDL.LowLoad = intersect(load_struct.UL.LowLoad, load_struct.DL.LowLoad);
+				load_struct.ULandDL.HighLoad = intersect(load_struct.UL.HighLoad, load_struct.DL.HighLoad);
+			endif
+		otherwise
+			error(['ERROR: Unkown method_string (', method_string, ') encountered. ']);
+	endswitch
+	return
+endfunction
+
+
+function [ delay_struct, CDF_x_vec, unique_reflector_list ] = fn_get_XDF_by_load(method_string, delay_type_string, UL_OWD_sample_list, DL_OWD_sample_list, data_scale_factor, ...
+	calc_range_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
+	% method_string = 'CDF';
+	% delay_type_string = 'RAW';
+	delay_struct = struct();
+
+	% the time resolution
+	CDF_x_vec = (calc_range_ms(1):0.01:calc_range_ms(end));
+	unique_reflector_list = unique(REFLECTOR_by_sample_list);
+	n_unique_reflectors = length(unique_reflector_list);
+
+	delay_struct.CDF_x_vec = CDF_x_vec;
+	delay_struct.unique_reflector_list = unique_reflector_list;
+
+
+	% the next needs checking for true OWDs and RTTs
+	RTT_sample_list = UL_OWD_sample_list .+ DL_OWD_sample_list;
+
+	delay.UL_OWD = UL_OWD_sample_list;
+	delay.DL_OWD = DL_OWD_sample_list;
+	delay.RTT = RTT_sample_list;
+	delay_measure_list = fieldnames(delay);
+
+	load_direction_list = fieldnames(sample_idx_by_load);
+	load_condition_list = fieldnames(sample_idx_by_load.UL);
+
+
+	% now construct all combinations of delay_measure, load_direction and load_condition
+	% and generate the respective sample list and then calculate the method_string for all reflectors
+	% report the method, n, and idx? as structure fields
+
+	% pre-allocate data structures
+	for i_measure = 1 : length(delay_measure_list)
+		cur_delay_measure_name = delay_measure_list{i_measure};
+		cur_delay_data = delay.(cur_delay_measure_name);
+		for i_load_direction = 1 : length(load_direction_list)
+			cur_load_direction = load_direction_list{i_load_direction};
+			for i_load_condition = 1 : length(load_condition_list);
+				cur_load_condition = load_condition_list{i_load_condition};
+				% allocate the data structures
+				delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data = nan([n_unique_reflectors, length(CDF_x_vec)]);
+				delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).n = zeros([n_unique_reflectors, 1]);
+
+				% now perform the calculation
+				for i_reflector = 1:n_unique_reflectors
+					cur_reflector = unique_reflector_list{i_reflector};
+					cur_reflector_sample_idx = find(ismember(REFLECTOR_by_sample_list, {cur_reflector}));
+					cur_All_sample_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+
+					cur_load_directon_load_condition_sample_idx = intersect(cur_All_sample_idx, sample_idx_by_load.(cur_load_direction).(cur_load_condition));
+
+					if ~isempty(cur_load_directon_load_condition_sample_idx)
+						switch method_string
+							case {'cdf', 'CDF'}
+								delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data(i_reflector, :) = empirical_cdf(CDF_x_vec, (cur_delay_data(cur_load_directon_load_condition_sample_idx) * data_scale_factor));
+							case {'pdf', 'PDF'}
+								delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data(i_reflector, :) = empirical_pdf(CDF_x_vec, (cur_delay_data(cur_load_directon_load_condition_sample_idx) * data_scale_factor));
+						endswitch
+						delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).n(i_reflector) = length(cur_load_directon_load_condition_sample_idx);
+					endif
+				endfor
+			endfor
+		endfor
+	endfor
+
+	return
+endfunction
+
+
+function [ autorate_CDF_fh ] = fn_plot_CDF_by_measure_and_load_condition( figure_opts, data_struct, cumulative_range_percent, xlabel_string, ylabel_string, cur_plot_FQN )
+
+	data = data_struct;
+	CDF_x_vec = data_struct.CDF_x_vec;
+	unique_reflector_list = data_struct.unique_reflector_list;
+	n_unique_reflectors = length(unique_reflector_list);
+
+	autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_opts.figure_visibility_string);
+	[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 1, 1, 75, 25, 1, 'landscape', 'centimeters' );
+
+	% do a 3 by 2 matrix:
+	% upper row col1: RTT all samples
+	%			col2: DL all samples
+	%			col3: UL all samples
+	% lower row col1: RTT low vs high load
+	%			col2: DL low vs high load
+	%			col3: UL low vs high load
+	% common properties
+	% get unique colors but avoid black and white
+	tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
+	color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
+
+	cur_sph = subplot(2, 3, 1);
+	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, 'RTT, all samples', ...
+	{''}, {data.RTT.ULorDL.AnyLoad.n}, {data.RTT.ULorDL.AnyLoad.data}, {'-'}, {figure_opts.line_width});
+
+	cur_sph = subplot(2, 3, 2);
+	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, 'Download OWD, all samples', ...
+	{''}, {data.DL_OWD.DL.AnyLoad.n}, {data.DL_OWD.DL.AnyLoad.data}, {'-'}, {figure_opts.line_width});
+
+	cur_sph = subplot(2, 3, 3);
+	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, 'Upload OWD, all samples', ...
+	{''}, {data.UL_OWD.UL.AnyLoad.n}, {data.UL_OWD.UL.AnyLoad.data}, {'-'}, {figure_opts.line_width});
+
+	cur_sph = subplot(2, 3, 4);
+	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, 'RTT, high versus low load', ...
+	{': low', ': high'}, {data.RTT.ULorDL.LowLoad.n, data.RTT.ULorDL.HighLoad.n}, {data.RTT.ULorDL.LowLoad.data, data.RTT.ULorDL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width});
+
+	cur_sph = subplot(2, 3, 5);
+	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, 'Download OWD, high versus low load', ...
+	{': low', ': high'}, {data.DL_OWD.DL.LowLoad.n, data.DL_OWD.DL.HighLoad.n}, {data.DL_OWD.DL.LowLoad.data, data.DL_OWD.DL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width});
+
+	cur_sph = subplot(2, 3, 6);
+	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+	xlabel_string, ylabel_string, 'Upload OWD, high versus low load', ...
+	{': low', ': high'}, {data.UL_OWD.UL.LowLoad.n, data.UL_OWD.UL.HighLoad.n}, {data.UL_OWD.UL.LowLoad.data, data.UL_OWD.UL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width});
+
+
+	disp(['INFO: Writing plot as: ', cur_plot_FQN]);
+	write_out_figure(autorate_CDF_fh, cur_plot_FQN, [], []);
+
+	return
+endfunction
+
