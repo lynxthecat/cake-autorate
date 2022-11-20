@@ -1181,6 +1181,8 @@ function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, 
 	xlabel_string, ylabel_string, title_string, ...
 	set_name_list, n_sample_per_reflector_list, cur_data_XDF_list, linestyle_list, linewidth_list, distribution_string)
 
+	legend_font_size = 6;
+
 	%	xlabel_string = 'delay [ms]';
 	%	ylabel_string = 'cumulative density [%]';
 	%	title_string = 'RTT, high versus low load';
@@ -1233,13 +1235,13 @@ function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, 
 	title(ax_h, title_string);
 	try
 		if strcmp(graphics_toolkit, 'gnuplot')
-			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
 		else
-			legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', 6);
+			legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
 		end
 	catch
 		disp(['Triggered']);
-		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 6);
+		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', legend_font_size);
 	end_try_catch
 
 	return
@@ -1364,7 +1366,7 @@ function [ autorate_CDF_fh ] = fn_plot_CDF_by_measure_and_load_condition( distri
 	n_unique_reflectors = length(unique_reflector_list);
 
 	autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_opts.figure_visibility_string);
-	[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 1, 1, 75, 25, 1, 'landscape', 'centimeters' );
+	[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 0.2, 0.2, 45, 15, 1, 'landscape', 'centimeters' );
 
 	% do a 3 by 2 matrix:
 	% upper row col1: RTT all samples
@@ -1449,9 +1451,9 @@ function [] = fn_propose_delay_thresholds( delta_CDF, calc_range_ms )
 		for i_quantile = 1 : length(quantiles_to_report_list)
 			cur_quantile = quantiles_to_report_list(i_quantile);
 			for i_reflector = 1:n_unique_reflectors
-
+				cur_data_CDF_per_reflector = cur_data_CDF(i_reflector, :);
 				% find the requested quantiles
-				cur_x_quantile_to_report_id(i_quantile, i_reflector) = find(cur_data_CDF <= cur_quantile, 1, 'last');
+				cur_x_quantile_to_report_id(i_quantile, i_reflector) = find(cur_data_CDF_per_reflector <= cur_quantile, 1, 'last');
 			endfor
 			max_delay_for_quantile = CDF_x_vec(max(cur_x_quantile_to_report_id(i_quantile, :)));
 			disp([cur_delay, ': maximum ', num2str(cur_quantile, '%3.3f'), '%-ile delta delay over all ', num2str(n_unique_reflectors), ' reflectors: ', num2str(max_delay_for_quantile, '%4.3f'), ' ms.']);
