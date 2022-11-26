@@ -35,8 +35,6 @@ ul_if=ifb-ul # upload interface
 # hping3 - individidual pinging (owds)
 pinger_binary=fping
 
-reflector_ping_interval_s=0.2 # (seconds, e.g. 0.2s or 2s)
-
 # list of reflectors to use and number of pingers to initiate
 # pingers will be initiated with reflectors in the order specified in the list 
 # additional reflectors will be used to replace any reflectors that go stale
@@ -52,13 +50,18 @@ reflectors=(
 "208.67.220.2" "208.67.220.123" "208.67.220.220" "208.67.222.2" "208.67.222.123" # OpenDNS
 "185.228.168.9" "185.228.168.10" "185.228.169.11" "185.228.169.9" "185.228.169.168" # CleanBrowsing
 )
-no_pingers=4
+# Think carefully about the following settings
+# to avoid excessive CPU use (proportional with ping interval / number of pingers)
+# and to avoid abusive network activity (excessive ICMP frequency to one reflector)
+# The author has found an ICMP rate of 1/(0.2/4) = 20 Hz to give satisfactory performance on 4G
+no_pingers=10 # number of pingers to maintain
+reflector_ping_interval_s=0.5 # (seconds, e.g. 0.2s or 2s)
 
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=12.5 # (milliseconds)
-ul_delay_thr_ms=12.5 # (milliseconds)
+dl_delay_thr_ms=20 # (milliseconds)
+ul_delay_thr_ms=20 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -105,14 +108,14 @@ monitor_achieved_rates_interval_ms=200 # (milliseconds)
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
-bufferbloat_detection_window=4  # number of samples to retain in detection window
-bufferbloat_detection_thr=2      # number of delayed samples for bufferbloat detection
+bufferbloat_detection_window=10  # number of samples to retain in detection window
+bufferbloat_detection_thr=5      # number of delayed samples for bufferbloat detection
 
 # RTT baseline against which to measure delays
 # the idea is that the baseline is allowed to increase slowly to allow for path changes
 # and slowly enough such that bufferbloat will be corrected well before the baseline increases,
 # but it will decrease very rapidly to ensure delays are measured against the shortest path
-alpha_baseline_increase=0.001 # how rapidly baseline RTT is allowed to increase
+alpha_baseline_increase=0.01  # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
 
 # rate adjustment parameters 
@@ -134,7 +137,7 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 # the bufferbloat refractory period should be greater than the 
 # average time it would take to replace the bufferbloat
 # detection window with new samples upon a bufferbloat event
-bufferbloat_refractory_period_ms=300 # (milliseconds)
+bufferbloat_refractory_period_ms=500 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
 # interval for checking reflector health
