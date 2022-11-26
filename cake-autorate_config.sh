@@ -115,8 +115,8 @@ bufferbloat_detection_thr=5      # number of delayed samples for bufferbloat det
 # the idea is that the baseline is allowed to increase slowly to allow for path changes
 # and slowly enough such that bufferbloat will be corrected well before the baseline increases,
 # but it will decrease very rapidly to ensure delays are measured against the shortest path
-alpha_baseline_increase=0.01  # how rapidly baseline RTT is allowed to increase
-alpha_baseline_decrease=0.9   # how rapidly baseline RTT is allowed to decrease
+alpha_baseline_increase=0.001  # how rapidly baseline RTT is allowed to increase
+alpha_baseline_decrease=0.9  # how rapidly baseline RTT is allowed to decrease
 
 # rate adjustment parameters 
 # bufferbloat adjustment works with the lower of the adjusted achieved rate and adjusted shaper rate
@@ -137,7 +137,7 @@ high_load_thr=0.75   # % of currently set bandwidth for detecting high load
 # the bufferbloat refractory period should be greater than the 
 # average time it would take to replace the bufferbloat
 # detection window with new samples upon a bufferbloat event
-bufferbloat_refractory_period_ms=500 # (milliseconds)
+bufferbloat_refractory_period_ms=300 # (milliseconds)
 decay_refractory_period_ms=1000 # (milliseconds)
 
 # interval for checking reflector health
