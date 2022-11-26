@@ -182,6 +182,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		endif
 
 		delays.DATA.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US'};
+		%delays.DATA.fields_to_plot_list = {'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'DL_OWD_BASELINE', 'UL_OWD_BASELINE'};
+
 		% to allow old (single ADJ_DELAY_THR) and new log files
 		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
 			delays.DATA.fields_to_plot_list{end+1} = 'DL_ADJ_DELAY_THR';
@@ -194,6 +196,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
 		endif
 		delays.DATA.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
+		%delays.DATA.color_list = {[216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [140, 81, 10]/254, [1, 102, 94]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
 		delays.DATA.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
 		delays.DATA.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
 		delays.DATA.scale_factor = 1/1000;		% conversion factor frm µs to ms
@@ -1453,7 +1456,10 @@ function [] = fn_propose_delay_thresholds( delta_CDF, calc_range_ms )
 			for i_reflector = 1:n_unique_reflectors
 				cur_data_CDF_per_reflector = cur_data_CDF(i_reflector, :);
 				% find the requested quantiles
-				cur_x_quantile_to_report_id(i_quantile, i_reflector) = find(cur_data_CDF_per_reflector <= cur_quantile, 1, 'last');
+				cur_x_quantile = find(cur_data_CDF_per_reflector <= cur_quantile, 1, 'last');
+				if ~isempty(cur_x_quantile)
+					cur_x_quantile_to_report_id(i_quantile, i_reflector) = cur_x_quantile;
+				endif
 			endfor
 			max_delay_for_quantile = CDF_x_vec(max(cur_x_quantile_to_report_id(i_quantile, :)));
 			disp([cur_delay, ': maximum ', num2str(cur_quantile, '%3.3f'), '%-ile delta delay over all ', num2str(n_unique_reflectors), ' reflectors: ', num2str(max_delay_for_quantile, '%4.3f'), ' ms.']);
