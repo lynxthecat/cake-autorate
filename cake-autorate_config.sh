@@ -108,8 +108,8 @@ monitor_achieved_rates_interval_ms=200 # (milliseconds)
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
-bufferbloat_detection_window=10  # number of samples to retain in detection window
-bufferbloat_detection_thr=5      # number of delayed samples for bufferbloat detection
+bufferbloat_detection_window=6   # number of samples to retain in detection window
+bufferbloat_detection_thr=3      # number of delayed samples for bufferbloat detection
 
 # RTT baseline against which to measure delays
 # the idea is that the baseline is allowed to increase slowly to allow for path changes
