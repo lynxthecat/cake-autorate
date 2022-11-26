@@ -356,11 +356,11 @@ monitor_reflector_responses_fping()
 		rtt_us=${BASH_REMATCH[3]}000
 		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
 
+		alpha=$(( (( $rtt_us >= ${rtt_baselines_us[$reflector]} )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
+
+		rtt_baselines_us[$reflector]=$(( ($alpha*$rtt_us+(1000000-$alpha)*${rtt_baselines_us[$reflector]})/1000000 ))
+		
 		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
-
-		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
-
-		rtt_baselines_us[$reflector]=$(( ( (1000-$alpha)*${rtt_baselines_us[$reflector]}+$alpha*$rtt_us )/1000 ))
 
 		dl_owd_baseline_us=$((${rtt_baselines_us[$reflector]}/2))
 		ul_owd_baseline_us=$dl_owd_baseline_us
@@ -379,6 +379,9 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
 		
+		printf '%s' "$dl_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_dl_owd_baseline_us
+		printf '%s' "$ul_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_ul_owd_baseline_us
+
 		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflectors_last_timestamp_us
 
 	done</var/run/cake-autorate/fping_fifo
@@ -446,12 +449,12 @@ monitor_reflector_responses_ping()
 
 		reflector=${reflector//:/}
 
+		alpha=$(( (( $rtt_us >= $rtt_baseline_us )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
+
+		rtt_baseline_us=$(( ($alpha*$rtt_us+(1000000-$alpha)*$rtt_baseline_us)/1000000 ))
+		
 		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
-
-		alpha=$(( (( $rtt_delta_us >=0 )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
-
-		rtt_baseline_us=$(( ( (1000-$alpha)*$rtt_baseline_us+$alpha*$rtt_us )/1000 ))
-
+		
 		dl_owd_baseline_us=$(($rtt_baseline_us/2))
 		ul_owd_baseline_us=$dl_owd_baseline_us
 
@@ -469,6 +472,9 @@ monitor_reflector_responses_ping()
 
 		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
 		
+		printf '%s' "$dl_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_dl_owd_baseline_us
+		printf '%s' "$ul_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_ul_owd_baseline_us
+
 		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflectors_last_timestamp_us
 
 	done</var/run/cake-autorate/pinger_${pinger}_fifo
@@ -547,8 +553,7 @@ maintain_pingers()
 
  	trap 'kill_pingers_$pinger_binary' TERM EXIT
 
-	trap 'pause_reflector_health_check=1' USR1
-	trap 'pause_reflector_health_check=0' USR2
+	trap '((pause_reflector_health_check^=1))' USR2
 
 	pause_reflector_health_check=0
 
@@ -862,8 +867,8 @@ verify_ifs_up
 
 printf -v dl_delay_thr_us %.0f "${dl_delay_thr_ms}e3"
 printf -v ul_delay_thr_us %.0f "${ul_delay_thr_ms}e3"
-printf -v alpha_baseline_increase %.0f "${alpha_baseline_increase}e3"
-printf -v alpha_baseline_decrease %.0f "${alpha_baseline_decrease}e3"   
+printf -v alpha_baseline_increase %.0f "${alpha_baseline_increase}e6"
+printf -v alpha_baseline_decrease %.0f "${alpha_baseline_decrease}e6"   
 printf -v achieved_rate_adjust_down_bufferbloat %.0f "${achieved_rate_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_down_bufferbloat %.0f "${shaper_rate_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_up_load_high %.0f "${shaper_rate_adjust_up_load_high}e3"
@@ -949,13 +954,13 @@ maintain_pingers&
 maintain_pingers_pid=$!
 
 if (($debug)); then
-	if (( $bufferbloat_refractory_period_us <= ($bufferbloat_detection_window*$ping_response_interval_us) )); then
+	if (( $bufferbloat_refractory_period_us < ($bufferbloat_detection_window*$ping_response_interval_us) )); then
 		log_msg "DEBUG" "Warning: bufferbloat refractory period: $bufferbloat_refractory_period_us us."
 		log_msg "DEBUG" "Warning: but expected time to overwrite samples in bufferbloat detection window is: $(($bufferbloat_detection_window*$ping_response_interval_us)) us." 
 		log_msg "DEBUG" "Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
-	if (( $reflector_response_deadline_us < 5*$reflector_ping_interval_us )); then 
-		log_msg "DEBUG" "Warning: reflector_response_deadline_s < 5*reflector_ping_interval_s"
+	if (( $reflector_response_deadline_us < 2*$reflector_ping_interval_us )); then 
+		log_msg "DEBUG" "Warning: reflector_response_deadline_s < 2*reflector_ping_interval_s"
 		log_msg "DEBUG" "Warning: consider setting an increased reflector_response_deadline."
 	fi
 fi
@@ -1044,9 +1049,9 @@ do
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /var/run/cake-autorate/reflectors_last_timestamp_us
 
-		# send signal USR1 to pause reflector health monitoring to prevent reflector rotation
+		# send signal USR2 to pause reflector health monitoring to prevent reflector rotation
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
-		kill -USR1 $maintain_pingers_pid
+		kill -USR2 $maintain_pingers_pid
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1062,7 +1067,7 @@ do
 
 				(($debug)) && log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
-				# send signal USR1 to pause reflector health monitoring to prevent reflector rotation
+				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
 				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
 				kill -USR2 $maintain_pingers_pid
 
