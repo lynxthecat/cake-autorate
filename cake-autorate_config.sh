@@ -60,8 +60,8 @@ reflector_ping_interval_s=0.5 # (seconds, e.g. 0.2s or 2s)
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=20 # (milliseconds)
-ul_delay_thr_ms=20 # (milliseconds)
+dl_delay_thr_ms=25 # (milliseconds)
+ul_delay_thr_ms=25 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
