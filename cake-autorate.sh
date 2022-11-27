@@ -67,6 +67,15 @@ print_headers()
 
 }
 
+ewma_iteration()
+{
+	local value=$1
+	local alpha=$2 # alpha must be scaled by factor of 1000000
+	local -n ewma=$3
+
+	ewma=$(( ($alpha*$value+(1000000-$alpha)*$ewma)/1000000 ))
+}
+
 # MAINTAIN_LOG_FILE + HELPER FUNCTIONS
 
 rotate_log_file()
@@ -344,7 +353,7 @@ monitor_reflector_responses_fping()
 			rtt_baselines_us[${reflectors[$reflector]}]=1000000
 		fi
 	done
-	
+
 	while read timestamp reflector _ seq_rtt
 	do 
 		t_start_us=${EPOCHREALTIME/./}
@@ -358,8 +367,8 @@ monitor_reflector_responses_fping()
 
 		alpha=$(( (( $rtt_us >= ${rtt_baselines_us[$reflector]} )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
 
-		rtt_baselines_us[$reflector]=$(( ($alpha*$rtt_us+(1000000-$alpha)*${rtt_baselines_us[$reflector]})/1000000 ))
-		
+		ewma_iteration $rtt_us $alpha rtt_baselines_us[$reflector]
+
 		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
 
 		dl_owd_baseline_us=$((${rtt_baselines_us[$reflector]}/2))
@@ -451,7 +460,7 @@ monitor_reflector_responses_ping()
 
 		alpha=$(( (( $rtt_us >= $rtt_baseline_us )) ? $alpha_baseline_increase : $alpha_baseline_decrease ))
 
-		rtt_baseline_us=$(( ($alpha*$rtt_us+(1000000-$alpha)*$rtt_baseline_us)/1000000 ))
+		ewma_iteration $rtt_us $alpha rtt_baseline_us
 		
 		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
 		
