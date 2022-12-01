@@ -405,7 +405,7 @@ monitor_reflector_responses_fping()
 start_pinger_fping()
 {
 	mkfifo /var/run/cake-autorate/fping_fifo
-	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
+	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
 }
@@ -419,7 +419,7 @@ kill_pinger_fping()
 start_pingers_fping()
 {
 	mkfifo /var/run/cake-autorate/fping_fifo
-	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
+	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
 }
@@ -497,10 +497,10 @@ start_pinger_binary_ping()
 
 	mkfifo /var/run/cake-autorate/pinger_${pinger}_fifo
 	if (($debug)); then
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo &
+		$ping_prefix_string ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo &
 		pinger_pids[$pinger]=$!
 	else
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+		$ping_prefix_string ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
 		pinger_pids[$pinger]=$!
 	fi	
 }
