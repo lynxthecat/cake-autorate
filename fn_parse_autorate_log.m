@@ -48,6 +48,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
 	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
 	CDF.calc_range_ms = [0, 1000];	% what range to calculate the CDFs over? We can always reduce the plotted range later, see cumulative_range_percent
+	CDF.step_size_ms = 0.01;
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 
 	% add all defined plots that should be created and saved
@@ -312,7 +313,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('rawCDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -324,7 +325,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('rawPDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -337,7 +338,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('deltaCDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -350,7 +351,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('deltaPDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -1293,13 +1294,13 @@ endfunction
 
 
 function [ delay_struct, CDF_x_vec, unique_reflector_list ] = fn_get_XDF_by_load(method_string, delay_type_string, UL_OWD_sample_list, DL_OWD_sample_list, data_scale_factor, ...
-	calc_range_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
+	calc_range_ms, step_size_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
 	% method_string = 'CDF';
 	% delay_type_string = 'RAW';
 	delay_struct = struct();
 
 	% the time resolution
-	CDF_x_vec = (calc_range_ms(1):0.01:calc_range_ms(end));
+	CDF_x_vec = (calc_range_ms(1):step_size_ms:calc_range_ms(end));
 	unique_reflector_list = unique(REFLECTOR_by_sample_list);
 	n_unique_reflectors = length(unique_reflector_list);
 
