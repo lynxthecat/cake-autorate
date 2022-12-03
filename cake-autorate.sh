@@ -813,7 +813,7 @@ else
 	config_path=/root/cake-autorate/cake-autorate_config.sh
 fi
 
-if [[ "/root/cake-autorate/cake-autorate_config.sh" =~ cake-autorate_config\.(.*)\.sh ]]; then
+if [[ $1 =~ cake-autorate_config\.(.*)\.sh ]]; then
 	run_path=/var/run/cake-autorate/${BASH_REMATCH[1]}
 	log_file_path=/var/log/cake-autorate/${BASH_REMATCH[1]}
 else
