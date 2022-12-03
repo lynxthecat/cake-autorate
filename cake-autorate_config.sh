@@ -60,8 +60,8 @@ reflector_ping_interval_s=0.5 # (seconds, e.g. 0.2s or 2s)
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=25 # (milliseconds)
-ul_delay_thr_ms=25 # (milliseconds)
+dl_delay_thr_ms=30 # (milliseconds)
+ul_delay_thr_ms=30 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -99,7 +99,8 @@ log_file_export_compress=1 # compress the exported log file with its default/ove
 # extra arguments for ping
 # e.g., when using mwan3, set up the correct outgoing interface and the firewall mark
 # ping_extra_args=(-I wwan0 -m $((0x300)))
-ping_extra_args=()
+# WARNING: no error checking so use at own risk!
+ping_extra_args=""
 
 # prefix for ping
 # e.g., when using mwan3, use: ping_prefix_string="mwan3 use gpon exec"
