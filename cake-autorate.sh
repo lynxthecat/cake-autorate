@@ -821,6 +821,8 @@ else
 	log_file_path=/var/log/cake-autorate
 fi
 
+[[ ! -d $log_file_path ]] && mkdir $log_file_path
+
 [[ ! -f "$config_path" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
 . $config_path
 [[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
