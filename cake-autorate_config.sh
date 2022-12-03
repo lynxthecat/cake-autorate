@@ -25,7 +25,8 @@ log_file_max_size_KB=2000 # maximum KB (i.e. bytes/1024) worth of log lines betw
 
 # log file path defaults to /var/log/cake-autorate or /var/log/cake-autorate/X
 # where X is set from the config file name as in: cake-autorate_config.X.sh
-# log_file_path=/var/log
+# or, if set below, then $log_file_path_override/X
+log_file_path_override=""
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
