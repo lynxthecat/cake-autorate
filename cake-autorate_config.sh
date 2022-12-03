@@ -20,9 +20,12 @@ debug=1 		  # enable (1) or disable (0) out of debug lines
 # every write the cumulative write time and bytes associated with each log line are checked
 # and if either exceeds the configured values below, the log log file is rotated
 log_to_file=1             # enable (1) or disable (0) output logging to file (/tmp/cake-autorate.log)
-log_file_path=/var/log    # log file path
 log_file_max_time_mins=10 # maximum time between log file rotations
 log_file_max_size_KB=2000 # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
+
+# log file path defaults to /var/log/cake-autorate or /var/log/cake-autorate/X
+# where X is set from the config file name as in: cake-autorate_config.X.sh
+# log_file_path=/var/log
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
