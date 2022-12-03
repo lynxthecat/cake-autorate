@@ -101,6 +101,10 @@ log_file_export_compress=1 # compress the exported log file with its default/ove
 # ping_extra_args=(-I wwan0 -m $((0x300)))
 ping_extra_args=()
 
+# prefix for ping
+# e.g., when using mwan3, use: ping_prefix_string="mwan3 use gpon exec"
+ping_prefix_string=""
+
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  

@@ -405,7 +405,7 @@ monitor_reflector_responses_fping()
 start_pinger_fping()
 {
 	mkfifo /var/run/cake-autorate/fping_fifo
-	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
+	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
 }
@@ -419,7 +419,7 @@ kill_pinger_fping()
 start_pingers_fping()
 {
 	mkfifo /var/run/cake-autorate/fping_fifo
-	fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
+	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
 }
@@ -497,10 +497,10 @@ start_pinger_binary_ping()
 
 	mkfifo /var/run/cake-autorate/pinger_${pinger}_fifo
 	if (($debug)); then
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo &
+		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo &
 		pinger_pids[$pinger]=$!
 	else
-		ping -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
 		pinger_pids[$pinger]=$!
 	fi	
 }
@@ -548,7 +548,7 @@ start_pinger_next_pinger_time_slot()
 	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
 
 	local pinger=$1
-	local -n pinger_pid=$2
+	
 	t_start_us=${EPOCHREALTIME/./}
 	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
