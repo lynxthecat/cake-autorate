@@ -11,8 +11,6 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
-install_dir="/root/cake-autorate/"
-
 # Possible performance improvement
 export LC_ALL=C
 
@@ -29,7 +27,7 @@ cleanup_and_killall()
 
 	wait # wait for child processes to terminate
 
-	[[ -d /var/run/cake-autorate ]] && rm -r /var/run/cake-autorate
+	[[ -d $run_path ]] && rm -r $run_path
 	exit
 }
 
@@ -39,7 +37,7 @@ log_msg()
 	local type=$1
 	local msg=$2
 
-	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > /var/run/cake-autorate/log_fifo
+	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > $run_path/log_fifo
         [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 }
 
@@ -58,11 +56,11 @@ log_msg_bypass_fifo()
 print_headers()
 {
 	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
- 	(($log_to_file)) && printf '%s\n' "$header" > /var/run/cake-autorate/log_fifo
+ 	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
 	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS"
- 	(($log_to_file)) && printf '%s\n' "$header" > /var/run/cake-autorate/log_fifo
+ 	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
 }
@@ -132,7 +130,7 @@ kill_maintain_log_file()
 	while read -t 0.1 log_line
 	do
 		printf '%s\n' "$log_line" >> ${log_file_path}/cake-autorate.log		
-	done</var/run/cake-autorate/log_fifo
+	done<$run_path/log_fifo
 	exit
 }
 
@@ -177,7 +175,7 @@ maintain_log_file()
 			log_file_size_bytes=0
 		fi
 
-	done</var/run/cake-autorate/log_fifo
+	done<$run_path/log_fifo
 }
 
 get_next_shaper_rate() 
@@ -271,8 +269,8 @@ monitor_achieved_rates()
 		(($dl_achieved_rate_kbps<0)) && dl_achieved_rate_kbps=0
 		(($ul_achieved_rate_kbps<0)) && ul_achieved_rate_kbps=0
 	
-		printf '%s' "$dl_achieved_rate_kbps" > /var/run/cake-autorate/dl_achieved_rate_kbps
-		printf '%s' "$ul_achieved_rate_kbps" > /var/run/cake-autorate/ul_achieved_rate_kbps
+		printf '%s' "$dl_achieved_rate_kbps" > $run_path/dl_achieved_rate_kbps
+		printf '%s' "$ul_achieved_rate_kbps" > $run_path/ul_achieved_rate_kbps
 		
 		if (($output_load_stats)); then 
 			
@@ -284,7 +282,7 @@ monitor_achieved_rates()
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
-		concurrent_read_positive_integer max_wire_packet_rtt_us /var/run/cake-autorate/max_wire_packet_rtt_us
+		concurrent_read_positive_integer max_wire_packet_rtt_us $run_path/max_wire_packet_rtt_us
 
 		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 
@@ -296,8 +294,8 @@ get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
 
-	concurrent_read_positive_integer dl_achieved_rate_kbps /var/run/cake-autorate/dl_achieved_rate_kbps 
-	concurrent_read_positive_integer ul_achieved_rate_kbps /var/run/cake-autorate/ul_achieved_rate_kbps 
+	concurrent_read_positive_integer dl_achieved_rate_kbps $run_path/dl_achieved_rate_kbps 
+	concurrent_read_positive_integer ul_achieved_rate_kbps $run_path/ul_achieved_rate_kbps 
 
 	dl_load_percent=$(((100*10#${dl_achieved_rate_kbps})/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*10#${ul_achieved_rate_kbps})/$ul_shaper_rate_kbps))
@@ -347,12 +345,14 @@ monitor_reflector_responses_fping()
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
 	do
-		if [[ -f /var/run/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us ]]; then
-			read rtt_baselines_us[${reflectors[$reflector]}] < /var/run/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us
+		if [[ -f $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us ]]; then
+			read rtt_baselines_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
 		else
 			rtt_baselines_us[${reflectors[$reflector]}]=1000000
 		fi
 	done
+
+	output=0
 
 	while read timestamp reflector _ seq_rtt
 	do 
@@ -378,34 +378,34 @@ monitor_reflector_responses_fping()
 		ul_owd_us=$dl_owd_us
 
 		dl_owd_delta_us=$(($rtt_delta_us/2))
-		ul_owd_delta_us=$dl_owd_delta_us		
+		ul_owd_delta_us=$dl_owd_delta_us
 		
 		timestamp=${timestamp//[\[\]]}0
 
-		printf '%s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > /var/run/cake-autorate/ping_fifo
+		printf '%s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > $run_path/ping_fifo
 
 		timestamp_us=${timestamp//[.]}
 
-		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
+		printf '%s' "$timestamp_us" > $run_path/reflector_${reflector//./-}_last_timestamp_us
 		
-		printf '%s' "$dl_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_dl_owd_baseline_us
-		printf '%s' "$ul_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_ul_owd_baseline_us
+		printf '%s' "$dl_owd_baseline_us" > $run_path/reflector_${reflector//./-}_dl_owd_baseline_us
+		printf '%s' "$ul_owd_baseline_us" > $run_path/reflector_${reflector//./-}_ul_owd_baseline_us
 
-		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflectors_last_timestamp_us
+		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done</var/run/cake-autorate/fping_fifo
+	done<$run_path/fping_fifo
 
 	# Store baselines to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<$no_reflectors; reflector++))
 	do
-		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > /var/run/cake-autorate/reflector_${reflectors[$reflector]//./-}_baseline_us
+		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
 	done
 }
 
 start_pinger_fping()
 {
-	mkfifo /var/run/cake-autorate/fping_fifo
-	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
+	mkfifo $run_path/fping_fifo
+	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
 }
@@ -413,13 +413,13 @@ start_pinger_fping()
 kill_pinger_fping()
 {
 	kill "${pinger_pids[@]}" 2> /dev/null
-	[[ -p /var/run/cake-autorate/fping_fifo ]] && rm /var/run/cake-autorate/fping_fifo
+	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
 }
 
 start_pingers_fping()
 {
-	mkfifo /var/run/cake-autorate/fping_fifo
-	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > /var/run/cake-autorate/fping_fifo&
+	mkfifo $run_path/fping_fifo
+	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
 }
@@ -428,7 +428,7 @@ kill_pingers_fping()
 {
 	trap - TERM EXIT
 	kill "${pinger_pids[@]}" 2> /dev/null
-	[[ -p /var/run/cake-autorate/fping_fifo ]] && rm /var/run/cake-autorate/fping_fifo
+	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
 	exit
 }
 # END OF FPING FUNCTIONS 
@@ -441,8 +441,8 @@ monitor_reflector_responses_ping()
 
 	local pinger=$1
 
-	if [[ -f /var/run/cake-autorate/reflector_${reflectors[$pinger]//./-}_baseline_us ]]; then
-			read rtt_baseline_us < /var/run/cake-autorate/reflector_${reflectors[$pinger]//./-}_baseline_us
+	if [[ -f $run_path/reflector_${reflectors[$pinger]//./-}_baseline_us ]]; then
+			read rtt_baseline_us < $run_path/reflector_${reflectors[$pinger]//./-}_baseline_us
 	else
 			rtt_baseline_us=1000000
 	fi
@@ -475,32 +475,32 @@ monitor_reflector_responses_ping()
 
 		timestamp=${timestamp//[\[\]]}
 
-		printf '%s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > /var/run/cake-autorate/ping_fifo
+		printf '%s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > $run_path/ping_fifo
 		
 		timestamp_us=${timestamp//[.]}
 
-		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflector_${reflector//./-}_last_timestamp_us
+		printf '%s' "$timestamp_us" > $run_path/reflector_${reflector//./-}_last_timestamp_us
 		
-		printf '%s' "$dl_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_dl_owd_baseline_us
-		printf '%s' "$ul_owd_baseline_us" > /var/run/cake-autorate/reflector_${reflector//./-}_ul_owd_baseline_us
+		printf '%s' "$dl_owd_baseline_us" > $run_path/reflector_${reflector//./-}_dl_owd_baseline_us
+		printf '%s' "$ul_owd_baseline_us" > $run_path/reflector_${reflector//./-}_ul_owd_baseline_us
 
-		printf '%s' "$timestamp_us" > /var/run/cake-autorate/reflectors_last_timestamp_us
+		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done</var/run/cake-autorate/pinger_${pinger}_fifo
+	done<$run_path/pinger_${pinger}_fifo
 
-	printf '%s' $rtt_baseline_us > /var/run/cake-autorate/reflector_${reflectors[pinger]//./-}_baseline_us
+	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
 }
 
 start_pinger_binary_ping()
 {
 	local pinger=$1
 
-	mkfifo /var/run/cake-autorate/pinger_${pinger}_fifo
+	mkfifo $run_path/pinger_${pinger}_fifo
 	if (($debug)); then
-		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo &
+		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > $run_path/pinger_${pinger}_fifo &
 		pinger_pids[$pinger]=$!
 	else
-		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > /var/run/cake-autorate/pinger_${pinger}_fifo 2> /dev/null &
+		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > $run_path/pinger_${pinger}_fifo 2> /dev/null &
 		pinger_pids[$pinger]=$!
 	fi	
 }
@@ -515,7 +515,7 @@ kill_pinger_ping()
 {
 	local pinger=$1
 	kill $pinger_pids[$pinger] 2> /dev/null
-	[[ -p /var/run/cake-autorate/pinger_${pinger}_fifo ]] && rm /var/run/cake-autorate/pinger_${pinger}_fifo
+	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 	
 }
 
@@ -534,7 +534,7 @@ kill_pingers_ping()
 	for (( pinger=0; pinger<$no_pingers; pinger++))
 	do
 		kill ${pinger_pids[$pinger]} 2> /dev/null
-		[[ -p /var/run/cake-autorate/pinger_${pinger}_fifo ]] && rm /var/run/cake-autorate/pinger_${pinger}_fifo
+		[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 	done
 	exit
 }
@@ -572,10 +572,10 @@ maintain_pingers()
 
 	for ((reflector=0; reflector<$no_reflectors; reflector++))
 	do
-		printf '%s' "$pingers_t_start_us" > /var/run/cake-autorate/reflector_${reflectors[$reflector]//./-}_last_timestamp_us
+		printf '%s' "$pingers_t_start_us" > $run_path/reflector_${reflectors[$reflector]//./-}_last_timestamp_us
 	done
 	
-	printf '%s' "$pingers_t_start_us" > /var/run/cake-autorate/reflectors_last_timestamp_us
+	printf '%s' "$pingers_t_start_us" > $run_path/reflectors_last_timestamp_us
 
         # For each pinger initialize record of offences
         for ((pinger=0; pinger<$no_pingers; pinger++))                           
@@ -597,7 +597,7 @@ maintain_pingers()
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
-			concurrent_read_positive_integer reflector_last_timestamp_us /var/run/cake-autorate/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
+			concurrent_read_positive_integer reflector_last_timestamp_us $run_path/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
 			declare -n reflector_offences="reflector_${pinger}_offences"
 
 			(( ${reflector_offences[$reflector_offences_idx]} )) && ((sum_reflector_offences[$pinger]--))
@@ -708,7 +708,7 @@ update_max_wire_packet_compensation()
 
 	# determine and write out $max_wire_packet_rtt_us
 	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
-	printf '%s' "$max_wire_packet_rtt_us" > /var/run/cake-autorate/max_wire_packet_rtt_us
+	printf '%s' "$max_wire_packet_rtt_us" > $run_path/max_wire_packet_rtt_us
 }
 
 concurrent_read_positive_integer()
@@ -758,7 +758,7 @@ sleep_s()
 
 	local sleep_duration_s=$1 # (seconds, e.g. 0.5, 1 or 1.5)
 
-	read -t $sleep_duration_s < /var/run/cake-autorate/sleep_fifo
+	read -t $sleep_duration_s < $run_path/sleep_fifo
 }
 
 sleep_us()
@@ -771,7 +771,7 @@ sleep_us()
 	
 	sleep_duration_s=000000$sleep_duration_us
 	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-	read -t $sleep_duration_s < /var/run/cake-autorate/sleep_fifo
+	read -t $sleep_duration_s < $run_path/sleep_fifo
 }
 
 sleep_remaining_tick_time()
@@ -808,23 +808,36 @@ trap ":" USR1
 
 log_file_path=/var/log
 
-[[ ! -f $install_dir"cake-autorate_config.sh" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
-. $install_dir"cake-autorate_config.sh"
+# cake-autorate first argument is config file path
+if [[ ! -z $1 ]]; then
+	config_path=$1
+else
+	config_path=/root/cake-autorate/cake-autorate_config.sh
+fi
+
+if [[ "/root/cake-autorate/cake-autorate_config.sh" =~ cake-autorate_config\.(.*)\.sh ]]; then
+	run_path=/var/run/cake-autorate/${BASH_REMATCH[1]}
+else
+	run_path=/var/run/cake-autorate
+fi
+
+[[ ! -f "$config_path" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
+. $config_path
 [[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
 [[ ! -d $log_file_path ]] && { broken_log_file_path=$log_file_path; log_file_path=/var/log log_msg_bypass_fifo "ERROR" "Log file path: '$broken_log_file_path' does not exist. Exiting now."; exit; }
 
-# /var/run/cake-autorate/ is used to store temporary files
+# $run_path/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
-if [[ -d /var/run/cake-autorate ]]; then
-        log_msg_bypass_fifo "ERROR" "/var/run/cake-autorate already exists. Is another instance running? Exiting script."
+if [[ -d $run_path ]]; then
+        log_msg_bypass_fifo "ERROR" "$run_path already exists. Is another instance running? Exiting script."
         trap - INT TERM EXIT
         exit
 else
-        mkdir /var/run/cake-autorate
+        mkdir $run_path
 fi
 
-mkfifo /var/run/cake-autorate/sleep_fifo
-exec 3<> /var/run/cake-autorate/sleep_fifo
+mkfifo $run_path/sleep_fifo
+exec 3<> $run_path/sleep_fifo
 
 no_reflectors=${#reflectors[@]} 
 
@@ -845,17 +858,17 @@ command -v "$pinger_binary" &> /dev/null || { log_msg_bypass_fifo "ERROR" "ping 
 if (($log_to_file)); then
 	log_file_max_time_us=$(($log_file_max_time_mins*60000000))
 	log_file_max_size_bytes=$(($log_file_max_size_KB*1024))
-	mkfifo /var/run/cake-autorate/log_fifo
-	exec 4<> /var/run/cake-autorate/log_fifo
+	mkfifo $run_path/log_fifo
+	exec 4<> $run_path/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
-	echo $maintain_log_file_pid > /var/run/cake-autorate/maintain_log_file_pid
+	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
 
 # test if stdout is a tty (terminal)
 if [[ ! -t 1 ]]; then
 	"stdout not a terminal so redirecting output to: ${log_file_path}/cake-autorate.log"
-	(($log_to_file)) && exec &> /var/run/cake-autorate/log_fifo
+	(($log_to_file)) && exec &> $run_path/log_fifo
 fi
 
 if (( $debug )) ; then
@@ -864,6 +877,8 @@ if (( $debug )) ; then
 	log_msg "DEBUG" "Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
 	log_msg "DEBUG" "rx_bytes_path: $rx_bytes_path"
 	log_msg "DEBUG" "tx_bytes_path: $tx_bytes_path"
+	log_msg "DEBUG" "config_path: $config_path"
+	log_msg "DEBUG" "run_path: $run_path"
 	log_msg "DEBUG" "log_file_path: $log_file_path"
 fi
 
@@ -943,8 +958,8 @@ delays_idx=0
 sum_dl_delays=0
 sum_ul_delays=0
 
-mkfifo /var/run/cake-autorate/ping_fifo
-exec 5<> /var/run/cake-autorate/ping_fifo
+mkfifo $run_path/ping_fifo
+exec 5<> $run_path/ping_fifo
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_us>0)); then
@@ -1030,7 +1045,7 @@ do
 		
 		t_end_us=${EPOCHREALTIME/./}
 
-	done</var/run/cake-autorate/ping_fifo
+	done<$run_path/ping_fifo
 
 	# stall handling procedure
 	# PIPESTATUS[0] == 142 corresponds with while loop timeout
@@ -1056,7 +1071,7 @@ do
 		(($debug)) && log_msg "DEBUG" "Warning: connection stall detection. Waiting for new ping or increased load"
 
 		# save intial global reflector timestamp to check against for any new reflector response
-		concurrent_read_positive_integer initial_reflectors_last_timestamp_us /var/run/cake-autorate/reflectors_last_timestamp_us
+		concurrent_read_positive_integer initial_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
 
 		# send signal USR2 to pause reflector health monitoring to prevent reflector rotation
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
@@ -1069,7 +1084,7 @@ do
 	        do
         	        t_start_us=${EPOCHREALTIME/./}
 			
-			concurrent_read_positive_integer new_reflectors_last_timestamp_us /var/run/cake-autorate/reflectors_last_timestamp_us
+			concurrent_read_positive_integer new_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
 	                get_loads
 
 			if (( $new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || ( $dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps) )); then
