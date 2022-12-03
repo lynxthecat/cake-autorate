@@ -813,20 +813,32 @@ else
 	config_path=/root/cake-autorate/cake-autorate_config.sh
 fi
 
-if [[ $1 =~ cake-autorate_config\.(.*)\.sh ]]; then
-	run_path=/var/run/cake-autorate/${BASH_REMATCH[1]}
-	log_file_path=/var/log/cake-autorate/${BASH_REMATCH[1]}
+instance_id=""
+
+if [[ $config_path =~ cake-autorate_config\.(.*)\.sh ]]; then
+	instance_id=${BASH_REMATCH[1]}
+	run_path=/var/run/cake-autorate/$instance_id
+	log_file_path=/var/log/cake-autorate/$instance_id
 else
 	run_path=/var/run/cake-autorate
 	log_file_path=/var/log/cake-autorate
 fi
 
-[[ ! -d $log_file_path ]] && mkdir $log_file_path
+[[ ! -d $log_file_path ]] && mkdir -p $log_file_path
 
 [[ ! -f "$config_path" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
 . $config_path
 [[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
-[[ ! -d $log_file_path ]] && { broken_log_file_path=$log_file_path; log_file_path=/var/log log_msg_bypass_fifo "ERROR" "Log file path: '$broken_log_file_path' does not exist. Exiting now."; exit; }
+[[ ! -d $log_file_path_override ]] && { broken_log_file_path_override=$log_file_path_override; log_file_path=/var/log log_msg_bypass_fifo "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."; exit; }
+
+if [[ ! -z "$log_file_path_override" ]]; then 
+	if [[ ! -z "instance_id ]]; then
+		log_file_path=$log_file_path_override/$instance_id
+		mkdir $log_file_path
+	else
+		log_file_path=$log_file_path_override
+	fi
+fi
 
 # $run_path/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
@@ -835,7 +847,7 @@ if [[ -d $run_path ]]; then
         trap - INT TERM EXIT
         exit
 else
-        mkdir $run_path
+        mkdir -p $run_path
 fi
 
 mkfifo $run_path/sleep_fifo
