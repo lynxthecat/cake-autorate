@@ -806,8 +806,6 @@ randomize_array()
 
 trap ":" USR1
 
-log_file_path=/var/log
-
 # cake-autorate first argument is config file path
 if [[ ! -z $1 ]]; then
 	config_path=$1
@@ -817,8 +815,10 @@ fi
 
 if [[ "/root/cake-autorate/cake-autorate_config.sh" =~ cake-autorate_config\.(.*)\.sh ]]; then
 	run_path=/var/run/cake-autorate/${BASH_REMATCH[1]}
+	log_file_path=/var/log/cake-autorate/${BASH_REMATCH[1]}
 else
 	run_path=/var/run/cake-autorate
+	log_file_path=/var/log/cake-autorate
 fi
 
 [[ ! -f "$config_path" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
