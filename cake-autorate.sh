@@ -48,7 +48,7 @@ log_msg_bypass_fifo()
 	local type=$1
 	local msg=$2
 
-        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> ${log_file_path}/cake-autorate.log
+        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> $log_file_path
         [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 
 }
@@ -78,21 +78,21 @@ ewma_iteration()
 
 rotate_log_file()
 {
-	[[ -f ${log_file_path}/cake-autorate.log ]] && mv ${log_file_path}/cake-autorate.log ${log_file_path}/cake-autorate.log.old
+	[[ -f ${log_file_path}/cake-autorate.log ]] && mv $log_file_path ${log_file_path}.old
 	(($output_processing_stats)) && print_headers
 }
 
 export_log_file()
 {
 	local export_type=$1
+			
 
 	case $export_type in
 
 		default)
-	
 			printf -v log_file_export_datetime '%(%F_%H_%M_%S)T'
-        		(($debug)) && log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path}/cake-autorate_$log_file_export_datetime.log"
-        		log_file_export_path="${log_file_path}/cake-autorate_$log_file_export_datetime.log"
+        		(($debug)) && log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path}_$log_file_export_datetime"
+        		log_file_export_path="${log_file_path}_$log_file_export_datetime"
         		;;
 
 		alternative)
@@ -108,18 +108,18 @@ export_log_file()
 
 	# Now export with or without compression to the appropriate export path
 	if (($log_file_export_compress)); then
-		if [[ -f ${log_file_path}/cake-autorate.log.old ]]; then 
-			gzip -c ${log_file_path}/cake-autorate.log.old > ${log_file_export_path}.gz
-			gzip -c ${log_file_path}/cake-autorate.log >> ${log_file_export_path}.gz
+		if [[ -f ${log_file_path}.old ]]; then 
+			gzip -c ${log_file_path}.old > ${log_file_export_path}.gz
+			gzip -c $log_file_path >> ${log_file_export_path}.gz
 		else
-			gzip -c ${log_file_path}/cake-autorate.log > ${log_file_export_path}.gz
+			gzip -c $log_file_path > ${log_file_export_path}.gz
 		fi
 	else
-		if [[ -f ${log_file_path}/cake-autorate.log.old ]]; then 
-			cp ${log_file_path}/cake-autorate.log.old ${log_file_export_path}.old
-			cp ${log_file_path}/cake-autorate.log >> $log_file_export_path
+		if [[ -f ${log_file_path}.old ]]; then 
+			cp ${log_file_path}.old ${log_file_export_path}.old
+			cp $log_file_path >> $log_file_export_path
 		else
-			cp ${log_file_path}/cake-autorate.log $log_file_export_path
+			cp $log_file_path $log_file_export_path
 		fi
 	fi
 }
@@ -129,7 +129,7 @@ kill_maintain_log_file()
 	trap - TERM EXIT
 	while read -t 0.1 log_line
 	do
-		printf '%s\n' "$log_line" >> ${log_file_path}/cake-autorate.log		
+		printf '%s\n' "$log_line" >> $log_file_path		
 	done<$run_path/log_fifo
 	exit
 }
@@ -149,7 +149,7 @@ maintain_log_file()
 	while read log_line
 	do
 
-		printf '%s\n' "$log_line" >> ${log_file_path}/cake-autorate.log		
+		printf '%s\n' "$log_line" >> $log_file_path		
 
 		# Verify log file size < configured maximum
 		# The following two lines with costly call to 'du':
@@ -818,26 +818,24 @@ instance_id=""
 if [[ $config_path =~ cake-autorate_config\.(.*)\.sh ]]; then
 	instance_id=${BASH_REMATCH[1]}
 	run_path=/var/run/cake-autorate/$instance_id
-	log_file_path=/var/log/cake-autorate/$instance_id
 else
 	run_path=/var/run/cake-autorate
-	log_file_path=/var/log/cake-autorate
 fi
-
-[[ ! -d $log_file_path ]] && mkdir -p $log_file_path
 
 [[ ! -f "$config_path" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
 . $config_path
 [[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
-[[ ! -d $log_file_path_override ]] && { broken_log_file_path_override=$log_file_path_override; log_file_path=/var/log log_msg_bypass_fifo "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."; exit; }
 
 if [[ ! -z "$log_file_path_override" ]]; then 
-	if [[ ! -z "instance_id ]]; then
-		log_file_path=$log_file_path_override/$instance_id
-		mkdir $log_file_path
-	else
-		log_file_path=$log_file_path_override
+	if [[ ! -d $log_file_path_override ]]; then
+		broken_log_file_path_override=$log_file_path_override
+		[[ ! -z $instance_id ]] && log_file_path=/var/log/cake-autorate.${instance_id}.log || log_file_path=/var/log/cake-autorate.log
+		log_msg_bypass_fifo "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."
+		exit
 	fi
+	log_file_path=$log_file_path_override
+else
+	[[ ! -z $instance_id ]] && log_file_path=/var/log/cake-autorate.${instance_id}.log || log_file_path=/var/log/cake-autorate.log
 fi
 
 # $run_path/ is used to store temporary files
