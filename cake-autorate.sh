@@ -117,7 +117,7 @@ export_log_file()
 	else
 		if [[ -f ${log_file_path}.old ]]; then 
 			cp ${log_file_path}.old ${log_file_export_path}.old
-			cp $log_file_path >> $log_file_export_path
+			cat $log_file_path >> $log_file_export_path
 		else
 			cp $log_file_path $log_file_export_path
 		fi
@@ -829,13 +829,13 @@ fi
 if [[ ! -z "$log_file_path_override" ]]; then 
 	if [[ ! -d $log_file_path_override ]]; then
 		broken_log_file_path_override=$log_file_path_override
-		[[ ! -z $instance_id ]] && log_file_path=/var/log/cake-autorate.${instance_id}.log || log_file_path=/var/log/cake-autorate.log
+		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 		log_msg_bypass_fifo "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."
 		exit
 	fi
 	log_file_path=$log_file_path_override
 else
-	[[ ! -z $instance_id ]] && log_file_path=/var/log/cake-autorate.${instance_id}.log || log_file_path=/var/log/cake-autorate.log
+	log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 fi
 
 # $run_path/ is used to store temporary files
