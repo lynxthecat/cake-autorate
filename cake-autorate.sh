@@ -833,7 +833,7 @@ if [[ ! -z "$log_file_path_override" ]]; then
 		log_msg_bypass_fifo "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."
 		exit
 	fi
-	log_file_path=$log_file_path_override
+	log_file_path=${log_file_path_override}/cake-autorate${instance_id:+.${instance_id}}.log
 else
 	log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 fi
