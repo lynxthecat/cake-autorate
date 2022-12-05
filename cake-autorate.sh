@@ -78,7 +78,7 @@ ewma_iteration()
 
 rotate_log_file()
 {
-	[[ -f ${log_file_path}/cake-autorate.log ]] && mv $log_file_path ${log_file_path}.old
+	[[ -f $log_file_path ]] && mv $log_file_path ${log_file_path}.old
 	(($output_processing_stats)) && print_headers
 }
 
@@ -879,10 +879,9 @@ fi
 
 # test if stdout is a tty (terminal)
 if [[ ! -t 1 ]]; then
-	"stdout not a terminal so redirecting output to: ${log_file_path}/cake-autorate.log"
+	echo "stdout not a terminal so redirecting output to: $log_file_path"
 	(($log_to_file)) && exec &> $run_path/log_fifo
 fi
-
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
 	log_msg "DEBUG" "Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)"
@@ -893,10 +892,8 @@ if (( $debug )) ; then
 	log_msg "DEBUG" "run_path: $run_path"
 	log_msg "DEBUG" "log_file_path: $log_file_path"
 fi
-
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
-
 # Initialize variables
 
 # Convert human readable parameters to values that work with integer arithmetic
