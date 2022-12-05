@@ -30,8 +30,12 @@ log_file_path_override=""
 
 # *** STANDARD CONFIGURATION OPTIONS ***
 
-dl_if=ifb-dl # download interface
-ul_if=ifb-ul # upload interface
+### For multihomed setups, it is the responsibility of the user to ensure that the probes 
+### sent by this instance of cake-autorate actually travel through these interfaces.
+### See ping_extra_args and ping_prefix_string
+
+dl_if=ifb-wan # download interface
+ul_if=wan     # upload interface
 
 # pinger selection can be any of:
 # fping - round robin pinging (rtts)
@@ -100,6 +104,18 @@ startup_wait_s=0.0 # number of seconds to wait on startup (e.g. to wait for thin
 log_file_export_alternative_path="/var/log/cake-autorate_export.log"
 log_file_export_compress=1 # compress the exported log file with its default/override path using gzip and append .gz to export filename
 
+### In multi-homed setups, it is mandatory to use either ping_extra_args
+### or ping_prefix_string to direct the pings through $dl_if and $ul_if.
+### No universal recommendation exists, because there are multiple
+### policy-routing packages available (e.g. vpn-policy-routing and mwan3).
+### Typically they either react to a firewall mark set on the pings, or
+### provide a convenient wrapper.
+###
+### In a traditional single-homed setup, there is usually no need for these parameters.
+###
+### These arguments can also be used for any other purpose - e.g. for setting a
+### particular QoS mark.
+
 # extra arguments for ping
 # e.g., when using mwan3, set up the correct outgoing interface and the firewall mark
 # ping_extra_args=(-I wwan0 -m $((0x300)))
@@ -120,12 +136,15 @@ monitor_achieved_rates_interval_ms=200 # (milliseconds)
 bufferbloat_detection_window=6   # number of samples to retain in detection window
 bufferbloat_detection_thr=3      # number of delayed samples for bufferbloat detection
 
-# RTT baseline against which to measure delays
+# OWD baseline against which to measure delays
 # the idea is that the baseline is allowed to increase slowly to allow for path changes
 # and slowly enough such that bufferbloat will be corrected well before the baseline increases,
 # but it will decrease very rapidly to ensure delays are measured against the shortest path
 alpha_baseline_increase=0.001  # how rapidly baseline RTT is allowed to increase
 alpha_baseline_decrease=0.9  # how rapidly baseline RTT is allowed to decrease
+
+# OWD delta from baseline is tracked using ewma with alpha set below
+alpha_delta_ewma=0.095
 
 # rate adjustment parameters 
 # bufferbloat adjustment works with the lower of the adjusted achieved rate and adjusted shaper rate
