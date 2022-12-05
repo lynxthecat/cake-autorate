@@ -55,7 +55,7 @@ log_msg_bypass_fifo()
 
 print_headers()
 {
-	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
@@ -341,6 +341,7 @@ monitor_reflector_responses_fping()
 {
 		
 	declare -A rtt_baselines_us
+	declare -A rtt_delta_ewmas_us
 
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
@@ -349,6 +350,11 @@ monitor_reflector_responses_fping()
 			read rtt_baselines_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
 		else
 			rtt_baselines_us[${reflectors[$reflector]}]=1000000
+		fi
+		if [[ -f $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us ]]; then
+			read rtt_delta_ewmas_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
+		else
+			rtt_delta_ewmas_us[${reflectors[$reflector]}]=1500000
 		fi
 	done
 
@@ -370,9 +376,14 @@ monitor_reflector_responses_fping()
 		ewma_iteration $rtt_us $alpha rtt_baselines_us[$reflector]
 
 		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
+		
+		ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewmas_us[$reflector]
 
 		dl_owd_baseline_us=$((${rtt_baselines_us[$reflector]}/2))
 		ul_owd_baseline_us=$dl_owd_baseline_us
+
+		dl_owd_delta_ewma_us=$((${rtt_delta_ewmas_us[$reflector]}/2))
+		ul_owd_delta_ewma_us=$dl_owd_delta_ewma_us
 
 		dl_owd_us=$(($rtt_us/2))
 		ul_owd_us=$dl_owd_us
@@ -382,7 +393,7 @@ monitor_reflector_responses_fping()
 		
 		timestamp=${timestamp//[\[\]]}0
 
-		printf '%s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > $run_path/ping_fifo
+		printf '%s %s %s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_ewma_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_ewma_us" "$ul_owd_delta_us" > $run_path/ping_fifo
 
 		timestamp_us=${timestamp//[.]}
 
@@ -395,10 +406,11 @@ monitor_reflector_responses_fping()
 
 	done<$run_path/fping_fifo
 
-	# Store baselines to files ready for next instance (e.g. after sleep)
+	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<$no_reflectors; reflector++))
 	do
 		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
+		printf '%s' ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
 	done
 }
 
@@ -446,6 +458,13 @@ monitor_reflector_responses_ping()
 	else
 			rtt_baseline_us=1000000
 	fi
+
+	if [[ -f $run_path/reflector_${reflectors[$pinger]//./-}_delta_ewma_us ]]; then
+			read rtt_delta_ewma_us < $run_path/reflector_${reflectors[$pinger]//./-}_delta_ewma_us
+	else
+			rtt_delta_ewma_us=1500000
+	fi
+
 	while read -r  timestamp _ _ _ reflector seq_rtt
 	do
 		# If no match then skip onto the next one
@@ -464,7 +483,12 @@ monitor_reflector_responses_ping()
 		
 		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
 		
+		ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewma_us
+		
 		dl_owd_baseline_us=$(($rtt_baseline_us/2))
+		ul_owd_baseline_us=$dl_owd_baseline_us
+		
+		dl_owd_delta_ewma_us=$(($rtt_delta_ewma_us/2))
 		ul_owd_baseline_us=$dl_owd_baseline_us
 
 		dl_owd_us=$(($rtt_us/2))
@@ -475,7 +499,7 @@ monitor_reflector_responses_ping()
 
 		timestamp=${timestamp//[\[\]]}
 
-		printf '%s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_us" > $run_path/ping_fifo
+		printf '%s %s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_ewma_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_ewma_us" "$ul_owd_delta_us" > $run_path/ping_fifo
 		
 		timestamp_us=${timestamp//[.]}
 
@@ -489,6 +513,7 @@ monitor_reflector_responses_ping()
 	done<$run_path/pinger_${pinger}_fifo
 
 	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
+	printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
 }
 
 start_pinger_binary_ping()
@@ -902,6 +927,7 @@ printf -v dl_delay_thr_us %.0f "${dl_delay_thr_ms}e3"
 printf -v ul_delay_thr_us %.0f "${ul_delay_thr_ms}e3"
 printf -v alpha_baseline_increase %.0f "${alpha_baseline_increase}e6"
 printf -v alpha_baseline_decrease %.0f "${alpha_baseline_decrease}e6"   
+printf -v alpha_delta_ewma %.0f "${alpha_delta_ewma}e6"   
 printf -v achieved_rate_adjust_down_bufferbloat %.0f "${achieved_rate_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_down_bufferbloat %.0f "${shaper_rate_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_up_load_high %.0f "${shaper_rate_adjust_up_load_high}e3"
@@ -1000,7 +1026,7 @@ fi
 
 while true
 do
-	while read -t $stall_detection_timeout_s timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_us
+	while read -t $stall_detection_timeout_s timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if ((($t_start_us - 10#"${timestamp//[.]}")>500000)); then
@@ -1037,7 +1063,7 @@ do
 		set_shaper_rates
 
 		if (($output_processing_stats)); then 
-			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_us $compensated_dl_delay_thr_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_us $compensated_ul_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
+			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_load_percent $ul_load_percent $timestamp $reflector $seq $dl_owd_baseline_us $dl_owd_us $dl_owd_delta_ewma_us $dl_owd_delta_us $compensated_dl_delay_thr_us $ul_owd_baseline_us $ul_owd_us $ul_owd_delta_ewma_us $ul_owd_delta_us $compensated_ul_delay_thr_us $sum_dl_delays $sum_ul_delays $dl_load_condition $ul_load_condition $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "DATA" "$processing_stats"
 		fi
 
