@@ -182,25 +182,98 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			rates.DATA.sign_list(end-1:end) = [];
 		endif
 
-		delays.DATA.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US'};
-		%delays.DATA.fields_to_plot_list = {'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'DL_OWD_BASELINE', 'UL_OWD_BASELINE'};
+		% create the latency data ollection and configuration
+		delays.DATA.scale_factor = 1/1000;		% conversion factor from µs to ms
+		delays.DATA.fields_to_plot_list = {};
+		delays.DATA.color_list = {};
+		delays.DATA.linestyle_list = {};
+		delays.DATA.sign_list = {};
+
+		% colors from https://colorbrewer2.org/#type=diverging&scheme=BrBG&n=8
+		% re-order the following to assign depth order in plot...
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_BASELINE')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_BASELINE';
+			delays.DATA.color_list{end+1} = [246, 232, 195]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_BASELINE')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_BASELINE';
+			delays.DATA.color_list{end+1} = [199, 234, 229]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_US';
+			delays.DATA.color_list{end+1} = [223, 194, 125]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_US';
+			delays.DATA.color_list{end+1} = [128, 205, 193]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [191, 129, 45]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [53, 151, 143]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
 
 		% to allow old (single ADJ_DELAY_THR) and new log files
-		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
-			delays.DATA.fields_to_plot_list{end+1} = 'DL_ADJ_DELAY_THR';
-		else
-			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR') || isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+			if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end +1} = 'DL_ADJ_DELAY_THR';
+			elseif isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+			endif
+			delays.DATA.color_list{end+1} = [1.0, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
 		endif
-		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
-			delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
-		else
-			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+
+
+		% to allow old (single ADJ_DELAY_THR) and new log files
+		if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR') || isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+			if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
+			elseif isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+			endif
+			delays.DATA.color_list{end+1} = [1.0, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
 		endif
-		delays.DATA.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-		%delays.DATA.color_list = {[216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [140, 81, 10]/254, [1, 102, 94]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-		delays.DATA.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
-		delays.DATA.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
-		delays.DATA.scale_factor = 1/1000;		% conversion factor frm µs to ms
+
+		% if exist, plot the delta EWMA
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_EWMA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_EWMA_US';
+			delays.DATA.color_list{end+1} = [140, 81, 10]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_EWMA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_EWMA_US';
+			delays.DATA.color_list{end+1} = [1, 102, 94]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
 
 		% get x_vector data and which indices to display for each record type
 		x_vec.DATA = (1:1:n_DATA_samples);
