@@ -393,7 +393,7 @@ monitor_reflector_responses_fping()
 		
 		timestamp=${timestamp//[\[\]]}0
 
-		printf '%s %s %s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_ewma_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_ewma_us" "$ul_owd_delta_us" > $run_path/ping_fifo
+		printf '%s %s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_ewma_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_ewma_us" "$ul_owd_delta_us" > $run_path/ping_fifo
 
 		timestamp_us=${timestamp//[.]}
 
@@ -489,7 +489,7 @@ monitor_reflector_responses_ping()
 		ul_owd_baseline_us=$dl_owd_baseline_us
 		
 		dl_owd_delta_ewma_us=$(($rtt_delta_ewma_us/2))
-		ul_owd_baseline_us=$dl_owd_baseline_us
+		ul_owd_delta_ewma_us=$dl_owd_delta_ewma_us
 
 		dl_owd_us=$(($rtt_us/2))
 		ul_owd_us=$dl_owd_us
@@ -498,7 +498,7 @@ monitor_reflector_responses_ping()
 		ul_owd_delta_us=$dl_owd_delta_us	
 
 		timestamp=${timestamp//[\[\]]}
-
+	
 		printf '%s %s %s %s %s %s %s %s %s %s %s\n' "$timestamp" "$reflector" "$seq" "$dl_owd_baseline_us" "$dl_owd_us" "$dl_owd_delta_ewma_us" "$dl_owd_delta_us" "$ul_owd_baseline_us" "$ul_owd_us" "$ul_owd_delta_ewma_us" "$ul_owd_delta_us" > $run_path/ping_fifo
 		
 		timestamp_us=${timestamp//[.]}
