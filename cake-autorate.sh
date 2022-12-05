@@ -90,9 +90,9 @@ export_log_file()
 	case $export_type in
 
 		default)
-			printf -v log_file_export_datetime '%(%F_%H_%M_%S)T'
-        		(($debug)) && log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path}_$log_file_export_datetime"
-        		log_file_export_path="${log_file_path}_$log_file_export_datetime"
+			printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
+        		(($debug)) && log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
+        		log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
         		;;
 
 		alternative)
