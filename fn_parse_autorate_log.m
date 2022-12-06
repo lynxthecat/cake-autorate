@@ -11,7 +11,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 	% run 'octave --gui' in a terminal and open the file and run it (recommended if you want/need to edit values)
 	% or run 'octave ./fn_parse_autorate_log.m' from the terminal
 	% the following will work on the console without requiring interaction
-	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.png", [10, 500], [])'
+	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.tif", [10, 500], {"1.1.1.1"})'
 	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format", [starttime endtime], {selected_reflector_subset})'
 	%	supported formats for the opyinal second argument: pdf, png, tif.
 	% 	the optional third argument is the range to plot in seconds after log file start
@@ -119,9 +119,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		else
 			%x_range_sec = [];
 			if ~isempty(x_range_sec);
-				disp(['INFO: requested x_range_sec: ', x_range_sec]);
+				disp(['INFO: requested x_range_sec: ', num2str(x_range_sec)]);
 			endif
-		endif
 		endif
 		% clean up the time range somewhat
 		[x_range_sec, do_return] = fn_sanitize_x_range_sec(x_range_sec, first_sample_timestamp, last_sample_timestamp);
