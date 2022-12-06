@@ -48,6 +48,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
 	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
 	CDF.calc_range_ms = [0, 1000];	% what range to calculate the CDFs over? We can always reduce the plotted range later, see cumulative_range_percent
+	CDF.step_size_ms = 0.01;
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 
 	% add all defined plots that should be created and saved
@@ -181,25 +182,98 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			rates.DATA.sign_list(end-1:end) = [];
 		endif
 
-		delays.DATA.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US'};
-		%delays.DATA.fields_to_plot_list = {'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'DL_OWD_BASELINE', 'UL_OWD_BASELINE'};
+		% create the latency data ollection and configuration
+		delays.DATA.scale_factor = 1/1000;		% conversion factor from µs to ms
+		delays.DATA.fields_to_plot_list = {};
+		delays.DATA.color_list = {};
+		delays.DATA.linestyle_list = {};
+		delays.DATA.sign_list = {};
+
+		% colors from https://colorbrewer2.org/#type=diverging&scheme=BrBG&n=8
+		% re-order the following to assign depth order in plot...
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_BASELINE')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_BASELINE';
+			delays.DATA.color_list{end+1} = [246, 232, 195]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_BASELINE')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_BASELINE';
+			delays.DATA.color_list{end+1} = [199, 234, 229]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_US';
+			delays.DATA.color_list{end+1} = [223, 194, 125]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_US';
+			delays.DATA.color_list{end+1} = [128, 205, 193]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [191, 129, 45]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [53, 151, 143]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
 
 		% to allow old (single ADJ_DELAY_THR) and new log files
-		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
-			delays.DATA.fields_to_plot_list{end+1} = 'DL_ADJ_DELAY_THR';
-		else
-			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR') || isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+			if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end +1} = 'DL_ADJ_DELAY_THR';
+			elseif isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+			endif
+			delays.DATA.color_list{end+1} = [1.0, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
 		endif
-		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
-			delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
-		else
-			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+
+
+		% to allow old (single ADJ_DELAY_THR) and new log files
+		if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR') || isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+			if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
+			elseif isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+			endif
+			delays.DATA.color_list{end+1} = [1.0, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
 		endif
-		delays.DATA.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-		%delays.DATA.color_list = {[216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [140, 81, 10]/254, [1, 102, 94]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-		delays.DATA.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
-		delays.DATA.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
-		delays.DATA.scale_factor = 1/1000;		% conversion factor frm µs to ms
+
+		% if exist, plot the delta EWMA
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_EWMA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_EWMA_US';
+			delays.DATA.color_list{end+1} = [140, 81, 10]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_EWMA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_EWMA_US';
+			delays.DATA.color_list{end+1} = [1, 102, 94]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
 
 		% get x_vector data and which indices to display for each record type
 		x_vec.DATA = (1:1:n_DATA_samples);
@@ -312,7 +386,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('rawCDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -324,7 +398,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('rawPDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -337,7 +411,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('deltaCDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -350,7 +424,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('deltaPDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, figure_opts.output_format_extension]);
 				else
@@ -1293,13 +1367,13 @@ endfunction
 
 
 function [ delay_struct, CDF_x_vec, unique_reflector_list ] = fn_get_XDF_by_load(method_string, delay_type_string, UL_OWD_sample_list, DL_OWD_sample_list, data_scale_factor, ...
-	calc_range_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
+	calc_range_ms, step_size_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
 	% method_string = 'CDF';
 	% delay_type_string = 'RAW';
 	delay_struct = struct();
 
 	% the time resolution
-	CDF_x_vec = (calc_range_ms(1):0.01:calc_range_ms(end));
+	CDF_x_vec = (calc_range_ms(1):step_size_ms:calc_range_ms(end));
 	unique_reflector_list = unique(REFLECTOR_by_sample_list);
 	n_unique_reflectors = length(unique_reflector_list);
 
