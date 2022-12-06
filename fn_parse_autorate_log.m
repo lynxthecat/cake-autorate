@@ -308,8 +308,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			DATA_delays_x_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
 		endif
 		if isempty(DATA_delays_x_idx)
-			disp('No valid samples found (for the current reflector subset), bailing out.');
-			return
+			disp('No valid samples found (for the current reflector subset).');
+			%return # we can still plot the load/rate data, for long sleep periods there might be no valid delay samples at all
 		endif
 
 		% use real sample times, PROC_TIME_US is seconds.NNNNNN
