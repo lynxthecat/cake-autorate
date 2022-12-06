@@ -1183,7 +1183,7 @@ do
 		get_loads
 
 		if ((10#${dl_achieved_rate_kbps}>$connection_active_thr_kbps || 10#${ul_achieved_rate_kbps}>$connection_active_thr_kbps)); then
-			(($debug)) && log_msg "DEBUG" "dl load percent: $dl_load_percent or ul load percent: $ul_load_percent exceeded medium load threshold percent: ${medium_load_thr_percent}. Resuming normal operation."
+			(($debug)) && log_msg "DEBUG" "dl achieved rate: $dl_achieved_rate_kbps kbps or ul achieved rate: $ul_achieved_rate_kbps kbps exceeded connection active threshold: $connection_active_thr_kbps kbps. Resuming normal operation."
 			break 
 		fi
 		sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
