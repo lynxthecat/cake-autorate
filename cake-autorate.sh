@@ -1002,8 +1002,8 @@ if (($startup_wait_us>0)); then
         sleep_us $startup_wait_us
 fi
 
-# Randomize reflectors array
-randomize_array reflectors
+# Randomize reflectors array providing randomize_reflectors set to 1
+(($randomize_reflectors)) && randomize_array reflectors
 
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
@@ -1138,19 +1138,33 @@ do
 
 			if (( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us - $stall_detection_timeout_us) )); then 
 		
-				(($debug)) && log_msg "DEBUG" "Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+				if (($debug)); then
+					if (($min_shaper_rates_enforcement)); then
+						log_msg "DEBUG" "Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+					else
+						log_msg "DEBUG" "Warning: Global ping response timeout. Waiting for minimum load." 
+					fi
+				fi
 				break
 			fi
 	        done	
 
 	else
-		(($debug)) && log_msg "DEBUG" "Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
+		if (($debug)); then
+			if (($min_shaper_rates_enforcement)); then
+				log_msg "DEBUG" "Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
+			else
+				log_msg "DEBUG" "Connection idle. Waiting for minimum load."
+			fi
+		fi
 	fi
 	
-	# conservatively set hard minimums and wait until there is a load increase again
-	dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
-	ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
-	set_shaper_rates
+	if (($min_shaper_rates_enforcement)); then
+		# conservatively set hard minimums and wait until there is a load increase again
+		dl_shaper_rate_kbps=$min_dl_shaper_rate_kbps
+		ul_shaper_rate_kbps=$min_ul_shaper_rate_kbps
+		set_shaper_rates
+	fi
 
 	# Initiate termination of ping processes and wait until complete
 	kill $maintain_pingers_pid 2> /dev/null
@@ -1168,7 +1182,7 @@ do
 		t_start_us=${EPOCHREALTIME/./}	
 		get_loads
 
-		if (($dl_load_percent>$medium_load_thr_percent || $ul_load_percent>$medium_load_thr_percent)); then
+		if ((10#${dl_achieved_rate_kbps}>$connection_active_thr_kbps || 10#${ul_achieved_rate_kbps}>$connection_active_thr_kbps)); then
 			(($debug)) && log_msg "DEBUG" "dl load percent: $dl_load_percent or ul load percent: $ul_load_percent exceeded medium load threshold percent: ${medium_load_thr_percent}. Resuming normal operation."
 			break 
 		fi
