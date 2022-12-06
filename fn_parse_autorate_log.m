@@ -13,8 +13,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 	% the following will work on the console without requiring interaction
 	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.tif", [10, 500], {"1.1.1.1"})'
 	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format", [starttime endtime], {selected_reflector_subset})'
-	%	supported formats for the opyinal second argument: pdf, png, tif.
+	%	supported formats for the optional second argument: pdf, png, tif.
 	% 	the optional third argument is the range to plot in seconds after log file start
+	%	the fourth argument is a list of reflector IDs, only samples from any of the listed reflectors will be plotted, use [] to select all reflectors
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
 
 	% TODO:
