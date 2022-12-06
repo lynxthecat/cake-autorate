@@ -307,6 +307,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, selected_reflector_subset));
 			DATA_delays_x_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
 		endif
+		if isempty(DATA_delays_x_idx)
+			disp('No valid samples found (for the current reflector subset), bailing out.');
+			return
+		endif
 
 		% use real sample times, PROC_TIME_US is seconds.NNNNNN
 		% to make things less odd report times in seconds since the log start
