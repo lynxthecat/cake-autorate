@@ -58,6 +58,9 @@ reflectors=(
 "208.67.220.2" "208.67.220.123" "208.67.220.220" "208.67.222.2" "208.67.222.123" # OpenDNS
 "185.228.168.9" "185.228.168.10" "185.228.169.11" "185.228.169.9" "185.228.169.168" # CleanBrowsing
 )
+
+randomize_reflectors=1 # enable (1) or disable (0) randomization of reflectors on startup
+
 # Think carefully about the following settings
 # to avoid excessive CPU use (proportional with ping interval / number of pingers)
 # and to avoid abusive network activity (excessive ICMP frequency to one reflector)
@@ -90,6 +93,8 @@ enable_sleep_function=1 # enable (1) or disable (0) sleep functonality
 connection_active_thr_kbps=500   # threshold in Kbit/s below which dl/ul is considered idle
 sustained_idle_sleep_thr_s=60.0  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
+min_shaper_rates_enforcement=1 # enable (1) or disable 0 dropping down to minimum shaper rates on connection idle or stall
+
 startup_wait_s=0.0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
@@ -116,14 +121,21 @@ log_file_export_compress=1 # compress the exported log file with its default/ove
 ### These arguments can also be used for any other purpose - e.g. for setting a
 ### particular QoS mark.
 
-# extra arguments for ping
-# e.g., when using mwan3, set up the correct outgoing interface and the firewall mark
-# ping_extra_args=(-I wwan0 -m $((0x300)))
+# extra arguments for ping or fping
+# e.g., here is how you can set the correct outgoing interface and
+# the firewall mark for ping:
+# ping_extra_args="-I wwan0 -m $((0x300))"
+# Unfortunately, fping does not offer a command line switch to set
+# the firewall mark.
 # WARNING: no error checking so use at own risk!
 ping_extra_args=""
 
-# prefix for ping
-# e.g., when using mwan3, use: ping_prefix_string="mwan3 use gpon exec"
+# a wrapper for ping binary - used as a prefix for the real command
+# e.g., when using mwan3, it is recommended to set it like this:
+# ping_prefix_string="mwan3 use gpon exec"
+# WARNING: the wrapper must exec ping as the final step, not run it as a subprocess.
+# Running ping or fping as a subprocess will lead to problems stopping it.
+# WARNING: no error checking - so use at own risk!
 ping_prefix_string=""
 
 # interval in ms for monitoring achieved rx/tx rates
