@@ -1,4 +1,4 @@
-function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
+function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_reflector_subset )
 	% This program is free software; you can redistribute it and/or modify
 	% it under the terms of the GNU General Public License version 2 as
 	% published by the Free Software Foundation.
@@ -11,8 +11,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	% run 'octave --gui' in a terminal and open the file and run it (recommended if you want/need to edit values)
 	% or run 'octave ./fn_parse_autorate_log.m' from the terminal
 	% the following will work on the console without requiring interaction
-	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.png", [10, 500])'
-	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format", [starttime endtime])'
+	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.png", [10, 500], [])'
+	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format", [starttime endtime], {selected_reflector_subset})'
 	%	supported formats for the opyinal second argument: pdf, png, tif.
 	% 	the optional third argument is the range to plot in seconds after log file start
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
@@ -118,6 +118,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			x_range_sec = [];
 		else
 			%x_range_sec = [];
+			if ~isempty(x_range_sec);
+				disp(['INFO: requested x_range_sec: ', x_range_sec]);
+			endif
+		endif
 		endif
 		% clean up the time range somewhat
 		[x_range_sec, do_return] = fn_sanitize_x_range_sec(x_range_sec, first_sample_timestamp, last_sample_timestamp);
@@ -135,6 +139,18 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		if (do_return)
 			return
 		endif
+
+		% allow to restrict the plot to a subset of the reflectors.
+		if ~exist('selected_reflector_subset', 'var') || isempty(selected_reflector_subset)
+			selected_reflector_subset = {}; % default to all
+			%selected_reflector_subset = {"1.1.1.1"};
+			%selected_reflector_subset = {"1.1.1.1", "1.0.0.1"};
+		else
+			% take from input argument
+			%selected_reflector_subset = [];
+			disp(['INFO: requested selected_reflector_subset: ', selected_reflector_subset]);
+		endif
+
 
 
 		% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
@@ -158,6 +174,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		% we calculate both y-axis scales and take the maximum if both are requested
 		scale_delay_axis_by_OWD_DELTA_QUANTILE_factor = 5.0; % ignore if empty []
 		OWD_DELTA_QUANTILE_pct = 99.0; % what upper quantile to use for scaling, 100 is max value
+
 
 
 		% set up the plots
@@ -283,6 +300,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
 		if ~isempty(sequence_too_small_idx)
 			DATA_delays_x_idx = setdiff(DATA_delays_x_idx, sequence_too_small_idx);
+		endif
+
+		% allow to only plot a given reflector subset
+		if ~isempty(selected_reflector_subset)
+			cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, selected_reflector_subset));
+			DATA_delays_x_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
 		endif
 
 		% use real sample times, PROC_TIME_US is seconds.NNNNNN
