@@ -343,18 +343,21 @@ monitor_reflector_responses_fping()
 	declare -A rtt_baselines_us
 	declare -A rtt_delta_ewmas_us
 
+	t_start_us=${EPOCHREALTIME/./}
+
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
 	do
 		if [[ -f $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us ]]; then
 			read rtt_baselines_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
+			
 		else
-			rtt_baselines_us[${reflectors[$reflector]}]=1000000
+			rtt_baselines_us[${reflectors[$reflector]}]=100000
 		fi
 		if [[ -f $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us ]]; then
 			read rtt_delta_ewmas_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
 		else
-			rtt_delta_ewmas_us[${reflectors[$reflector]}]=1500000
+			rtt_delta_ewmas_us[${reflectors[$reflector]}]=150000
 		fi
 	done
 
@@ -460,13 +463,13 @@ monitor_reflector_responses_ping()
 	if [[ -f $run_path/reflector_${reflectors[$pinger]//./-}_baseline_us ]]; then
 			read rtt_baseline_us < $run_path/reflector_${reflectors[$pinger]//./-}_baseline_us
 	else
-			rtt_baseline_us=1000000
+			rtt_baseline_us=100000
 	fi
 
 	if [[ -f $run_path/reflector_${reflectors[$pinger]//./-}_delta_ewma_us ]]; then
 			read rtt_delta_ewma_us < $run_path/reflector_${reflectors[$pinger]//./-}_delta_ewma_us
 	else
-			rtt_delta_ewma_us=1500000
+			rtt_delta_ewma_us=150000
 	fi
 
 	while read -r  timestamp _ _ _ reflector seq_rtt
@@ -837,25 +840,35 @@ randomize_array()
 
 trap ":" USR1
 
+log_file_path=/var/log/cake-autorate.log
+run_path=/var/run/cake-autorate/
+
 # cake-autorate first argument is config file path
 if [[ ! -z $1 ]]; then
 	config_path=$1
 else
-	config_path=/root/cake-autorate/cake-autorate_config.sh
+	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
 fi
 
-instance_id=""
+if [[ ! -f "$config_path" ]]; then
+	log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."
+	exit
+fi
+
+. $config_path
+
+if [[ $config_file_check != "cake-autorate" ]]; then
+	log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries." 
+	exit
+fi
 
 if [[ $config_path =~ cake-autorate_config\.(.*)\.sh ]]; then
 	instance_id=${BASH_REMATCH[1]}
 	run_path=/var/run/cake-autorate/$instance_id
 else
-	run_path=/var/run/cake-autorate
+	log_msg_bypass_fifo "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
+	exit
 fi
-
-[[ ! -f "$config_path" ]] && { log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."; exit; }
-. $config_path
-[[ $config_file_check != "cake-autorate" ]] && { log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries."; exit; }
 
 if [[ ! -z "$log_file_path_override" ]]; then 
 	if [[ ! -d $log_file_path_override ]]; then
