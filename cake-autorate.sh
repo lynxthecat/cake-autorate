@@ -404,7 +404,7 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done<$run_path/fping_fifo
+	done<$run_path/fping_fifo 2>/dev/null
 
 	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<$no_reflectors; reflector++))
@@ -420,12 +420,14 @@ start_pinger_fping()
 	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
+	monitor_pids[0]=$!
 }
 
 kill_pinger_fping()
 {
 	kill "${pinger_pids[@]}" 2> /dev/null
 	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
+	wait ${monitor_pids[0]}
 }
 
 start_pingers_fping()
@@ -434,6 +436,7 @@ start_pingers_fping()
 	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/fping_fifo&
 	pinger_pids[0]=$!
 	monitor_reflector_responses_fping &
+	monitor_pids[0]=$!
 }
 
 kill_pingers_fping()
@@ -441,6 +444,7 @@ kill_pingers_fping()
 	trap - TERM EXIT
 	kill "${pinger_pids[@]}" 2> /dev/null
 	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
+	wait ${monitor_pids[0]}
 	exit
 }
 # END OF FPING FUNCTIONS 
@@ -510,7 +514,7 @@ monitor_reflector_responses_ping()
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done<$run_path/pinger_${pinger}_fifo
+	done<$run_path/pinger_${pinger}_fifo 2>/dev/null
 
 	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
 	printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
@@ -541,7 +545,7 @@ kill_pinger_ping()
 	local pinger=$1
 	kill $pinger_pids[$pinger] 2> /dev/null
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
-	
+	wait ${monitor_pids[$pinger]}
 }
 
 start_pingers_ping()
@@ -560,6 +564,7 @@ kill_pingers_ping()
 	do
 		kill ${pinger_pids[$pinger]} 2> /dev/null
 		[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
+		wait ${monitor_pids[$pinger]}
 	done
 	exit
 }
@@ -578,7 +583,8 @@ start_pinger_next_pinger_time_slot()
 	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
 	start_pinger_binary_$pinger_binary $pinger
-	monitor_reflector_responses_$pinger_binary $pinger ${rtt_baselines_us[$pinger]} &
+	monitor_reflector_responses_$pinger_binary $pinger &
+	monitor_pids[$pinger]=$!
 }
 
 maintain_pingers()
