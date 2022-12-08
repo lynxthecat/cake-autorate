@@ -65,14 +65,14 @@ randomize_reflectors=1 # enable (1) or disable (0) randomization of reflectors o
 # to avoid excessive CPU use (proportional with ping interval / number of pingers)
 # and to avoid abusive network activity (excessive ICMP frequency to one reflector)
 # The author has found an ICMP rate of 1/(0.2/4) = 20 Hz to give satisfactory performance on 4G
-no_pingers=10 # number of pingers to maintain
-reflector_ping_interval_s=0.5 # (seconds, e.g. 0.2s or 2s)
+no_pingers=6 # number of pingers to maintain
+reflector_ping_interval_s=0.3 # (seconds, e.g. 0.2s or 2s)
 
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=30 # (milliseconds)
-ul_delay_thr_ms=30 # (milliseconds)
+dl_delay_thr_ms=40 # (milliseconds)
+ul_delay_thr_ms=40 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -165,7 +165,7 @@ alpha_delta_ewma=0.095
 # and held the same on load medium
 achieved_rate_adjust_down_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
 shaper_rate_adjust_down_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
-shaper_rate_adjust_up_load_high=1.01      # how rapidly to increase shaper rate upon high load detected 
+shaper_rate_adjust_up_load_high=1.025     # how rapidly to increase shaper rate upon high load detected 
 shaper_rate_adjust_down_load_low=0.9      # how rapidly to return down to base shaper rate upon idle or low load detected 
 shaper_rate_adjust_up_load_low=1.01       # how rapidly to return up to base shaper rate upon idle or low load detected 
 
