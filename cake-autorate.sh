@@ -28,6 +28,8 @@ cleanup_and_killall()
 	wait # wait for child processes to terminate
 
 	[[ -d $run_path ]] && rm -r $run_path
+	compgen -G /var/run/cake-autorate > /dev/null || rm -r /var/run/cake-autorate
+	
 	exit
 }
 
@@ -841,6 +843,9 @@ randomize_array()
 trap ":" USR1
 
 log_file_path=/var/log/cake-autorate.log
+
+# WARNING: take great care if attempting to alter the run_path!
+# cake-autorate issues mkdir -p $run_path and rm -r $run_path on exit.
 run_path=/var/run/cake-autorate/
 
 # cake-autorate first argument is config file path
