@@ -122,7 +122,7 @@ And a very helpful summary plot like this:
 can be created therefrom using the excellent Octave/Matlab utility put together by @moeller0 of OpenWrt, using something like:
  
  ```bash
- octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./outpug.png")'
+ octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./output.pdf")'
 ```
 (see the introductory notes in 'fn_parse_autorate_log.m' for more details). 
 
