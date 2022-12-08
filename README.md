@@ -12,7 +12,7 @@ The CAKE algorithm always uses fixed upload and download bandwidth settings to m
 
 As CAKE works with a fixed set bandwidth this effectively forces the user to choose a compromise bandwidth setting, but typically this means lost bandwidth in exchange for latency control and/or bufferbloat during the worst conditions. This compromise is hardly ideal: whilst the actual usable line rate is above the set compromise bandwidth, the connection is unnecessarily throttled back to the compromise setting resulting in lost bandwidth (yellow); and whilst the actual usable line rate is below the compromise value, the connection is not throttled enough (green) resulting in bufferbloat.
 
-![image of Bandwidth Compromise](images/bandwidth-compromise.png)
+<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/bandwidth-compromise.png" width=80% height=80%>
 
 ## The Solution: Automatic Bandwidth Adjustment based on LOAD and RTT
 
@@ -26,7 +26,7 @@ The **cake-autorate.sh** script periodically measures the load and Round-Trip-Ti
 - with high load, increase rate subject to set maximum
 - on bufferbloat, decrease rate subject to set min (and subject to refractory period)
 
-![image of cake-autorate rate control](images/cake-bandwidth-autorate-rate-control.png)
+<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/cake-bandwidth-autorate-rate-control.png"width=50% height=50%>
 
 **Setting the minimum bandwidth:** 
 Set the minimum value to the worst possible observed bufferbloat free bandwidth. Ideally this CAKE bandwidth should never result in bufferbloat even under the worst conditions. This is a hard minimum - the script will never reduce the bandwidth below this level.
@@ -118,7 +118,7 @@ This will place a compressed log file in /var/log with the date and time in its 
 
 And a very helpful summary plot like this: 
 
-![image](https://user-images.githubusercontent.com/10721999/194724668-d8973bb6-5a37-4b05-a212-3514db8f56f1.png)
+<img src="https://user-images.githubusercontent.com/10721999/194724668-d8973bb6-5a37-4b05-a212-3514db8f56f1.png" width=80% height=80%>
 
 can be created therefrom using the excellent Octave/Matlab utility put together by @moeller0 of OpenWrt, using something like:
  
