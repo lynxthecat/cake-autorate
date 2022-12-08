@@ -80,32 +80,40 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		% dissect the fully qualified name
 		[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
-		% check whether we did successfully load some data, other wise bail out:
-		if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
-			disp('WARNING: No valid data found, nothing to plot? Exiting...');
-			return
-		endif
 
 		% find the relevant number of samples and whether we have LOAD records to begin with
-		n_DATA_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
 		if isfield(autorate_log, 'LOAD') && isfield(autorate_log.LOAD, 'LISTS') && isfield(autorate_log.LOAD.LISTS, 'RECORD_TYPE') && ~isempty(autorate_log.LOAD.LISTS.RECORD_TYPE)
 			n_LOAD_samples = length(autorate_log.LOAD.LISTS.RECORD_TYPE);
 		else
 			n_LOAD_samples = 0;
 		endif
 
+		% check whether we did successfully load some data, other wise bail out:
+		if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
+			if (n_LOAD_samples == 0)
+				disp('WARNING: No valid data found, nothing to plot? Exiting...');
+				return
+			endif
+			n_DATA_samples = 0;
+			autorate_log.DATA.LISTS = [];
+		else
+			n_DATA_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
+		endif
+
 
 		% find the smallest and largest (or first and last) DATA or LOAD timestamps
-		first_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(1);
+		if (n_DATA_samples > 0)
+			first_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(1);
+			last_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(end);
+		else
+			first_sample_timestamp = 60*60*24*365*1000; % make this larger than any realistic unix epoch in seconds is going to be...
+			last_sample_timestamp = 0; % we take the maximum, so will override this
+		endif
+
 		if (n_LOAD_samples > 0)
 			first_sample_timestamp = min([first_sample_timestamp, autorate_log.LOAD.LISTS.PROC_TIME_US(1)]);
+			last_sample_timestamp = max([last_sample_timestamp, autorate_log.LOAD.LISTS.PROC_TIME_US(end-1)]);
 		endif
-
-		last_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(end);
-		if (n_LOAD_samples > 0)
-			last_sample_timestamp = max([last_sample_timestamp, autorate_log.LOAD.LISTS.PROC_TIME_US(end)]);
-		endif
-
 
 		% select the sample range to display:
 		% 0 denotes the start, the second value the maximum time to display
@@ -117,6 +125,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			% select the time range to display in seconds since first sample
 			% with different time axis for DATA and LOAD, simple indices are not appropriate anymore
 			x_range_sec = [];
+			%x_range_sec = [900 1000];
 		else
 			%x_range_sec = [];
 			if ~isempty(x_range_sec);
@@ -130,11 +139,16 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		endif
 
 		% now, get the data range indices for the selected record types
-		x_range.DATA = fn_get_range_indices_from_range_timestamps((x_range_sec + first_sample_timestamp), autorate_log.DATA.LISTS.PROC_TIME_US);
-		[x_range.DATA, do_return] = fn_sanitize_x_range(x_range.DATA, n_DATA_samples);
+		if (n_DATA_samples > 0)
+			x_range.DATA = fn_get_range_indices_from_range_timestamps((x_range_sec + first_sample_timestamp), autorate_log.DATA.LISTS.PROC_TIME_US);
+			[x_range.DATA, do_return] = fn_sanitize_x_range(x_range.DATA, n_DATA_samples);
+		endif
 		if (n_LOAD_samples > 0)
 			x_range.LOAD = fn_get_range_indices_from_range_timestamps((x_range_sec + first_sample_timestamp), autorate_log.LOAD.LISTS.PROC_TIME_US);
 			[x_range.LOAD, do_return] = fn_sanitize_x_range(x_range.LOAD, n_LOAD_samples);
+			if (n_DATA_samples == 0)
+				x_range.DATA = x_range.LOAD; % needed for plot nameing...
+			endif
 		end
 		if (do_return)
 			return
@@ -294,28 +308,36 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 		% get x_vector data and which indices to display for each record type
 		x_vec.DATA = (1:1:n_DATA_samples);
-		DATA_rates_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
+		if ~isempty(x_vec.DATA)
+			DATA_rates_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
 
-		DATA_delays_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
-		sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
-		if ~isempty(sequence_too_small_idx)
-			DATA_delays_x_idx = setdiff(DATA_delays_x_idx, sequence_too_small_idx);
+			DATA_delays_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
+			sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
+			if ~isempty(sequence_too_small_idx)
+				DATA_delays_x_idx = setdiff(DATA_delays_x_idx, sequence_too_small_idx);
+			endif
+
+			% allow to only plot a given reflector subset
+			if ~isempty(selected_reflector_subset)
+				cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, selected_reflector_subset));
+				DATA_delays_x_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+			endif
+			if isempty(DATA_delays_x_idx)
+				disp('No valid samples found (for the current reflector subset).');
+				%return # we can still plot the load/rate data, for long sleep periods there might be no valid delay samples at all
+			endif
+
+			% use real sample times, PROC_TIME_US is seconds.NNNNNN
+			% to make things less odd report times in seconds since the log start
+			x_vec.DATA = (autorate_log.DATA.LISTS.PROC_TIME_US .- first_sample_timestamp);
+			disp(['Selected DATA sample indices: ', num2str(x_range.DATA)]);
+
+			% use this later to set the XLim s for all time plots
+			x_vec_range = [x_vec.DATA(DATA_rates_x_idx(1)), x_vec.DATA(DATA_rates_x_idx(end))];
+		else
+			DATA_delays_x_idx = [];
+			x_vec_range = [(60*60*24*365*1000) 0]; % make sure the following MIN/MAX operation will update the fields
 		endif
-
-		% allow to only plot a given reflector subset
-		if ~isempty(selected_reflector_subset)
-			cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, selected_reflector_subset));
-			DATA_delays_x_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
-		endif
-
-		% use real sample times, PROC_TIME_US is seconds.NNNNNN
-		% to make things less odd report times in seconds since the log start
-		x_vec.DATA = (autorate_log.DATA.LISTS.PROC_TIME_US .- first_sample_timestamp);
-		x_label_string = 'time from log file start [sec]'; % or 'autorate samples'
-		disp(['Selected DATA sample indices: ', num2str(x_range.DATA)]);
-
-		% use this later to set the XLim s for all time plots
-		x_vec_range = [x_vec.DATA(DATA_rates_x_idx(1)), x_vec.DATA(DATA_rates_x_idx(end))];
 
 		if (n_LOAD_samples > 0)
 			LOAD_rates_x_idx = (x_range.LOAD(1):1:x_range.LOAD(2));
@@ -325,10 +347,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			x_vec_range(1) = min(x_vec_range(1), x_vec.LOAD(LOAD_rates_x_idx(1)));
 			x_vec_range(2) = max(x_vec_range(2), x_vec.LOAD(LOAD_rates_x_idx(end)));
 		endif
+		x_label_string = 'time from log file start [sec]'; % or 'autorate samples'
+
+
 		%TODO detect sleep periods and mark in graphs
 
 		% for plot naming
-		if ((x_range.DATA(1) ~= 1) || (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
+		if ((x_range.DATA(1) ~= 1) ...
+			|| ((n_DATA_samples > 0) && (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE))) ...
+			|| ((n_DATA_samples == 0) && (x_range.DATA(2) ~= length(autorate_log.LOAD.LISTS.RECORD_TYPE))))
 			n_range_digits = ceil(max(log10(x_range.DATA)));
 			range_string = ['.', 'sample_', num2str(x_range.DATA(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range.DATA(2), ['%0', num2str(n_range_digits), 'd'])];
 		else
@@ -337,7 +364,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 
 		adjusted_ylim_delay = [];
-		if ~isempty(scale_delay_axis_by_ADJ_DELAY_THR_factor)
+		if ~isempty(scale_delay_axis_by_ADJ_DELAY_THR_factor) && (n_DATA_samples > 0)
 			%ylim_delays = get(AX(2), 'YLim');
 			if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
 				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR(DATA_delays_x_idx));
@@ -358,7 +385,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 		% find the 99%ile for the actual relevant delay data
 
-		if ~isempty(scale_delay_axis_by_OWD_DELTA_QUANTILE_factor)
+		if ~isempty(scale_delay_axis_by_OWD_DELTA_QUANTILE_factor) && (n_DATA_samples > 0)
 			sorted_UL_OWD_DELTA_US = sort(autorate_log.DATA.LISTS.UL_OWD_DELTA_US(DATA_delays_x_idx));
 			n_UL_OWD_DELTA_US_samples = length(sorted_UL_OWD_DELTA_US);
 			UL_OWD_DELTA_US_upper_quantile = sorted_UL_OWD_DELTA_US(round(n_UL_OWD_DELTA_US_samples * (OWD_DELTA_QUANTILE_pct / 100)));
@@ -396,9 +423,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
 
 
-		% create CDFs for each reflector, for both DL_OWD_US and UL_OWD_US
-		% for low congestion state (low achieved rate with shaper at baseline rate)
-		% and for high congestion state (high achieved rate close ot shaper rate)?
+		if (n_DATA_samples > 0)
+			% create CDFs for each reflector, for both DL_OWD_US and UL_OWD_US
+			% for low congestion state (low achieved rate with shaper at baseline rate)
+			% and for high congestion state (high achieved rate close ot shaper rate)?
 
 			% load conditions, ideally we want congestion condition, but the best estimate we have
 			% are load conditions, since we want to look at differences in delay we should not
@@ -455,7 +483,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				endif
 				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
 			endif
-
+		endif
 
 
 		if ismember('timecourse', plot_list);
@@ -463,87 +491,86 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 			autorate_fh = figure('Name', 'CAKE-autorate log: rate & delay timecourses', 'visible', figure_visibility_string);
 			[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
+			if (n_DATA_samples > 0)
+				cur_sph = subplot(2, 2, [1 2]);
+				%plot data on both axes
+				% use this as dummy to create the axis:
+				cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+				cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{1})(DATA_delays_x_idx) * delays.DATA.scale_factor;
 
-			cur_sph = subplot(2, 2, [1 2]);
-			%plot data on both axes
-			% use this as dummy to create the axis:
-			cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-			cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{1})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-
-			if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
-				disp('WARNING: We somehow ended up without data to plot, should not happen');
-				return
-			endif
-
-			% this is a dummy plot so we get the dual axis handles...
-			[AX H1 H2] = plotyy(x_vec.DATA(DATA_delays_x_idx), (delays.DATA.sign_list{1} * cur_scaled_data_delays)', x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{1} * cur_scaled_data_rates)', 'plot');
-			%hold both axes
-			legend_list = {};
-			hold(AX(1));
-			for i_field = 1 : length(delays.DATA.fields_to_plot_list)
-				legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-				plot(AX(1), x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
-			%legend(legend_list, 'Interpreter', 'none');
-			hold off
-			xlabel(x_label_string);
-			ylabel('Delay [milliseconds]');
-			set(AX(1), 'XLim', x_vec_range);
-
-			if ~isempty(adjusted_ylim_delay)
-				set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
-			end
-
-			hold(AX(2));
-			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
-				legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-				plot(AX(2), x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
-
-			if (n_LOAD_samples > 0)
-				for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
-					legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
-					cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
-					plot(AX(2), x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
-				endfor
-			endif
-			%legend(legend_list, 'Interpreter', 'none');
-			hold off
-			xlabel(AX(2), x_label_string);
-			ylabel(AX(2), 'Rate [Mbps]');
-			set(AX(2), 'XLim', x_vec_range);
-
-
-
-			% make sure the zeros of both axes align
-			if (align_rate_and_delay_zeros)
-				ylim_rates = get(AX(2), 'YLim');
-				ylim_delays = get(AX(1), 'YLim');
-
-				rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
-				rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
-
-				delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
-				delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
-
-				if (delay_up_ratio >= rate_up_ratio)
-					% we need to adjust the upper limit
-					new_lower_y_delay = ylim_delays(1);
-					new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
-
-				else
-					% we need to adjust the lower limit
-					new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
-					new_upper_y_delay = ylim_delays(2);
+				if (isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays))
+					disp('WARNING: We somehow ended up without data to plot, should not happen');
+					return
 				endif
-				set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
-			endif
 
-			% TODO: look at both DATA and LOAD timestamps to deduce the start and end timestamps
-			title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(1))), '; sample index: ', num2str(x_range.DATA(1)); ...
-			'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(end))), '; sample index: ', num2str(x_range.DATA(2))]);
+				% this is a dummy plot so we get the dual axis handles...
+				[AX H1 H2] = plotyy(x_vec.DATA(DATA_delays_x_idx), (delays.DATA.sign_list{1} * cur_scaled_data_delays)', x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{1} * cur_scaled_data_rates)', 'plot');
+				%hold both axes
+				legend_list = {};
+				hold(AX(1));
+				for i_field = 1 : length(delays.DATA.fields_to_plot_list)
+					legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+					plot(AX(1), x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+				%legend(legend_list, 'Interpreter', 'none');
+				hold off
+				xlabel(x_label_string);
+				ylabel('Delay [milliseconds]');
+				set(AX(1), 'XLim', x_vec_range);
+
+				if ~isempty(adjusted_ylim_delay)
+					set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+				end
+
+				hold(AX(2));
+				for i_field = 1 : length(rates.DATA.fields_to_plot_list)
+					legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+					plot(AX(2), x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+
+				if (n_LOAD_samples > 0)
+					for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
+						legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
+						cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
+						plot(AX(2), x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
+					endfor
+				endif
+				%legend(legend_list, 'Interpreter', 'none');
+				hold off
+				xlabel(AX(2), x_label_string);
+				ylabel(AX(2), 'Rate [Mbps]');
+				set(AX(2), 'XLim', x_vec_range);
+
+				% make sure the zeros of both axes align
+				if (align_rate_and_delay_zeros)
+					ylim_rates = get(AX(2), 'YLim');
+					ylim_delays = get(AX(1), 'YLim');
+
+					rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
+					rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
+
+					delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
+					delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
+
+					if (delay_up_ratio >= rate_up_ratio)
+						% we need to adjust the upper limit
+						new_lower_y_delay = ylim_delays(1);
+						new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
+
+					else
+						% we need to adjust the lower limit
+						new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
+						new_upper_y_delay = ylim_delays(2);
+					endif
+					set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
+				endif
+
+				% TODO: look at both DATA and LOAD timestamps to deduce the start and end timestamps
+				title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(1))), '; sample index: ', num2str(x_range.DATA(1)); ...
+				'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(end))), '; sample index: ', num2str(x_range.DATA(2))]);
+			endif
 
 
 
@@ -551,11 +578,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			% rates
 			hold on
 			legend_list = {};
-			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
-				legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-				plot(x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
+			if (n_DATA_samples > 0)
+				for i_field = 1 : length(rates.DATA.fields_to_plot_list)
+					legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+					plot(x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+			endif
 			if (n_LOAD_samples > 0)
 				for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
 					legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
@@ -579,31 +608,33 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			ylabel('Rate [Mbps]');
 			set(cur_sph, 'XLim', x_vec_range);
 
-			cur_sph = subplot(2, 2, 4);
-			% delays
-			hold on
-			legend_list = {};
-			for i_field = 1 : length(delays.DATA.fields_to_plot_list)
-				legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-				plot(x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
-			if ~isempty(adjusted_ylim_delay)
-				set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+			if (n_DATA_samples > 0)
+				cur_sph = subplot(2, 2, 4);
+				% delays
+				hold on
+				legend_list = {};
+				for i_field = 1 : length(delays.DATA.fields_to_plot_list)
+					legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+					plot(x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+				if ~isempty(adjusted_ylim_delay)
+					set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+				endif
+				try
+					if strcmp(graphics_toolkit, 'gnuplot')
+						legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+					else
+						legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+					end
+				catch
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+				end_try_catch
+				hold off
+				xlabel(x_label_string);
+				ylabel('Delay [milliseconds]');
+				set(cur_sph, 'XLim', x_vec_range);
 			endif
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				end
-			catch
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
-			end_try_catch
-			hold off
-			xlabel(x_label_string);
-			ylabel('Delay [milliseconds]');
-			set(cur_sph, 'XLim', x_vec_range);
 
 			if isempty(plot_FQN)
 				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, output_format_extension]);
@@ -729,7 +760,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	fclose(log_fd);
 
 	% shrink global datastructures
-	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER"});
+	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER", "LOAD"});
 
 	% ready for export and
 	autorate_log = log_struct;
