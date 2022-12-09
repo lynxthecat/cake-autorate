@@ -718,7 +718,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	endif
 	if strcmp(log_ext, '.gz')
 		file_list = gunzip(log_FQN);
-		if length(file_list) ==1
+		if (length(file_list) == 1)
 			orig_log_FQN = log_FQN;
 			log_FQN = file_list{1};
 			[log_dir, log_name, log_ext ] = fileparts(log_FQN);
@@ -774,6 +774,16 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% save autorate_log as mat file...
 	disp(['INFO: Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
 	save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
+
+	if ~exist(fullfile(log_dir, [log_name, log_ext, '.gz']), 'file')
+		% compress the uncompressed log
+		FILELIST = gzip(fullfile(log_dir, [log_name, log_ext]));
+	end
+
+	if exist(fullfile(log_dir, [log_name, log_ext]), 'file');
+		% delete the uncompressed log
+		delete(fullfile(log_dir, [log_name, log_ext]));
+	endif
 
 	return
 endfunction
