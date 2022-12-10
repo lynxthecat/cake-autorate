@@ -625,9 +625,10 @@ replace_pinger_reflector()
 	# and finally the indices for $reflectors are updated to reflect the new order
 	
 	local pinger=$1
+	local reason_string=$2
 
 	if(($no_reflectors>$no_pingers)); then
-		(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
+		(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}. replacement reason: ${reason_string}"
 		kill_pinger_$pinger_binary $pinger
 		bad_reflector=${reflectors[$pinger]}
 		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
@@ -693,7 +694,7 @@ maintain_pingers()
 		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_replacement_interval_mins*60*1000000))); then
 	
 			(($debug)) && log_msg "DEBUG" "reflector: ${reflectors[$pinger]} randomly selected for replacement."
-			replace_pinger_reflector $(($RANDOM%$no_pingers))
+			replace_pinger_reflector $(($RANDOM%$no_pingers)) "random slow selection"
 			continue
 		fi
 
@@ -726,23 +727,23 @@ maintain_pingers()
 
 				if ((${dl_owd_baselines_us[${reflectors[$pinger]}]}>($min_dl_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger "dl baseline exceeds limit"
 					continue
 				fi
 				if ((${ul_owd_baselines_us[${reflectors[$pinger]}]}>($min_ul_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger "ul baseline exceeds limit"
 					continue
 				fi
 
 				if ((${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} > $dl_adjusted_delta_ewma_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_delta_ewmas_us exceeds the adjusted delta ewma threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger "dl deltaEWMA exceeds limit"
 					continue
 				fi
 				if ((${ul_owd_delta_ewmas_us[${reflectors[$pinger]}]} > $ul_adjusted_delta_ewma_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_delta_ewmas_us exceeds the adjusted delta ewma threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger "ul deltaEWMA exceeds limit"
 					continue
 				fi
 			done
@@ -767,7 +768,7 @@ maintain_pingers()
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
 				(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
-				replace_pinger_reflector $pinger
+				replace_pinger_reflector $pinger "misbehaving reflector"
 
 				for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 				sum_reflector_offences[$pinger]=0
