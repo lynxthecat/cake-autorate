@@ -71,8 +71,8 @@ reflector_ping_interval_s=0.3 # (seconds, e.g. 0.2s or 2s)
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=40 # (milliseconds)
-ul_delay_thr_ms=40 # (milliseconds)
+dl_delay_thr_ms=25 # (milliseconds)
+ul_delay_thr_ms=25 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -191,6 +191,14 @@ reflector_response_deadline_s=1.0 # (seconds)
 # 3 offences within the last 60s 
 reflector_misbehaving_detection_window=60
 reflector_misbehaving_detection_thr=3
+
+reflector_comparison_interval_mins=1 # how often to compare reflectors 
+reflector_owd_baseline_delta_thr_ms=20 # max increase from min baseline before reflector rotated
+# when dl/ul_owd_delta_ewma_thr > reflector_owd_delta_ewma_thr*compensated_dl/ul_delay_thr_ms
+# then replace the reflector (because then under low load it is too close to triggering)
+reflector_owd_delta_ewma_thr=0.6
+
+reflector_replacement_interval_mins=60 # how often to replace a random reflector from the present list
 
 # stall is detected when the following two conditions are met:
 # 1) no reflector responses within $stall_detection_thr*$ping_response_interval_us; and
