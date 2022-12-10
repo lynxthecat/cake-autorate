@@ -221,10 +221,6 @@ get_next_shaper_rate()
 				shaper_rate_kbps=$(( ($shaper_rate_kbps*$shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
-		# medium load, so just maintain rate as is, i.e. do nothing
-		*med*)
-			:
-			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		*low*|*idle*)
 			if (($t_next_rate_us > ($t_last_decay_us+$decay_refractory_period_us) )); then
@@ -312,7 +308,7 @@ get_loads()
 
 classify_load()
 {
-	# classify the load according to high/low/medium/idle and add _delayed if delayed
+	# classify the load according to high/low/idle and add _delayed if delayed
 	# thus ending up with high_delayed, low_delayed, etc.
 	local load_percent=$1
 	local achieved_rate_kbps=$2
@@ -321,8 +317,6 @@ classify_load()
 	
 	if (( $load_percent > $high_load_thr_percent )); then
 		load_condition="high"  
-	elif (( $load_percent > $medium_load_thr_percent )); then
-		load_condition="med"
 	elif (( 10#${achieved_rate_kbps} > $connection_active_thr_kbps )); then
 		load_condition="low"
 	else 
@@ -699,6 +693,8 @@ maintain_pingers()
 
 		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_comparison_interval_mins*60*1000000))); then
 
+			t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
+			
 			concurrent_read_positive_integer min_dl_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_baseline_us
 			concurrent_read_positive_integer min_ul_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_baseline_us
 			
@@ -1052,7 +1048,6 @@ printf -v shaper_rate_adjust_up_load_high %.0f "${shaper_rate_adjust_up_load_hig
 printf -v shaper_rate_adjust_down_load_low %.0f "${shaper_rate_adjust_down_load_low}e3"
 printf -v shaper_rate_adjust_up_load_low %.0f "${shaper_rate_adjust_up_load_low}e3"
 printf -v high_load_thr_percent %.0f "${high_load_thr}e2"
-printf -v medium_load_thr_percent %.0f "${medium_load_thr}e2"
 printf -v reflector_ping_interval_ms %.0f "${reflector_ping_interval_s}e3"
 printf -v reflector_ping_interval_us %.0f "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f "${monitor_achieved_rates_interval_ms}e3"
