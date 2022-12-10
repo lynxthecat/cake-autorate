@@ -360,7 +360,7 @@ monitor_reflector_responses_fping()
 		if [[ -f $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us ]]; then
 			read rtt_delta_ewmas_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
 		else
-			rtt_delta_ewmas_us[${reflectors[$reflector]}]=150000
+			rtt_delta_ewmas_us[${reflectors[$reflector]}]=0
 		fi
 	done
 
@@ -480,7 +480,7 @@ monitor_reflector_responses_ping()
 	if [[ -f $run_path/reflector_${reflectors[$pinger]//./-}_delta_ewma_us ]]; then
 			read rtt_delta_ewma_us < $run_path/reflector_${reflectors[$pinger]//./-}_delta_ewma_us
 	else
-			rtt_delta_ewma_us=150000
+			rtt_delta_ewma_us=0
 	fi
 
 	while read -r  timestamp _ _ _ reflector seq_rtt 2>/dev/null
@@ -725,23 +725,23 @@ maintain_pingers()
 				if ((${dl_owd_baselines_us[${reflectors[$pinger]}]}>($min_dl_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector $pinger
-					continue
+					continue 2
 				fi
 				if ((${ul_owd_baselines_us[${reflectors[$pinger]}]}>($min_ul_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector $pinger
-					continue
+					continue 2
 				fi
 
 				if ((${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} > $dl_adjusted_delta_ewma_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_delta_ewmas_us exceeds the adjusted delta ewma threshold."
 					replace_pinger_reflector $pinger
-					continue
+					continue 2
 				fi
 				if ((${ul_owd_delta_ewmas_us[${reflectors[$pinger]}]} > $ul_adjusted_delta_ewma_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_delta_ewmas_us exceeds the adjusted delta ewma threshold."
 					replace_pinger_reflector $pinger
-					continue
+					continue 2
 				fi
 			done
 
