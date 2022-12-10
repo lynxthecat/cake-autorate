@@ -164,8 +164,14 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			%selected_reflector_subset = [];
 			disp(['INFO: requested selected_reflector_subset: ', selected_reflector_subset]);
 		endif
-
-
+		reflector_string = '';
+		if ~isempty(selected_reflector_subset)
+			reflector_string = '.R';
+			for i_reflector = 1 : length(selected_reflector_subset)
+				reflector_string = [reflector_string, '_', selected_reflector_subset{i_reflector}];
+			endfor
+			reflector_string(end+1) = '.';
+		endif
 
 		% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
 		% resulting in very high baseline values that cause poor autoscaling of the delay y-axis
@@ -439,9 +445,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				[raw_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
 				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCDFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('CDF', figure_opts, raw_CDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'cumulative density [%]', cur_plot_FQN);
 			endif
@@ -451,9 +457,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				[raw_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
 				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
 			endif
@@ -464,9 +470,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				[delta_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
 				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaCDFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaCDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('CDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'cumulative density [%]', cur_plot_FQN);
 				fn_propose_delay_thresholds(delta_CDF, CDF.calc_range_ms);
@@ -477,9 +483,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				[delta_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
 				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
 			endif
@@ -637,9 +643,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			endif
 
 			if isempty(plot_FQN)
-				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, output_format_extension]);
+				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, reflector_string, output_format_extension]);
 			else
-				cur_plot_FQN = fullfile(plot_path, [plot_name, '.timecourse', range_string, plot_ext]);
+				cur_plot_FQN = fullfile(plot_path, [plot_name, '.timecourse', range_string, reflector_string, plot_ext]);
 			endif
 
 			disp(['INFO: Writing plot as: ', cur_plot_FQN]);
@@ -712,7 +718,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	endif
 	if strcmp(log_ext, '.gz')
 		file_list = gunzip(log_FQN);
-		if length(file_list) ==1
+		if (length(file_list) == 1)
 			orig_log_FQN = log_FQN;
 			log_FQN = file_list{1};
 			[log_dir, log_name, log_ext ] = fileparts(log_FQN);
@@ -768,6 +774,16 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% save autorate_log as mat file...
 	disp(['INFO: Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
 	save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
+
+	if ~exist(fullfile(log_dir, [log_name, log_ext, '.gz']), 'file')
+		% compress the uncompressed log
+		FILELIST = gzip(fullfile(log_dir, [log_name, log_ext]));
+	end
+
+	if exist(fullfile(log_dir, [log_name, log_ext]), 'file');
+		% delete the uncompressed log
+		delete(fullfile(log_dir, [log_name, log_ext]));
+	endif
 
 	return
 endfunction
@@ -850,24 +866,49 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 			endif
 		case {"DATA;"}
 			cur_record_type = "DATA";
-			if ~isfield(log_struct.metainformation, 'DATA')
-				log_struct.metainformation.DATA.count = 1;
+			if ~isfield(log_struct.metainformation, 'HEADER') || log_struct.metainformation.HEADER.count < 1
+				# we have not encountered a DATA_HEADER record yet and do not know how to parse DATA records, so SKIP
+				cur_record_type = "SKIP";
+				if ~isfield(log_struct.metainformation, 'SKIP_DATA')
+					log_struct.metainformation.SKIP_DATA.count = 1;
+				else
+					log_struct.metainformation.SKIP.count = log_struct.metainformation.SKIP_DATA.count + 1;
+				endif
+				disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_DATA.count), ').']);
 			else
-				log_struct.metainformation.DATA.count = log_struct.metainformation.DATA.count + 1;
+				# this is fine we already found a header
+				if ~isfield(log_struct.metainformation, 'DATA')
+					log_struct.metainformation.DATA.count = 1;
+				else
+					log_struct.metainformation.DATA.count = log_struct.metainformation.DATA.count + 1;
+				endif
 			endif
 		case {"LOAD_"}
 			cur_record_type = "LOAD_HEADER";
 			if ~isfield(log_struct.metainformation, 'LOAD_HEADER')
 				log_struct.metainformation.LOAD_HEADER.count = 1;
 			else
-				log_struct.metainformation.LOAD_HEADER.count = log_struct.metainformation.HEADER.count + 1;
+				log_struct.metainformation.LOAD_HEADER.count = log_struct.metainformation.LOAD_HEADER.count + 1;
 			endif
 		case {"LOAD;"}
 			cur_record_type = "LOAD";
-			if ~isfield(log_struct.metainformation, 'LOAD')
-				log_struct.metainformation.LOAD.count = 1;
+			if ~isfield(log_struct.metainformation, 'LOAD_HEADER') || log_struct.metainformation.LOAD_HEADER.count < 1
+				# we have not encountered a LOAD_HEADER record yet and do not know how to parse LOAD records, so SKIP
+				cur_record_type = "SKIP";
+				if ~isfield(log_struct.metainformation, 'SKIP_LOAD')
+					log_struct.metainformation.SKIP_LOAD.count = 1;
+				else
+					log_struct.metainformation.SKIP_LOAD.count = log_struct.metainformation.SKIP_LOAD.count + 1;
+				endif
+				disp(['Found LOAD  before LOAD_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_LOAD.count), ').']);
 			else
-				log_struct.metainformation.LOAD.count = log_struct.metainformation.LOAD.count + 1;
+				# this is fine we already found a header
+
+				if ~isfield(log_struct.metainformation, 'LOAD')
+					log_struct.metainformation.LOAD.count = 1;
+				else
+					log_struct.metainformation.LOAD.count = log_struct.metainformation.LOAD.count + 1;
+				endif
 			endif
 		case {"SHAPE"}
 			cur_record_type = "SHAPER";
