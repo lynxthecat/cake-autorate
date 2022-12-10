@@ -65,6 +65,10 @@ print_headers()
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
+	header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; DL_BASELINE_US; DL_MIN_BASELINE_US; DL_EWMA_DELTA_US; DL_ADJ_EWMA_DELTA_THR_US; UL_BASELINE_US; UL_MIN_BASELINE_US; UL_EWMA_DELTA_US; UL_ADJ_EWMA_DELTA_THR_US"
+ 	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
+ 	[[ -t 1 ]] && printf '%s\n' "$header"
+
 }
 
 ewma_iteration()
@@ -301,6 +305,9 @@ get_loads()
 
 	dl_load_percent=$(((100*10#${dl_achieved_rate_kbps})/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*10#${ul_achieved_rate_kbps})/$ul_shaper_rate_kbps))
+
+	printf '%s' "$dl_load_percent" > $run_path/dl_load_percent
+	printf '%s' "$ul_load_percent" > $run_path/ul_load_percent
 }
 
 classify_load()
@@ -381,8 +388,13 @@ monitor_reflector_responses_fping()
 		ewma_iteration $rtt_us $alpha rtt_baselines_us[$reflector]
 
 		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
-		
-		ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewmas_us[$reflector]
+	
+		concurrent_read_positive_integer dl_load_percent $run_path/dl_load_percent 
+		concurrent_read_positive_integer ul_load_percent $run_path/ul_load_percent 
+
+		if(($dl_load_percent < $high_load_thr_percent && $ul_load_percent < $high_load_thr_percent)); then
+			ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewmas_us[$reflector]
+		fi
 
 		dl_owd_baseline_us=$((${rtt_baselines_us[$reflector]}/2))
 		ul_owd_baseline_us=$dl_owd_baseline_us
@@ -406,6 +418,9 @@ monitor_reflector_responses_fping()
 		
 		printf '%s' "$dl_owd_baseline_us" > $run_path/reflector_${reflector//./-}_dl_owd_baseline_us
 		printf '%s' "$ul_owd_baseline_us" > $run_path/reflector_${reflector//./-}_ul_owd_baseline_us
+		
+		printf '%s' "$dl_owd_delta_ewma_us" > $run_path/reflector_${reflector//./-}_dl_owd_delta_ewma_us
+		printf '%s' "$ul_owd_delta_ewma_us" > $run_path/reflector_${reflector//./-}_ul_owd_delta_ewma_us
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
@@ -491,9 +506,14 @@ monitor_reflector_responses_ping()
 		ewma_iteration $rtt_us $alpha rtt_baseline_us
 		
 		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
-		
-		ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewma_us
-		
+	
+		concurrent_read_positive_integer dl_load_percent $run_path/dl_load_percent
+                concurrent_read_positive_integer ul_load_percent $run_path/ul_load_percent
+
+                if(($dl_load_percent < $high_load_thr_percent && $ul_load_percent < $high_load_thr_percent)); then
+			ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewma_us
+		fi
+
 		dl_owd_baseline_us=$(($rtt_baseline_us/2))
 		ul_owd_baseline_us=$dl_owd_baseline_us
 		
@@ -516,6 +536,9 @@ monitor_reflector_responses_ping()
 		
 		printf '%s' "$dl_owd_baseline_us" > $run_path/reflector_${reflector//./-}_dl_owd_baseline_us
 		printf '%s' "$ul_owd_baseline_us" > $run_path/reflector_${reflector//./-}_ul_owd_baseline_us
+		
+		printf '%s' "$dl_owd_delta_ewma_us" > $run_path/reflector_${reflector//./-}_dl_owd_delta_ewma_us
+		printf '%s' "$ul_owd_delta_ewma_us" > $run_path/reflector_${reflector//./-}_ul_owd_delta_ewma_us
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
@@ -592,6 +615,37 @@ start_pinger_next_pinger_time_slot()
 	monitor_pids[$pinger]=$!
 }
 
+replace_pinger_reflector()
+{
+	# pingers always use reflectors[0]..[$no_pingers-1] as the initial set
+	# and the additional reflectors are spare reflectors should any from initial set go stale
+	# a bad reflector in the initial set is replaced with $reflectors[$no_pingers]
+	# $reflectors[$no_pingers] is then unset
+	# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
+	# and finally the indices for $reflectors are updated to reflect the new order
+	
+	local pinger=$1
+
+	if(($no_reflectors>$no_pingers)); then
+		(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
+		kill_pinger_$pinger_binary $pinger
+		bad_reflector=${reflectors[$pinger]}
+		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
+		reflectors[$pinger]=${reflectors[$no_pingers]}
+		# remove the new reflector from the list of additional reflectors beginning from $reflectors[$no_pingers]
+		unset reflectors[$no_pingers]
+		# bad reflector goes to the back of the queue
+		reflectors+=($bad_reflector)
+		# reset array indices
+		reflectors=(${reflectors[*]})
+		# set up the new pinger with the new reflector and retain pid	
+		start_pinger_$pinger_binary $pinger
+	else
+		(($debug)) && log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
+		reflector_offences[$pinger]=0
+	fi
+}
+
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
@@ -600,11 +654,17 @@ maintain_pingers()
 
 	trap '((pause_reflector_health_check^=1))' USR2
 
+	declare -A dl_owd_baselines_us
+	declare -A ul_owd_baselines_us
+	declare -A dl_owd_delta_ewmas_us
+	declare -A ul_owd_delta_ewmas_us
+
 	pause_reflector_health_check=0
 
 	reflector_offences_idx=0
 
 	pingers_t_start_us=${EPOCHREALTIME/./}	
+	t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
 	for ((reflector=0; reflector<$no_reflectors; reflector++))
 	do
@@ -630,6 +690,65 @@ maintain_pingers()
 
 		(($pause_reflector_health_check)) && continue
 
+		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_replacement_interval_mins*60*1000000))); then
+	
+			(($debug)) && log_msg "DEBUG" "reflector: ${reflectors[$pinger]} randomly selected for replacement."
+			replace_pinger_reflector $(($RANDOM%$no_pingers))
+			continue
+		fi
+
+		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_comparison_interval_mins*60*1000000))); then
+
+			concurrent_read_positive_integer min_dl_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_baseline_us
+			concurrent_read_positive_integer min_ul_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_baseline_us
+			
+			concurrent_read_positive_integer compensated_dl_delay_thr_us $run_path/compensated_dl_delay_thr_us
+			concurrent_read_positive_integer compensated_ul_delay_thr_us $run_path/compensated_ul_delay_thr_us
+
+			for ((pinger=0; pinger<$no_pingers; pinger++))
+			do
+				concurrent_read_positive_integer dl_owd_baselines_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_dl_owd_baseline_us
+				concurrent_read_positive_integer dl_owd_delta_ewmas_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_dl_owd_delta_ewma_us
+				concurrent_read_positive_integer ul_owd_baselines_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_ul_owd_baseline_us
+				concurrent_read_positive_integer ul_owd_delta_ewmas_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_ul_owd_delta_ewma_us
+				
+				((${dl_owd_baselines_us[${reflectors[$pinger]}]} < $min_dl_owd_baseline_us)) && min_dl_owd_baseline_us=${dl_owd_baselines_us[${reflectors[$pinger]}]}
+				((${ul_owd_baselines_us[${reflectors[$pinger]}]} < $min_ul_owd_baseline_us)) && min_ul_owd_baseline_us=${ul_owd_baselines_us[${reflectors[$pinger]}]}
+			done
+
+			for ((pinger=0; pinger<$no_pingers; pinger++))
+			do
+				dl_adjusted_delta_ewma_thr_us=$((($reflector_owd_delta_ewma_thr*$compensated_dl_delay_thr_us)/1000))
+				ul_adjusted_delta_ewma_thr_us=$((($reflector_owd_delta_ewma_thr*$compensated_ul_delay_thr_us)/1000))
+
+				printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME ${reflectors[$pinger]} ${dl_owd_baselines_us[${reflectors[$pinger]}]} $min_dl_owd_baseline_us ${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} $dl_adjusted_delta_ewma_thr_us ${ul_owd_baselines_us[${reflectors[$pinger]}]} $min_ul_owd_baseline_us ${ul_owd_delta_ewmas_us[${reflectors[$pinger]}]} $ul_adjusted_delta_ewma_thr_us
+				log_msg "REFLECTOR" "$reflector_stats"
+
+				if ((${dl_owd_baselines_us[${reflectors[$pinger]}]}>($min_dl_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
+					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
+					replace_pinger_reflector $pinger
+					continue
+				fi
+				if ((${ul_owd_baselines_us[${reflectors[$pinger]}]}>($min_ul_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
+					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
+					replace_pinger_reflector $pinger
+					continue
+				fi
+
+				if ((${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} > $dl_adjusted_delta_ewma_thr_us)); then
+					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_delta_ewmas_us exceeds the adjusted delta ewma threshold."
+					replace_pinger_reflector $pinger
+					continue
+				fi
+				if ((${ul_owd_delta_ewmas_us[${reflectors[$pinger]}]} > $ul_adjusted_delta_ewma_thr_us)); then
+					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_delta_ewmas_us exceeds the adjusted delta ewma threshold."
+					replace_pinger_reflector $pinger
+					continue
+				fi
+			done
+
+		fi
+
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
@@ -648,34 +767,7 @@ maintain_pingers()
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
 				(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
-				
-				if(($no_reflectors>$no_pingers)); then
-
-					# pingers always use reflectors[0]..[$no_pingers-1] as the initial set
-					# and the additional reflectors are spare reflectors should any from initial set go stale
-					# a bad reflector in the initial set is replaced with $reflectors[$no_pingers]
-					# $reflectors[$no_pingers] is then unset
-					# and the the bad reflector moved to the back of the queue (last element in $reflectors[])
-					# and finally the indices for $reflectors are updated to reflect the new order
-	
-					(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
-					kill_pinger_$pinger_binary $pinger
-					bad_reflector=${reflectors[$pinger]}
-					# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
-					reflectors[$pinger]=${reflectors[$no_pingers]}
-					# remove the new reflector from the list of additional reflectors beginning from $reflectors[$no_pingers]
-					unset reflectors[$no_pingers]
-					# bad reflector goes to the back of the queue
-					reflectors+=($bad_reflector)
-					# reset array indices
-					reflectors=(${reflectors[*]})
-					# set up the new pinger with the new reflector and retain pid	
-					start_pinger_$pinger_binary $pinger
-					
-				else
-					(($debug)) && log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
-					reflector_offences[$pinger]=0
-				fi
+				replace_pinger_reflector $pinger
 
 				for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 				sum_reflector_offences[$pinger]=0
@@ -741,6 +833,8 @@ update_max_wire_packet_compensation()
 	# compensated OWD delay thresholds in microseconds
 	compensated_dl_delay_thr_us=$(( $dl_delay_thr_us + (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps ))
 	compensated_ul_delay_thr_us=$(( $ul_delay_thr_us + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps ))
+	printf '%s' "$compensated_dl_delay_thr_us" > $run_path/compensated_dl_delay_thr_us
+	printf '%s' "$compensated_ul_delay_thr_us" > $run_path/compensated_ul_delay_thr_us
 
 	# determine and write out $max_wire_packet_rtt_us
 	max_wire_packet_rtt_us=$(( (1000*$dl_max_wire_packet_size_bits)/$dl_shaper_rate_kbps + (1000*$ul_max_wire_packet_size_bits)/$ul_shaper_rate_kbps  ))
@@ -964,6 +1058,8 @@ printf -v reflector_ping_interval_us %.0f "${reflector_ping_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f "${monitor_achieved_rates_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f "${sustained_idle_sleep_thr_s}e6"
 printf -v reflector_response_deadline_us %.0f "${reflector_response_deadline_s}e6"
+printf -v reflector_owd_baseline_delta_thr_us %.0f "${reflector_owd_baseline_delta_thr_ms}e3"
+printf -v reflector_owd_delta_ewma_thr %.0f "${reflector_owd_delta_ewma_thr}e3"
 printf -v startup_wait_us %.0f "${startup_wait_s}e6"
 printf -v global_ping_response_timeout_us %.0f "${global_ping_response_timeout_s}e6"
 printf -v bufferbloat_refractory_period_us %.0f "${bufferbloat_refractory_period_ms}e3"
@@ -1032,6 +1128,9 @@ fi
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
+
+printf '%s' "0" > $run_path/dl_load_percent
+printf '%s' "0" > $run_path/ul_load_percent
 
 maintain_pingers&
 maintain_pingers_pid=$!
