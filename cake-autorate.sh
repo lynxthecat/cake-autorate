@@ -17,7 +17,7 @@ export LC_ALL=C
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
-{
+{	
 	trap - INT TERM EXIT
 
 	log_msg_bypass_fifo "INFO" ""
@@ -658,6 +658,7 @@ maintain_pingers()
 	reflector_offences_idx=0
 
 	pingers_t_start_us=${EPOCHREALTIME/./}	
+	t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 	t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
 	for ((reflector=0; reflector<$no_reflectors; reflector++))
@@ -688,6 +689,7 @@ maintain_pingers()
 	
 			(($debug)) && log_msg "DEBUG" "reflector: ${reflectors[$pinger]} randomly selected for replacement."
 			replace_pinger_reflector $(($RANDOM%$no_pingers))
+			t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 			continue
 		fi
 
