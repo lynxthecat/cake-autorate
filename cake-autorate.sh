@@ -366,7 +366,7 @@ monitor_reflector_responses_fping()
 
 	output=0
 
-	while read timestamp reflector _ seq_rtt 2> /dev/null
+	while read timestamp reflector _ seq_rtt 2>/dev/null
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 
@@ -418,7 +418,7 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done<$run_path/fping_fifo
+	done 2>/dev/null <$run_path/fping_fifo
 
 	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<$no_reflectors; reflector++))
@@ -483,7 +483,7 @@ monitor_reflector_responses_ping()
 			rtt_delta_ewma_us=150000
 	fi
 
-	while read -r  timestamp _ _ _ reflector seq_rtt 2> /dev/null
+	while read -r  timestamp _ _ _ reflector seq_rtt 2>/dev/null
 	do
 		# If no match then skip onto the next one
 		[[ $seq_rtt =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
@@ -536,7 +536,7 @@ monitor_reflector_responses_ping()
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done<$run_path/pinger_${pinger}_fifo
+	done 2>/dev/null <$run_path/pinger_${pinger}_fifo
 
 	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
 	printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
