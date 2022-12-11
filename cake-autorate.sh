@@ -28,7 +28,7 @@ cleanup_and_killall()
 	wait # wait for child processes to terminate
 
 	[[ -d $run_path ]] && rm -r $run_path
-	compgen -G /var/run/cake-autorate > /dev/null || rm -r /var/run/cake-autorate
+	compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 	
 	exit
 }
@@ -340,9 +340,25 @@ classify_load()
 # MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
 
 # FPING FUNCTIONS # 
+
+kill_monitor_reflector_responses_fping()
+{
+	trap - TERM EXIT
+
+	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
+	for (( reflector=0; reflector<$no_reflectors; reflector++))
+	do
+		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
+		printf '%s' ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
+	done
+
+	exit
+}
+
 monitor_reflector_responses_fping()
 {
-		
+	trap "kill_monitor_reflector_responses_fping" TERM EXIT		
+
 	declare -A rtt_baselines_us
 	declare -A rtt_delta_ewmas_us
 
@@ -420,12 +436,6 @@ monitor_reflector_responses_fping()
 
 	done 2>/dev/null <$run_path/fping_fifo
 
-	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
-	for (( reflector=0; reflector<$no_reflectors; reflector++))
-	do
-		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
-		printf '%s' ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
-	done
 }
 
 start_pinger_fping()
@@ -439,9 +449,9 @@ start_pinger_fping()
 
 kill_pinger_fping()
 {
-	kill "${pinger_pids[@]}" 2> /dev/null
+	kill ${pinger_pids[0]} 2> /dev/null
+	kill ${monitor_pids[0]} 2> /dev/null
 	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
-	wait ${monitor_pids[0]}
 }
 
 start_pingers_fping()
@@ -456,17 +466,27 @@ start_pingers_fping()
 kill_pingers_fping()
 {
 	trap - TERM EXIT
-	kill "${pinger_pids[@]}" 2> /dev/null
+	kill ${pinger_pids[0]} 2> /dev/null
+	kill ${monitor_pids[0]} 2> /dev/null
 	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
-	wait ${monitor_pids[0]}
 	exit
 }
 # END OF FPING FUNCTIONS 
 
 # IPUTILS-PING FUNCTIONS
 
+kill_monitor_reflector_responses_ping()
+{
+	trap - TERM EXIT
+	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
+	printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
+	exit
+}
+
 monitor_reflector_responses_ping() 
 {
+	trap "kill_monitor_reflector_responses_ping" TERM EXIT		
+
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
 	local pinger=$1
@@ -538,8 +558,6 @@ monitor_reflector_responses_ping()
 
 	done 2>/dev/null <$run_path/pinger_${pinger}_fifo
 
-	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
-	printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
 }
 
 start_pinger_binary_ping()
@@ -566,8 +584,8 @@ kill_pinger_ping()
 {
 	local pinger=$1
 	kill $pinger_pids[$pinger] 2> /dev/null
+	kill ${monitor_pids[$pinger]} 2> /dev/null
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
-	wait ${monitor_pids[$pinger]}
 }
 
 start_pingers_ping()
@@ -585,8 +603,8 @@ kill_pingers_ping()
 	for (( pinger=0; pinger<$no_pingers; pinger++))
 	do
 		kill ${pinger_pids[$pinger]} 2> /dev/null
+		kill ${monitor_pids[$pinger]} 2> /dev/null
 		[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
-		wait ${monitor_pids[$pinger]}
 	done
 	exit
 }
@@ -719,8 +737,10 @@ maintain_pingers()
 				dl_adjusted_delta_ewma_thr_us=$((($reflector_owd_delta_ewma_thr*$compensated_dl_delay_thr_us)/1000))
 				ul_adjusted_delta_ewma_thr_us=$((($reflector_owd_delta_ewma_thr*$compensated_ul_delay_thr_us)/1000))
 
-				printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME ${reflectors[$pinger]} ${dl_owd_baselines_us[${reflectors[$pinger]}]} $min_dl_owd_baseline_us ${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} $dl_adjusted_delta_ewma_thr_us ${ul_owd_baselines_us[${reflectors[$pinger]}]} $min_ul_owd_baseline_us ${ul_owd_delta_ewmas_us[${reflectors[$pinger]}]} $ul_adjusted_delta_ewma_thr_us
-				log_msg "REFLECTOR" "$reflector_stats"
+				if (($output_reflector_stats)); then
+					printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s' $EPOCHREALTIME ${reflectors[$pinger]} ${dl_owd_baselines_us[${reflectors[$pinger]}]} $min_dl_owd_baseline_us ${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} $dl_adjusted_delta_ewma_thr_us ${ul_owd_baselines_us[${reflectors[$pinger]}]} $min_ul_owd_baseline_us ${ul_owd_delta_ewmas_us[${reflectors[$pinger]}]} $ul_adjusted_delta_ewma_thr_us
+					log_msg "REFLECTOR" "$reflector_stats"
+				fi
 
 				if ((${dl_owd_baselines_us[${reflectors[$pinger]}]}>($min_dl_owd_baseline_us+$reflector_owd_baseline_delta_thr_us))); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
