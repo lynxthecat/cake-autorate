@@ -49,11 +49,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
 	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
 	CDF.calc_range_ms = [0, 1000];	% what range to calculate the CDFs over? We can always reduce the plotted range later, see cumulative_range_percent
-	CDF.step_size_ms = 0.01;
+	CDF.step_size_ms = 0.001;	% we will this as quantization in the plots...
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
+	% PDFs are mostly like CDFs except for the step_size
+	PDF = CDF;
+	PDF_stepsize_ms = 0.1;	% these histograms need to be coarser than the CDFs by the nature
+	PDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 
 	% add all defined plots that should be created and saved
-	plot_list = {'rawCDFs', 'deltaCDFs', 'timecourse'}; % 'rawCDFs', 'deltaCDFs', 'rawPDFs', 'deltaPDFs', 'timecourse' % PDFs are currently broken
+	plot_list = {'rawCDFs', 'deltaCDFs', 'rawPDFs', 'timecourse'}; % 'rawCDFs', 'deltaCDFs', 'rawPDFs', 'deltaPDFs', 'timecourse' % PDFs are currently broken
 
 	try
 
@@ -455,13 +459,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			if ismember('rawPDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				PDF.calc_range_ms, PDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
 					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, reflector_string, plot_ext]);
 				endif
-				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
+				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, PDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
 			endif
 
 
@@ -481,13 +485,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			if ismember('deltaPDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				PDF.calc_range_ms, PDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
 					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, reflector_string, plot_ext]);
 				endif
-				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
+				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_CDF, PDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
 			endif
 		endif
 
@@ -654,6 +658,11 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 	catch err
   		warning(err.identifier, err.message);
 		err
+		for i_stack = 1 : length(err.stack)
+			disp(['Stack #: ', num2str(i_stack), ':']);
+			disp(err.stack(i_stack));
+		endfor
+
 		disp('INFO: available graphics toolkits:');
 		disp(available_graphics_toolkits);
 		disp(['INFO: Selected graphics toolkit: ', graphics_toolkit]);
@@ -671,6 +680,7 @@ endfunction
 
 function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command_string )
 	% variables
+	debug = 0;
 	delimiter_string = ";";	% what separator is used in the log file
 	line_increment = 100;		%  by what size to increment data structures on hitting the end
 	% enumerate all field names in HEADER that denote a string field on DATA records, otherwise default to numeric
@@ -688,6 +698,8 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.DATA = [];
 	log_struct.LOAD_HEADER = [];
 	log_struct.LOAD = [];
+	log_struct.REFLECTOR_HEADER = [];
+	log_struct.REFLECTOR = [];
 	log_struct.INFO = [];
 	log_struct.SHAPER = [];
 	log_struct.metainformation = [];
@@ -750,6 +762,10 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 		current_line = fgetl(log_fd);
 		line_count = line_count + 1;
 
+		if (debug)
+			disp([num2str(line_count), ': ', current_line]);
+		endif
+
 		cur_record_type = fn_get_record_type_4_line(current_line, delimiter_string, string_field_identifier_list);
 		fn_parse_current_line(cur_record_type, current_line, delimiter_string, line_increment);
 
@@ -758,7 +774,6 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 			disp(['INFO: Processed line: ', num2str(line_count)]);
 			fflush(stdout) ;
 		endif
-
 		%disp(current_line)
 	endwhile
 
@@ -872,7 +887,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				if ~isfield(log_struct.metainformation, 'SKIP_DATA')
 					log_struct.metainformation.SKIP_DATA.count = 1;
 				else
-					log_struct.metainformation.SKIP.count = log_struct.metainformation.SKIP_DATA.count + 1;
+					log_struct.metainformation.SKIP_DATA.count = log_struct.metainformation.SKIP_DATA.count + 1;
 				endif
 				disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_DATA.count), ').']);
 			else
@@ -908,6 +923,36 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 					log_struct.metainformation.LOAD.count = 1;
 				else
 					log_struct.metainformation.LOAD.count = log_struct.metainformation.LOAD.count + 1;
+				endif
+			endif
+		case {"REFLE"}
+			if strcmp(current_line(1:16), "REFLECTOR_HEADER")
+				cur_record_type = "REFLECTOR_HEADER";
+				if ~isfield(log_struct.metainformation, 'REFLECTOR_HEADER')
+					%log_struct.REFLECTOR_HEADER = [];
+					log_struct.metainformation.REFLECTOR_HEADER.count = 1;
+				else
+					log_struct.metainformation.REFLECTOR_HEADER.count = log_struct.metainformation.REFLECTOR_HEADER.count + 1;
+				endif
+			elseif strcmp(current_line(1:10), "REFLECTOR;")
+				cur_record_type = "REFLECTOR";
+				if ~isfield(log_struct.metainformation, 'REFLECTOR_HEADER') || log_struct.metainformation.REFLECTOR_HEADER.count < 1
+					# we have not encountered a REFLECTOR_HEADER record yet and do not know how to parse REFLECTOR records, so SKIP
+					cur_record_type = "SKIP";
+					if ~isfield(log_struct.metainformation, 'SKIP_REFLECTOR')
+						log_struct.metainformation.SKIP_REFLECTOR.count = 1;
+					else
+						log_struct.metainformation.SKIP_REFLECTOR.count = log_struct.metainformation.SKIP_REFLECTOR.count + 1;
+					endif
+					disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_REFLECTOR.count), ').']);
+				else
+					# this is fine we already found a header
+					if ~isfield(log_struct.metainformation, 'REFLECTOR')
+						%log_struct.REFLECTOR = [];
+						log_struct.metainformation.REFLECTOR.count = 1;
+					else
+						log_struct.metainformation.REFLECTOR.count = log_struct.metainformation.REFLECTOR.count + 1;
+					endif
 				endif
 			endif
 		case {"SHAPE"}
@@ -986,6 +1031,22 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				log_struct.LOAD.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
 				log_struct.LOAD.listtypes = {};
 			endif
+		case {"REFLECTOR_HEADER"}
+			if ~isfield(log_struct.REFLECTOR_HEADER, 'listtypes') || isempty(log_struct.REFLECTOR_HEADER.listtypes)
+				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'REFLECTOR_HEADER', 'REFLECTOR');
+				% HEADER stays mostly empty
+				%log_struct.REFLECTOR_HEADER.format_string = "";
+				%log_struct.REFLECTOR_HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+				%log_struct.REFLECTOR_HEADER.listtypes = {};
+			endif
+		case {"REFLECTOR"}
+			if ~isfield(log_struct.REFLECTOR, 'listtypes') || isempty(log_struct.REFLECTOR.listtypes)
+				%throw error as this needs to be filled from header already...
+				% fill this from the header
+				log_struct.REFLECTOR.format_string = "";
+				log_struct.REFLECTOR.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+				log_struct.REFLECTOR.listtypes = {};
+			endif
 		case {"SHAPER"}
 			if ~isfield(log_struct.SHAPER, 'listtypes') || isempty(log_struct.SHAPER.listtypes)
 				log_struct.SHAPER.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};
@@ -1012,7 +1073,7 @@ endfunction
 function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_string, line_increment)
 	global log_struct
 
-	if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD'}) % {'DEBUG', 'INFO', 'SJHAPER'}
+	if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR'}) % {'DEBUG', 'INFO', 'SJHAPER'}
 		return
 	endif
 
@@ -1082,11 +1143,14 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 	endif
 	field_cell_array = textscan(current_line, log_struct.(cur_record_type).format_string, "Delimiter", delimiter_string);
 
+	if isempty(field_cell_array) || length(field_cell_array) < length(log_struct.(cur_record_type).listnames)
+		disp('This should not happen!');
+	endif
+
 	for i_list = 1 : length(log_struct.(cur_record_type).listnames)
 		cur_listname = log_struct.(cur_record_type).listnames{i_list};
 		log_struct.(cur_record_type).LISTS.(cur_listname)(cur_valid_data_idx) = field_cell_array{i_list};
 	endfor
-
 
 	% increase the pointer
 	log_struct.(cur_record_type).last_valid_data_idx = cur_valid_data_idx;
@@ -1109,7 +1173,7 @@ function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, del
 		cur_type_string = '%f'; % default to numeric
 		for i_string_identifier = 1 : length(string_field_identifier_list)
 			cur_string_identifier = string_field_identifier_list{i_string_identifier};
-			if ~isempty(regexp(log_struct.DATA.listnames{i_field}, cur_string_identifier))
+			if ~isempty(regexp(log_struct.(DATA_RECORD_name).listnames{i_field}, cur_string_identifier))
 				cur_type_string = '%s';
 			endif
 		endfor
