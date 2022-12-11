@@ -468,6 +468,7 @@ kill_pingers_fping()
 	trap - TERM EXIT
 	kill ${pinger_pids[0]} 2> /dev/null
 	kill ${monitor_pids[0]} 2> /dev/null
+	wait
 	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
 	exit
 }
