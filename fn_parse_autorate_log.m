@@ -680,7 +680,7 @@ endfunction
 
 function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command_string )
 	% variables
-	debug = 1;
+	debug = 0;
 	delimiter_string = ";";	% what separator is used in the log file
 	line_increment = 100;		%  by what size to increment data structures on hitting the end
 	% enumerate all field names in HEADER that denote a string field on DATA records, otherwise default to numeric
