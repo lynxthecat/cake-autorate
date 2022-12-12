@@ -663,6 +663,8 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
+	trap '' INT
+
  	trap 'kill_pingers_$pinger_binary' TERM EXIT
 
 	trap '((pause_reflector_health_check^=1))' USR2
