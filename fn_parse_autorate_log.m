@@ -53,11 +53,11 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 	% PDFs are mostly like CDFs except for the step_size
 	PDF = CDF;
-	PDF_stepsize_ms = 0.1;	% these histograms need to be coarser than the CDFs by the nature
-	PDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
+	PDF.step_size_ms = 0.2;	% these histograms need to be coarser than the CDFs by the nature
+	PDF.cumulative_range_percent = [0.001, 90.0];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 
 	% add all defined plots that should be created and saved
-	plot_list = {'rawCDFs', 'deltaCDFs', 'rawPDFs', 'timecourse'}; % 'rawCDFs', 'deltaCDFs', 'rawPDFs', 'deltaPDFs', 'timecourse' % PDFs are currently broken
+	plot_list = {'rawCDFs', 'deltaCDFs', 'timecourse'}; % 'rawCDFs', 'deltaCDFs', 'rawPDFs', 'deltaPDFs', 'timecourse' % PDFs are currently broken
 
 	try
 
@@ -491,7 +491,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				else
 					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, reflector_string, plot_ext]);
 				endif
-				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_CDF, PDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
+				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_PDF, PDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
 			endif
 		endif
 
@@ -1452,20 +1452,23 @@ function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, 
 			switch distribution_string
 				case {'pdf', 'PDF'}
 					cur_data_CDF = cumsum(cur_data);
+					cur_data_CDF = 100 * cur_data_CDF / max(cur_data_CDF);
 			endswitch
-
 			% find high and low x values
-			if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
+			if ~isempty(find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first'))
 				cur_x_low_quantile_idx(i_reflector, i_set) = find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first');
 			endif
-			if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
+			if ~isempty(find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last'))
 				cur_x_high_quantile_idx(i_reflector, i_set) = find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last');
 			endif
 		endfor
 	endfor
 	hold off
 	set(ax_h, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
-	set(ax_h, 'YLim', [0, 100]);
+	% for PDFs use auto scaling, these are scaled to unity area, so 0-100% does not make much sense for PDFs
+	if strcmp(distribution_string, 'CDF')
+		set(ax_h, 'YLim', [0, 100]);
+	endif
 	xlabel(ax_h, xlabel_string);
 	ylabel(ax_h, ylabel_string)
 	title(ax_h, title_string);
