@@ -125,7 +125,14 @@ can be created therefrom using the excellent Octave/Matlab utility put together 
  ```bash
  octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./output.pdf")'
 ```
-(see the introductory notes in 'fn_parse_autorate_log.m' for more details). 
+(see the introductory notes in 'fn_parse_autorate_log.m' for more details).
+
+Here is an example script to extract the log from the router and generate the pdfs for viewing from a client machine:
+
+```bash
+ssh root@192.168.1.1 'kill -USR1 $( cat /var/run/cake-autorate/*/maintain_log_file_pid )'  && sleep 5 && scp  root@192.168.1.1:/var/log/cake-autorate*.log.gz . && ssh root@192.168.1.1 'rm /var/log/cake-autorate*.log.gz'
+octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
+```
 
 ## Example Starlink Configuration
 
