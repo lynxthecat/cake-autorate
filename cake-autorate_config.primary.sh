@@ -7,7 +7,7 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
-cake_autorate_version="1.1.0"
+cake_autorate_version="1.2.0"
 
 # *** OUTPUT AND LOGGING OPTIONS ***
 
