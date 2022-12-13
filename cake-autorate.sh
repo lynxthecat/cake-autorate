@@ -28,7 +28,7 @@ cleanup_and_killall()
 	wait # wait for child processes to terminate
 
 	[[ -d $run_path ]] && rm -r $run_path
-	compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
+	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 	
 	exit
 }
@@ -348,8 +348,8 @@ kill_monitor_reflector_responses_fping()
 	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<$no_reflectors; reflector++))
 	do
-		printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
-		printf '%s' ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
+		[[ ! -z ${rtt_baselines_us[${reflectors[$reflector]}]} ]] && printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
+		[[ ! -z ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} ]] && printf '%s' ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
 	done
 
 	exit
