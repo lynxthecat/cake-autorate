@@ -191,13 +191,11 @@ reflector_response_deadline_s=1.0 # (seconds)
 reflector_misbehaving_detection_window=60
 reflector_misbehaving_detection_thr=3
 
-reflector_comparison_interval_mins=1 # how often to compare reflectors 
-reflector_owd_baseline_delta_thr_ms=20 # max increase from min baseline before reflector rotated
-# when dl/ul_owd_delta_ewma_thr > reflector_owd_delta_ewma_thr*compensated_dl/ul_delay_thr_ms
-# then replace the reflector (because then under low load it is too close to triggering)
-reflector_owd_delta_ewma_thr=0.6
-
 reflector_replacement_interval_mins=60 # how often to replace a random reflector from the present list
+
+reflector_comparison_interval_mins=1       # how often to compare reflectors 
+reflector_owd_baseline_delta_thr_ms=10     # max increase from min baseline before reflector rotated
+reflector_owd_delta_ewma_delta_thr_ms=20   # mac increase from min delta ewma before reflector rotated
 
 # stall is detected when the following two conditions are met:
 # 1) no reflector responses within $stall_detection_thr*$ping_response_interval_us; and
@@ -207,7 +205,7 @@ connection_stall_thr_kbps=10
 
 global_ping_response_timeout_s=10.0 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
-if_up_check_interval_s=10.0 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state)
+if_up_check_interval_s=10.0 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state or sleep recovery)
 
 # Starlink satellite switch (sss) compensation options
 sss_compensation=0 # enable (1) or disable (0) Starlink handling
