@@ -72,8 +72,8 @@ reflector_ping_interval_s=0.3 # (seconds, e.g. 0.2s or 2s)
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=25 # (milliseconds)
-ul_delay_thr_ms=25 # (milliseconds)
+dl_delay_thr_ms=20 # (milliseconds)
+ul_delay_thr_ms=20 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -147,7 +147,7 @@ monitor_achieved_rates_interval_ms=200 # (milliseconds)
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
 bufferbloat_detection_window=6   # number of samples to retain in detection window
-bufferbloat_detection_thr=4      # number of delayed samples for bufferbloat detection
+bufferbloat_detection_thr=3      # number of delayed samples for bufferbloat detection
 
 # OWD baseline against which to measure delays
 # the idea is that the baseline is allowed to increase slowly to allow for path changes
@@ -165,8 +165,8 @@ alpha_delta_ewma=0.095
 # otherwise shaper rate is adjusted up on load high, and down on load idle or low
 achieved_rate_adjust_down_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat 
 shaper_rate_adjust_down_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat 
-shaper_rate_adjust_up_load_high=1.025     # how rapidly to increase shaper rate upon high load detected 
-shaper_rate_adjust_down_load_low=0.9      # how rapidly to return down to base shaper rate upon idle or low load detected 
+shaper_rate_adjust_up_load_high=1.01      # how rapidly to increase shaper rate upon high load detected 
+shaper_rate_adjust_down_load_low=0.99     # how rapidly to return down to base shaper rate upon idle or low load detected 
 shaper_rate_adjust_up_load_low=1.01       # how rapidly to return up to base shaper rate upon idle or low load detected 
 
 # the load is categoried as low if < high_load_thr and high if > high_load_thr relative to the current shaper rate
@@ -195,7 +195,7 @@ reflector_replacement_interval_mins=60 # how often to replace a random reflector
 
 reflector_comparison_interval_mins=1       # how often to compare reflectors 
 reflector_owd_baseline_delta_thr_ms=10     # max increase from min baseline before reflector rotated
-reflector_owd_delta_ewma_delta_thr_ms=20   # mac increase from min delta ewma before reflector rotated
+reflector_owd_delta_ewma_delta_thr_ms=10   # mac increase from min delta ewma before reflector rotated
 
 # stall is detected when the following two conditions are met:
 # 1) no reflector responses within $stall_detection_thr*$ping_response_interval_us; and
