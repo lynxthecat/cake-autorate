@@ -61,7 +61,7 @@ print_headers()
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
-	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS"
+	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
@@ -275,8 +275,10 @@ monitor_achieved_rates()
 		printf '%s' "$ul_achieved_rate_kbps" > $run_path/ul_achieved_rate_kbps
 		
 		if (($output_load_stats)); then 
-			
-			printf -v load_stats '%s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps
+		
+			concurrent_read_positive_integer dl_shaper_rate_kbps $run_path/dl_shaper_rate_kbps	
+			concurrent_read_positive_integer ul_shaper_rate_kbps $run_path/ul_shaper_rate_kbps	
+			printf -v load_stats '%s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "LOAD" "$load_stats"
 		fi
 
@@ -714,7 +716,7 @@ maintain_pingers()
 			continue
 		fi
 
-		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_comparison_interval_mins*10*1000000))); then
+		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_comparison_interval_mins*60*1000000))); then
 
 			t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 			
@@ -836,8 +838,16 @@ set_shaper_rates()
 	if (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps || $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )); then 
      	
 		# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-		(( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )) && { set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us; last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps; } 
-		(( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )) && { set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us; last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps; } 
+		if (( $dl_shaper_rate_kbps != $last_dl_shaper_rate_kbps )); then 
+			set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us
+			printf '%s' "$dl_shaper_rate_kbps" > $run_path/dl_shaper_rate_kbps
+		 	last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps;
+		fi
+		if (( $ul_shaper_rate_kbps != $last_ul_shaper_rate_kbps )); then 
+			set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us
+			printf '%s' "$ul_shaper_rate_kbps" > $run_path/ul_shaper_rate_kbps
+			last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
+		fi
 
 		update_max_wire_packet_compensation
 	fi
@@ -1113,14 +1123,16 @@ concurrent_read_positive_integer_interval_us=$(($ping_response_interval_us/4))
 dl_shaper_rate_kbps=$base_dl_shaper_rate_kbps
 ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
 
-last_dl_shaper_rate_kbps=$dl_shaper_rate_kbps
-last_ul_shaper_rate_kbps=$ul_shaper_rate_kbps
+last_dl_shaper_rate_kbps=0
+last_ul_shaper_rate_kbps=0
 
 get_max_wire_packet_size_bits $dl_if dl_max_wire_packet_size_bits  
 get_max_wire_packet_size_bits $ul_if ul_max_wire_packet_size_bits
 
-set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us
-set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us
+set_shaper_rates
+
+#set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us
+#set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us
 
 update_max_wire_packet_compensation
 
