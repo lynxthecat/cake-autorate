@@ -902,7 +902,10 @@ concurrent_read_integer()
 	for ((read_try=1; read_try<11; read_try++))
 	do
 		read -r value < $path; 
-		if ! [[ $value =~ ^[-]?[0-9]+$ ]]; then
+		if [[ $value =~ ^[-]?[0-9]+$ ]]; then
+			true
+			return
+		else
 			if (($debug)); then
 				read -r caller_output< <(caller)
 				log_msg "DEBUG" "concurrent_read_integer() misfire: $read_try of 10, with the following particulars:"
@@ -910,9 +913,6 @@ concurrent_read_integer()
 			fi 
 			sleep_us $concurrent_read_integer_interval_us
 			continue
-		else
-			true
-			return
 		fi
 	done
 	
