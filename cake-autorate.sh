@@ -346,7 +346,7 @@ kill_monitor_reflector_responses_fping()
 	trap - TERM EXIT
 
 	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
-	for (( reflector=0; reflector<$no_reflectors; reflector++))
+	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
 	do
 		[[ ! -z ${rtt_baselines_us[${reflectors[$reflector]}]} ]] && printf '%s' ${rtt_baselines_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
 		[[ ! -z ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} ]] && printf '%s' ${rtt_delta_ewmas_us[${reflectors[$reflector]}]} > $run_path/reflector_${reflectors[$reflector]//./-}_delta_ewma_us
@@ -450,6 +450,7 @@ kill_pinger_fping()
 {
 	kill ${pinger_pids[0]} 2> /dev/null
 	kill ${monitor_pids[0]} 2> /dev/null
+	wait
 	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
 }
 
