@@ -276,8 +276,8 @@ monitor_achieved_rates()
 		
 		if (($output_load_stats)); then 
 		
-			concurrent_read_positive_integer dl_shaper_rate_kbps $run_path/dl_shaper_rate_kbps	
-			concurrent_read_positive_integer ul_shaper_rate_kbps $run_path/ul_shaper_rate_kbps	
+			concurrent_read_integer dl_shaper_rate_kbps $run_path/dl_shaper_rate_kbps	
+			concurrent_read_integer ul_shaper_rate_kbps $run_path/ul_shaper_rate_kbps	
 			printf -v load_stats '%s; %s; %s; %s; %s' $EPOCHREALTIME $dl_achieved_rate_kbps $ul_achieved_rate_kbps $dl_shaper_rate_kbps $ul_shaper_rate_kbps
 			log_msg "LOAD" "$load_stats"
 		fi
@@ -286,7 +286,7 @@ monitor_achieved_rates()
        		prev_tx_bytes=$tx_bytes
 
 		# read in the max_wire_packet_rtt_us
-		concurrent_read_positive_integer max_wire_packet_rtt_us $run_path/max_wire_packet_rtt_us
+		concurrent_read_integer max_wire_packet_rtt_us $run_path/max_wire_packet_rtt_us
 
 		compensated_monitor_achieved_rates_interval_us=$(( (($monitor_achieved_rates_interval_us>(10*$max_wire_packet_rtt_us) )) ? $monitor_achieved_rates_interval_us : $((10*$max_wire_packet_rtt_us)) ))
 
@@ -298,8 +298,8 @@ get_loads()
 {
 	# read in the dl/ul achived rates and determine the loads
 
-	concurrent_read_positive_integer dl_achieved_rate_kbps $run_path/dl_achieved_rate_kbps 
-	concurrent_read_positive_integer ul_achieved_rate_kbps $run_path/ul_achieved_rate_kbps 
+	concurrent_read_integer dl_achieved_rate_kbps $run_path/dl_achieved_rate_kbps 
+	concurrent_read_integer ul_achieved_rate_kbps $run_path/ul_achieved_rate_kbps 
 
 	dl_load_percent=$(((100*10#${dl_achieved_rate_kbps})/$dl_shaper_rate_kbps))
 	ul_load_percent=$(((100*10#${ul_achieved_rate_kbps})/$ul_shaper_rate_kbps))
@@ -401,8 +401,8 @@ monitor_reflector_responses_fping()
 
 		rtt_delta_us=$(( $rtt_us-${rtt_baselines_us[$reflector]} ))
 	
-		concurrent_read_positive_integer dl_load_percent $run_path/dl_load_percent 
-		concurrent_read_positive_integer ul_load_percent $run_path/ul_load_percent 
+		concurrent_read_integer dl_load_percent $run_path/dl_load_percent 
+		concurrent_read_integer ul_load_percent $run_path/ul_load_percent 
 
 		if(($dl_load_percent < $high_load_thr_percent && $ul_load_percent < $high_load_thr_percent)); then
 			ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewmas_us[$reflector]
@@ -524,8 +524,8 @@ monitor_reflector_responses_ping()
 		
 		rtt_delta_us=$(( $rtt_us-$rtt_baseline_us ))
 	
-		concurrent_read_positive_integer dl_load_percent $run_path/dl_load_percent
-                concurrent_read_positive_integer ul_load_percent $run_path/ul_load_percent
+		concurrent_read_integer dl_load_percent $run_path/dl_load_percent
+                concurrent_read_integer ul_load_percent $run_path/ul_load_percent
 
                 if(($dl_load_percent < $high_load_thr_percent && $ul_load_percent < $high_load_thr_percent)); then
 			ewma_iteration $rtt_delta_us $alpha_delta_ewma rtt_delta_ewma_us
@@ -720,20 +720,28 @@ maintain_pingers()
 
 			t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 			
-			concurrent_read_positive_integer dl_min_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_baseline_us
-			concurrent_read_positive_integer dl_min_owd_delta_ewma_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_delta_ewma_us
-			concurrent_read_positive_integer ul_min_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_baseline_us
-			concurrent_read_positive_integer ul_min_owd_delta_ewma_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_delta_ewma_us
+			concurrent_read_integer dl_min_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_baseline_us
+			(( $? != 0 )) && continue 2
+			concurrent_read_integer dl_min_owd_delta_ewma_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_delta_ewma_us
+			(( $? != 0 )) && continue 2
+			concurrent_read_integer ul_min_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_baseline_us
+			(( $? != 0 )) && continue 2
+			concurrent_read_integer ul_min_owd_delta_ewma_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_delta_ewma_us
+			(( $? != 0 )) && continue 2
 			
-			concurrent_read_positive_integer compensated_dl_delay_thr_us $run_path/compensated_dl_delay_thr_us
-			concurrent_read_positive_integer compensated_ul_delay_thr_us $run_path/compensated_ul_delay_thr_us
+			concurrent_read_integer compensated_dl_delay_thr_us $run_path/compensated_dl_delay_thr_us
+			concurrent_read_integer compensated_ul_delay_thr_us $run_path/compensated_ul_delay_thr_us
 
 			for ((pinger=0; pinger<$no_pingers; pinger++))
 			do
-				concurrent_read_positive_integer dl_owd_baselines_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_dl_owd_baseline_us
-				concurrent_read_positive_integer dl_owd_delta_ewmas_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_dl_owd_delta_ewma_us
-				concurrent_read_positive_integer ul_owd_baselines_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_ul_owd_baseline_us
-				concurrent_read_positive_integer ul_owd_delta_ewmas_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_ul_owd_delta_ewma_us
+				concurrent_read_integer dl_owd_baselines_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_dl_owd_baseline_us
+				(( $? != 0 )) && continue 2
+				concurrent_read_integer dl_owd_delta_ewmas_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_dl_owd_delta_ewma_us
+				(( $? != 0 )) && continue 2
+				concurrent_read_integer ul_owd_baselines_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_ul_owd_baseline_us
+				(( $? != 0 )) && continue 2
+				concurrent_read_integer ul_owd_delta_ewmas_us[${reflectors[$pinger]}] $run_path/reflector_${reflectors[$pinger]//./-}_ul_owd_delta_ewma_us
+				(( $? != 0 )) && continue 2
 				
 				((${dl_owd_baselines_us[${reflectors[$pinger]}]} < $dl_min_owd_baseline_us)) && dl_min_owd_baseline_us=${dl_owd_baselines_us[${reflectors[$pinger]}]}
 				((${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]} < $dl_min_owd_delta_ewma_us)) && dl_min_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[$pinger]}]}
@@ -784,7 +792,7 @@ maintain_pingers()
 		for ((pinger=0; pinger<$no_pingers; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
-			concurrent_read_positive_integer reflector_last_timestamp_us $run_path/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
+			concurrent_read_integer reflector_last_timestamp_us $run_path/reflector_${reflectors[$pinger]//./-}_last_timestamp_us
 			declare -n reflector_offences="reflector_${pinger}_offences"
 
 			(( ${reflector_offences[$reflector_offences_idx]} )) && ((sum_reflector_offences[$pinger]--))
@@ -881,7 +889,7 @@ update_max_wire_packet_compensation()
 	printf '%s' "$max_wire_packet_rtt_us" > $run_path/max_wire_packet_rtt_us
 }
 
-concurrent_read_positive_integer()
+concurrent_read_integer()
 {
 	# in the context of separate processes writing using > and reading form file
         # it seems costly calls to the external flock binary can be avoided
@@ -890,21 +898,31 @@ concurrent_read_positive_integer()
 
 	local -n value=$1
  	local path=$2
-	while true 
+
+	for ((read_try=1; read_try<11; read_try++))
 	do
 		read -r value < $path; 
-		if [[ -z "${value##*[!0-9]*}" ]]; then
+		if ! [[ $value =~ ^[-]?[0-9]+$ ]]; then
 			if (($debug)); then
 				read -r caller_output< <(caller)
-				log_msg "DEBUG" "concurrent_read_positive_integer() misfire with the following particulars:"
+				log_msg "DEBUG" "concurrent_read_integer() misfire: $read_try of 10, with the following particulars:"
 				log_msg "DEBUG" "caller=$caller_output, value=$value and path=$path"
 			fi 
-			sleep_us $concurrent_read_positive_integer_interval_us
+			sleep_us $concurrent_read_integer_interval_us
 			continue
 		else
-			break
+			true
+			return
 		fi
 	done
+	
+	if (($debug)); then
+		read -r caller_output< <(caller)
+		log_msg "DEBUG" "concurrent_read_integer() 10x misfires. Setting value to 0."
+	fi 
+	value=0
+	false
+	return
 }
 
 verify_ifs_up()
@@ -1118,7 +1136,7 @@ stall_detection_timeout_us=$(( $stall_detection_thr*$ping_response_interval_us )
 stall_detection_timeout_s=000000$stall_detection_timeout_us
 stall_detection_timeout_s=$((10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
 
-concurrent_read_positive_integer_interval_us=$(($ping_response_interval_us/4))
+concurrent_read_integer_interval_us=$(($ping_response_interval_us/4))
 
 dl_shaper_rate_kbps=$base_dl_shaper_rate_kbps
 ul_shaper_rate_kbps=$base_ul_shaper_rate_kbps
@@ -1270,7 +1288,7 @@ do
 		(($debug)) && log_msg "DEBUG" "Warning: connection stall detection. Waiting for new ping or increased load"
 
 		# save intial global reflector timestamp to check against for any new reflector response
-		concurrent_read_positive_integer initial_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
+		concurrent_read_integer initial_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
 
 		# send signal USR2 to pause reflector health monitoring to prevent reflector rotation
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
@@ -1283,7 +1301,7 @@ do
 	        do
         	        t_start_us=${EPOCHREALTIME/./}
 			
-			concurrent_read_positive_integer new_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
+			concurrent_read_integer new_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
 	                get_loads
 
 			if (( $new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || ( $dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps) )); then
@@ -1294,7 +1312,7 @@ do
 				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
 				kill -USR2 $maintain_pingers_pid
 
-				# continue main loop (i.e. skip idle/global timeout handling beloow)
+				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
 			fi
 
