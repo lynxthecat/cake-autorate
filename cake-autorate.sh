@@ -721,13 +721,13 @@ maintain_pingers()
 			t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 			
 			concurrent_read_integer dl_min_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_baseline_us
-			(( $? != 0 )) && continue 2
+			(( $? != 0 )) && continue
 			concurrent_read_integer dl_min_owd_delta_ewma_us $run_path/reflector_${reflectors[0]//./-}_dl_owd_delta_ewma_us
-			(( $? != 0 )) && continue 2
+			(( $? != 0 )) && continue
 			concurrent_read_integer ul_min_owd_baseline_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_baseline_us
-			(( $? != 0 )) && continue 2
+			(( $? != 0 )) && continue
 			concurrent_read_integer ul_min_owd_delta_ewma_us $run_path/reflector_${reflectors[0]//./-}_ul_owd_delta_ewma_us
-			(( $? != 0 )) && continue 2
+			(( $? != 0 )) && continue
 			
 			concurrent_read_integer compensated_dl_delay_thr_us $run_path/compensated_dl_delay_thr_us
 			concurrent_read_integer compensated_ul_delay_thr_us $run_path/compensated_ul_delay_thr_us
