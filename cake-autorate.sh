@@ -150,8 +150,6 @@ maintain_log_file()
 	t_log_file_start_us=${EPOCHREALTIME/./}
 	log_file_size_bytes=0
 
-	rotate_log_file
-
 	while read log_line
 	do
 
@@ -371,7 +369,6 @@ monitor_reflector_responses_fping()
 	do
 		if [[ -f $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us ]]; then
 			read rtt_baselines_us[${reflectors[$reflector]}] < $run_path/reflector_${reflectors[$reflector]//./-}_baseline_us
-			
 		else
 			rtt_baselines_us[${reflectors[$reflector]}]=100000
 		fi
@@ -481,8 +478,8 @@ kill_pingers_fping()
 kill_monitor_reflector_responses_ping()
 {
 	trap - TERM EXIT
-	printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
-	printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
+	[[ ! -z $rtt_baseline_us ]] && printf '%s' $rtt_baseline_us > $run_path/reflector_${reflectors[pinger]//./-}_baseline_us
+	[[ ! -z $rtt_delta_ewma_us ]] && printf '%s' $rtt_delta_ewma_us > $run_path/reflector_${reflectors[pinger]//./-}_delta_ewma_us
 	exit
 }
 
@@ -1075,6 +1072,7 @@ if (($log_to_file)); then
 	exec 4<> $run_path/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
+	rotate_log_file # rotate here to force header prints at top of log file
 	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
 
@@ -1083,15 +1081,17 @@ if [[ ! -t 1 ]]; then
 	echo "stdout not a terminal so redirecting output to: $log_file_path"
 	(($log_to_file)) && exec &> $run_path/log_fifo
 fi
+
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
+	log_msg "DEBUG" "config_path: $config_path"
+	log_msg "DEBUG" "run_path: $run_path"
+	log_msg "DEBUG" "log_file_path: $log_file_path"
+	log_msg "DEBUG" "pinger_binary:$pinger_binary"
 	log_msg "DEBUG" "Down interface: $dl_if ($min_dl_shaper_rate_kbps / $base_dl_shaper_rate_kbps / $max_dl_shaper_rate_kbps)"
 	log_msg "DEBUG" "Up interface: $ul_if ($min_ul_shaper_rate_kbps / $base_ul_shaper_rate_kbps / $max_ul_shaper_rate_kbps)"
 	log_msg "DEBUG" "rx_bytes_path: $rx_bytes_path"
 	log_msg "DEBUG" "tx_bytes_path: $tx_bytes_path"
-	log_msg "DEBUG" "config_path: $config_path"
-	log_msg "DEBUG" "run_path: $run_path"
-	log_msg "DEBUG" "log_file_path: $log_file_path"
 fi
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
