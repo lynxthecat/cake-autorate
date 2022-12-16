@@ -22,8 +22,10 @@ cleanup_and_killall()
 
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
-
-	kill $monitor_achieved_rates_pid $maintain_pingers_pid $maintain_log_file_pid 2> /dev/null
+	
+	kill $maintain_pingers_pid 
+	kill $monitor_achieved_rates_pid 
+	kill $maintain_log_file_pid
 
 	wait # wait for child processes to terminate
 
@@ -357,7 +359,7 @@ kill_monitor_reflector_responses_fping()
 
 monitor_reflector_responses_fping()
 {
-	trap "kill_monitor_reflector_responses_fping" TERM EXIT		
+	trap kill_monitor_reflector_responses_fping TERM EXIT		
 
 	declare -A rtt_baselines_us
 	declare -A rtt_delta_ewmas_us
@@ -433,46 +435,8 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
-	done 2>/dev/null <$run_path/fping_fifo
-
+	done 2>/dev/null <$run_path/pinger_${pinger}_fifo
 }
-
-start_pinger_fping()
-{
-	mkfifo $run_path/fping_fifo
-	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/fping_fifo&
-	pinger_pids[0]=$!
-	monitor_reflector_responses_fping &
-	monitor_pids[0]=$!
-}
-
-kill_pinger_fping()
-{
-	kill ${pinger_pids[0]} 2> /dev/null
-	kill ${monitor_pids[0]} 2> /dev/null
-	wait
-	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
-}
-
-start_pingers_fping()
-{
-	mkfifo $run_path/fping_fifo
-	$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/fping_fifo&
-	pinger_pids[0]=$!
-	monitor_reflector_responses_fping &
-	monitor_pids[0]=$!
-}
-
-kill_pingers_fping()
-{
-	trap - TERM EXIT
-	kill ${pinger_pids[0]} 2> /dev/null
-	kill ${monitor_pids[0]} 2> /dev/null
-	wait
-	[[ -p $run_path/fping_fifo ]] && rm $run_path/fping_fifo
-	exit
-}
-# END OF FPING FUNCTIONS 
 
 # IPUTILS-PING FUNCTIONS
 
@@ -486,7 +450,7 @@ kill_monitor_reflector_responses_ping()
 
 monitor_reflector_responses_ping() 
 {
-	trap "kill_monitor_reflector_responses_ping" TERM EXIT		
+	trap kill_monitor_reflector_responses_ping TERM EXIT		
 
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
@@ -561,58 +525,54 @@ monitor_reflector_responses_ping()
 
 }
 
-start_pinger_binary_ping()
+# END OF IPUTILS-PING FUNCTIONS
+
+# GENERIC PINGER START AND STOP FUNCTIONS
+
+start_pinger()
 {
 	local pinger=$1
 
 	mkfifo $run_path/pinger_${pinger}_fifo
-	if (($debug)); then
-		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > $run_path/pinger_${pinger}_fifo &
-		pinger_pids[$pinger]=$!
-	else
-		$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} > $run_path/pinger_${pinger}_fifo 2> /dev/null &
-		pinger_pids[$pinger]=$!
-	fi	
+	exec 3<> $run_path/pinger_${pinger}_fifo
+
+	case $pinger_binary in
+
+		fping)
+			$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/pinger_${pinger}_fifo&
+		;;
+		ping)
+			sleep_until_next_pinger_time_slot $pinger
+			$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} 2> /dev/null > $run_path/pinger_${pinger}_fifo &
+		;;
+	esac
+	
+	pinger_pids[$pinger]=$!
+	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
+
+	monitor_reflector_responses_$pinger_binary $pinger &
+	monitor_pids[$pinger]=$!
 }
 
-start_pinger_ping()
-{
-	local pinger=$1
-	start_pinger_next_pinger_time_slot $pinger
-}
-
-kill_pinger_ping()
-{
-	local pinger=$1
-	kill $pinger_pids[$pinger] 2> /dev/null
-	kill ${monitor_pids[$pinger]} 2> /dev/null
-	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
-}
-
-start_pingers_ping()
+start_pingers()
 {
 	# Initiate pingers
-	for ((pinger=0; pinger<$no_pingers; pinger++))
-	do
-		start_pinger_next_pinger_time_slot $pinger
-	done
+
+	case $pinger_binary in
+
+		fping)
+			start_pinger 0
+		;;
+		ping)
+			for ((pinger=0; pinger<$no_pingers; pinger++))
+			do
+				start_pinger $pinger
+			done
+		;;
+	esac
 }
 
-kill_pingers_ping()
-{
-	trap - TERM EXIT
-	for (( pinger=0; pinger<$no_pingers; pinger++))
-	do
-		kill ${pinger_pids[$pinger]} 2> /dev/null
-		kill ${monitor_pids[$pinger]} 2> /dev/null
-		[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
-	done
-	exit
-}
-
-# END OF IPUTILS-PING FUNCTIONS
-
-start_pinger_next_pinger_time_slot()
+sleep_until_next_pinger_time_slot()
 {
 	# wait until next pinger time slot and start pinger in its slot
 	# this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)
@@ -623,9 +583,37 @@ start_pinger_next_pinger_time_slot()
 	t_start_us=${EPOCHREALTIME/./}
 	time_to_next_time_slot_us=$(( ($reflector_ping_interval_us-($t_start_us-$pingers_t_start_us)%$reflector_ping_interval_us) + $pinger*$ping_response_interval_us ))
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
-	start_pinger_binary_$pinger_binary $pinger
-	monitor_reflector_responses_$pinger_binary $pinger &
-	monitor_pids[$pinger]=$!
+}
+
+kill_pinger()
+{
+	local pinger=$1
+	kill ${pinger_pids[$pinger]}
+	kill ${monitor_pids[$pinger]}
+	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
+}
+
+kill_pingers()
+{
+	trap - TERM EXIT
+	
+	case $pinger_binary in
+
+		fping)
+			log_msg "DEBUG" "Killing fping instance."
+			kill_pinger 0
+		;;
+		ping)
+			for (( pinger=0; pinger<$no_pingers; pinger++))
+			do
+				log_msg "DEBUG" "Killing pinger instance: $pinger"
+				kill_pinger $pinger
+			done
+		;;
+	esac
+	ps
+	wait
+	exit
 }
 
 replace_pinger_reflector()
@@ -641,7 +629,7 @@ replace_pinger_reflector()
 
 	if(($no_reflectors>$no_pingers)); then
 		(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
-		kill_pinger_$pinger_binary $pinger
+		kill_pinger $pinger
 		bad_reflector=${reflectors[$pinger]}
 		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
 		reflectors[$pinger]=${reflectors[$no_pingers]}
@@ -652,29 +640,30 @@ replace_pinger_reflector()
 		# reset array indices
 		reflectors=(${reflectors[*]})
 		# set up the new pinger with the new reflector and retain pid	
-		start_pinger_$pinger_binary $pinger
+		start_pinger $pinger
 	else
 		(($debug)) && log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
 		reflector_offences[$pinger]=0
 	fi
 }
 
+# END OF GENERIC PINGER START AND STOP FUNCTIONS
+
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
-	trap '' INT
+ 	trap 'terminate_reflector_maintenance=1' TERM EXIT
 
- 	trap 'kill_pingers_$pinger_binary' TERM EXIT
-
-	trap '((pause_reflector_health_check^=1))' USR2
+	trap '((pause_reflector_maintenance^=1))' USR2
 
 	declare -A dl_owd_baselines_us
 	declare -A ul_owd_baselines_us
 	declare -A dl_owd_delta_ewmas_us
 	declare -A ul_owd_delta_ewmas_us
 
-	pause_reflector_health_check=0
+	pause_reflector_maintenance=0
+	terminate_reflector_maintenance=0
 
 	reflector_offences_idx=0
 
@@ -697,14 +686,14 @@ maintain_pingers()
                 sum_reflector_offences[$pinger]=0
         done
 
-	start_pingers_$pinger_binary
+	start_pingers
 
-	# Reflector health check loop - verifies reflectors have not gone stale and rotates reflectors as necessary
-	while true
+	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
+	while (($terminate_reflector_maintenance==0))
 	do
 		sleep_s $reflector_health_check_interval_s
 
-		(($pause_reflector_health_check)) && continue
+		(($pause_reflector_maintenance)) && continue
 
 		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_replacement_interval_mins*60*1000000))); then
 	
@@ -813,6 +802,9 @@ maintain_pingers()
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%$reflector_misbehaving_detection_window))
 	done
+
+	log_msg "DEBUG" "Reflector maintenance terminated."
+	kill_pingers
 }
 
 set_cake_rate()
@@ -990,7 +982,7 @@ randomize_array()
 
 # ======= Start of the Main Routine ========
 
-trap ":" USR1
+set -m
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1291,7 +1283,7 @@ do
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_integer initial_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
 
-		# send signal USR2 to pause reflector health monitoring to prevent reflector rotation
+		# send signal USR2 to pause reflector maintenance
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
 		kill -USR2 $maintain_pingers_pid
 
