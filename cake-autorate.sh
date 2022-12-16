@@ -63,7 +63,7 @@ print_headers()
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
-	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
  	[[ -t 1 ]] && printf '%s\n' "$header"
 
