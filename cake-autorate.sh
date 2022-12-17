@@ -40,9 +40,19 @@ log_msg()
 {
 	local type=$1
 	local msg=$2
+	
+	# keep the timestamps aligned in the different outputs for easier correlation
+	log_timestamp=${EPOCHREALTIME}
+	
+	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
+        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
+        
+        # Errors deserve to end up in the system log as well as in autorate's own logfile
+        # cursory testing showed that logger works both in OpenWrt21 an ubuntu22
+        if [ "${type}" = "ERROR" ] ; then
+    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${msg}"
+        fi
 
-	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" > $run_path/log_fifo
-        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -52,8 +62,17 @@ log_msg_bypass_fifo()
 	local type=$1
 	local msg=$2
 
-        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg" >> $log_file_path
-        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "$EPOCHREALTIME" "$msg"
+	# keep the timestamps aligned in the different outputs for easier correlation
+	log_timestamp=${EPOCHREALTIME}
+	
+        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
+        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
+
+        # Errors deserve to end up in the system log as well as in autorate's own logfile
+        # cursory testing showed that logger works both in OpenWrt21 an ubuntu22
+        if [ "${type}" = "ERROR" ] ; then
+    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${msg}"
+        fi
 
 }
 
