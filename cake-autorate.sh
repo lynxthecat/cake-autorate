@@ -23,9 +23,9 @@ cleanup_and_killall()
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 	
-	cmd_wrapper ${FUNCNAME[0]} kill $maintain_pingers_pid 
-	cmd_wrapper ${FUNCNAME[0]} kill $monitor_achieved_rates_pid 
-	cmd_wrapper ${FUNCNAME[0]} kill $maintain_log_file_pid
+	cmd_wrapper "${FUNCNAME[0]}" kill $maintain_pingers_pid 
+	cmd_wrapper "${FUNCNAME[0]}" kill $monitor_achieved_rates_pid 
+	cmd_wrapper "${FUNCNAME[0]}" kill $maintain_log_file_pid
 
 	wait # wait for child processes to terminate
 
@@ -652,8 +652,8 @@ sleep_until_next_pinger_time_slot()
 kill_pinger()
 {
 	local pinger=$1
-	cmd_wrapper ${FUNCNAME[0]} kill ${pinger_pids[$pinger]}
-	cmd_wrapper ${FUNCNAME[0]} kill ${monitor_pids[$pinger]}
+	cmd_wrapper "${FUNCNAME[0]}" kill ${pinger_pids[$pinger]}
+	cmd_wrapper "${FUNCNAME[0]}" kill ${monitor_pids[$pinger]}
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 }
 
@@ -1063,6 +1063,7 @@ else
 fi
 
 type logger 2>&1 && logger -t "cake-autorate" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config ${config_path}"
+#type logger 2>&1 && logger -t "cake-autorate" "INFO:  FUNCNAME[0]:  ${FUNCNAME[0]}"
 
 
 if [[ ! -f "$config_path" ]]; then
@@ -1353,7 +1354,7 @@ do
 
 		# send signal USR2 to pause reflector maintenance
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
-		cmd_wrapper ${FUNCNAME[0]} kill -USR2 $maintain_pingers_pid
+		cmd_wrapper "main" kill -USR2 $maintain_pingers_pid
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1371,7 +1372,7 @@ do
 
 				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
 				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
-				cmd_wrapper ${FUNCNAME[0]} kill -USR2 $maintain_pingers_pid
+				cmd_wrapper "main" kill -USR2 $maintain_pingers_pid
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
@@ -1410,7 +1411,7 @@ do
 	fi
 
 	# Initiate termination of ping processes and wait until complete
-	cmd_wrapper ${FUNCNAME[0]} kill $maintain_pingers_pid
+	cmd_wrapper "main" kill $maintain_pingers_pid
 	wait $maintain_pingers_pid
 
 	# reset idle timer
