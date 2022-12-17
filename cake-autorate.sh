@@ -25,16 +25,19 @@ cleanup_and_killall()
 
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
-	
-	kill $maintain_pingers_pid 2>&3
-	kill $monitor_achieved_rates_pid 2>&3 
-	kill $maintain_log_file_pid 2>&3
 
-	wait # wait for child processes to terminate
+	kill $maintain_pingers_pid
+	wait $maintain_pingers_pid
+	kill $monitor_achieved_rates_pid
+	wait $monitor_achieved_rates_pid
+
+	log_to_file=0
+	kill $maintain_log_file_pid
+	wait $maintain_log_file_pid
 
 	[[ -d $run_path ]] && rm -r $run_path
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
-	
+
 	exit
 }
 
@@ -624,7 +627,7 @@ kill_pingers()
 			done
 		;;
 	esac
-#	wait
+	wait
 	exit
 }
 
