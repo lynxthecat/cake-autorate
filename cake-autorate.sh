@@ -23,9 +23,9 @@ cleanup_and_killall()
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 	
-	kill $maintain_pingers_pid 
-	kill $monitor_achieved_rates_pid 
-	kill $maintain_log_file_pid
+	cmd_wrapper ${FUNCNAME[0]} kill $maintain_pingers_pid 
+	cmd_wrapper ${FUNCNAME[0]} kill $monitor_achieved_rates_pid 
+	cmd_wrapper ${FUNCNAME[0]} kill $maintain_log_file_pid
 
 	wait # wait for child processes to terminate
 
@@ -50,7 +50,7 @@ log_msg()
         # Errors deserve to end up in the system log as well as in autorate's own logfile
         # cursory testing showed that logger works both in OpenWrt21 an ubuntu22
         if [ "${type}" = "ERROR" ] ; then
-    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${msg}"
+    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${log_timestamp} ${msg}"
         fi
 
 }
@@ -71,7 +71,7 @@ log_msg_bypass_fifo()
         # Errors deserve to end up in the system log as well as in autorate's own logfile
         # cursory testing showed that logger works both in OpenWrt21 an ubuntu22
         if [ "${type}" = "ERROR" ] ; then
-    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${msg}"
+    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${log_timestamp} ${msg}"
         fi
 
 }
@@ -100,6 +100,51 @@ ewma_iteration()
 
 	ewma=$(( ($alpha*$value+(1000000-$alpha)*$ewma)/1000000 ))
 }
+
+
+
+# this is inspired by sqm-script's cmd_wrapper (with permission).
+cmd_wrapper(){
+    # $1: the identifier of the calling position, e.g. the name of the calling function
+    # $2: the name of the binary to call (potentially including the full path)
+    # $3-$end: the actual arguments for $2
+    local CALLERID
+    local CMD_BINARY
+    local LAST_ERROR
+    local RET
+    local ERRLOG
+
+    CALLERID=$1 ; shift 1 # extract and remove the binary
+    CMD_BINARY=$1 ; shift 1 # extract and remove the binary
+
+#    # Handle silencing of errors from callers
+#    ERRLOG="sqm_error"
+#    if [ "$SILENT" -eq "1" ]; then
+#        ERRLOG="sqm_debug"
+#        log_msg "DEBUG" "cmd_wrapper: ${CMD_BINARY}: invocation silenced by request, FAILURE either expected or acceptable."
+#        # The busybox shell doesn't understand the concept of an inline variable
+#        # only applying to a single command, so we need to reset SILENT
+#        # afterwards. Ugly, but it works...
+#        SILENT=0
+#    fi
+
+#    log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: COMMAND: ${CMD_BINARY} $@"
+    LAST_ERROR=$( ${CMD_BINARY} "$@" 2>&1 )
+    RET=$?
+
+    if [ "$RET" -eq "0" ] ; then
+        log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: SUCCESS: ${CMD_BINARY} $@"
+    else
+        # this went south, try to capture & report more detail
+        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: FAILURE (${RET}): ${CMD_BINARY} $@"
+        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: LAST ERROR: ${LAST_ERROR}"
+    fi
+
+    return $RET
+}
+
+
+
 
 # MAINTAIN_LOG_FILE + HELPER FUNCTIONS
 
@@ -607,8 +652,8 @@ sleep_until_next_pinger_time_slot()
 kill_pinger()
 {
 	local pinger=$1
-	kill ${pinger_pids[$pinger]}
-	kill ${monitor_pids[$pinger]}
+	cmd_wrapper ${FUNCNAME[0]} kill ${pinger_pids[$pinger]}
+	cmd_wrapper ${FUNCNAME[0]} kill ${monitor_pids[$pinger]}
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 }
 
@@ -1001,6 +1046,7 @@ randomize_array()
 
 # ======= Start of the Main Routine ========
 
+
 set -m
 
 log_file_path=/var/log/cake-autorate.log
@@ -1015,6 +1061,9 @@ if [[ ! -z $1 ]]; then
 else
 	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
 fi
+
+type logger 2>&1 && logger -t "cake-autorate" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config ${config_path}"
+
 
 if [[ ! -f "$config_path" ]]; then
 	log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."
@@ -1304,7 +1353,7 @@ do
 
 		# send signal USR2 to pause reflector maintenance
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
-		kill -USR2 $maintain_pingers_pid
+		cmd_wrapper ${FUNCNAME[0]} kill -USR2 $maintain_pingers_pid
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1322,7 +1371,7 @@ do
 
 				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
 				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
-				kill -USR2 $maintain_pingers_pid
+				cmd_wrapper ${FUNCNAME[0]} kill -USR2 $maintain_pingers_pid
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
@@ -1361,7 +1410,7 @@ do
 	fi
 
 	# Initiate termination of ping processes and wait until complete
-	kill $maintain_pingers_pid 2> /dev/null
+	cmd_wrapper ${FUNCNAME[0]} kill $maintain_pingers_pid
 	wait $maintain_pingers_pid
 
 	# reset idle timer
