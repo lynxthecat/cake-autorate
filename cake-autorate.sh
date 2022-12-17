@@ -23,9 +23,9 @@ cleanup_and_killall()
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 	
-	kill $maintain_pingers_pid 
-	kill $monitor_achieved_rates_pid 
-	kill $maintain_log_file_pid
+	kill $maintain_pingers_pid 2>&3
+	kill $monitor_achieved_rates_pid 2>&3 
+	kill $maintain_log_file_pid 2>&3
 
 	wait # wait for child processes to terminate
 
@@ -41,18 +41,13 @@ log_msg()
 	local type=$1
 	local msg=$2
 	
-	# keep the timestamps aligned in the different outputs for easier correlation
 	log_timestamp=${EPOCHREALTIME}
 	
 	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
-        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
         
-        # Errors deserve to end up in the system log as well as in autorate's own logfile
-        # cursory testing showed that logger works both in OpenWrt21 an ubuntu22
-        if [ "${type}" = "ERROR" ] ; then
-    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${msg}"
-        fi
-
+	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
+        
+        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -62,33 +57,28 @@ log_msg_bypass_fifo()
 	local type=$1
 	local msg=$2
 
-	# keep the timestamps aligned in the different outputs for easier correlation
 	log_timestamp=${EPOCHREALTIME}
 	
         (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
-        [[ -t 1 ]] && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
+        
+	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
 
-        # Errors deserve to end up in the system log as well as in autorate's own logfile
-        # cursory testing showed that logger works both in OpenWrt21 an ubuntu22
-        if [ "${type}" = "ERROR" ] ; then
-    	    type logger 2>&1 && logger -t "cake-autorate" "${type}: ${msg}"
-        fi
-
+        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $msg"
 }
 
 print_headers()
 {
 	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
- 	[[ -t 1 ]] && printf '%s\n' "$header"
+ 	(($terminal)) && printf '%s\n' "$header"
 
 	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
- 	[[ -t 1 ]] && printf '%s\n' "$header"
+ 	(($terminal)) && printf '%s\n' "$header"
 
 	header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; DL_MIN_BASELINE_US; DL_BASELINE_US; DL_BASELINE_DELTA_US; DL_BASELINE_DELTA_THR_US; DL_MIN_DELTA_EWMA_US; DL_DELTA_EWMA_US; DL_DELTA_EWMA_DELTA_US; DL_DELTA_EWMA_DELTA_THR; UL_MIN_BASELINE_US; UL_BASELINE_US; UL_BASELINE_DELTA_US; UL_BASELINE_DELTA_THR_US; UL_MIN_DELTA_EWMA_US; UL_DELTA_EWMA_US; UL_DELTA_EWMA_DELTA_US; UL_DELTA_EWMA_DELTA_THR"
  	(($log_to_file)) && printf '%s\n' "$header" > $run_path/log_fifo
- 	[[ -t 1 ]] && printf '%s\n' "$header"
+ 	(($terminal)) && printf '%s\n' "$header"
 
 }
 
@@ -553,7 +543,7 @@ start_pinger()
 	local pinger=$1
 
 	mkfifo $run_path/pinger_${pinger}_fifo
-	eval "exec $((6+$pinger))<> $run_path/pinger_${pinger}_fifo"
+	exec {pinger_fds[$pinger]}<> $run_path/pinger_${pinger}_fifo
 
 	case $pinger_binary in
 
@@ -607,8 +597,9 @@ sleep_until_next_pinger_time_slot()
 kill_pinger()
 {
 	local pinger=$1
-	kill ${pinger_pids[$pinger]}
-	kill ${monitor_pids[$pinger]}
+	kill ${pinger_pids[$pinger]} 2>&3
+	kill ${monitor_pids[$pinger]} 2>&3
+	exec {pinger_fids[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 }
 
@@ -1000,7 +991,7 @@ randomize_array()
 
 # ======= Start of the Main Routine ========
 
-set -m
+[[ -t 1 ]] && terminal=1
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1058,7 +1049,7 @@ else
 fi
 
 mkfifo $run_path/sleep_fifo
-exec 3<> $run_path/sleep_fifo
+exec {fd}<> $run_path/sleep_fifo
 
 no_reflectors=${#reflectors[@]} 
 
@@ -1080,18 +1071,23 @@ if (($log_to_file)); then
 	log_file_max_time_us=$(($log_file_max_time_mins*60000000))
 	log_file_max_size_bytes=$(($log_file_max_size_KB*1024))
 	mkfifo $run_path/log_fifo
-	exec 4<> $run_path/log_fifo
+	exec {fd}<> $run_path/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
 	rotate_log_file # rotate here to force header prints at top of log file
 	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
 
+
 # test if stdout is a tty (terminal)
-if [[ ! -t 1 ]]; then
+if ! (($terminal)); then
 	echo "stdout not a terminal so redirecting output to: $log_file_path"
-	(($log_to_file)) && exec &> $run_path/log_fifo
+	(($log_to_file)) && exec 1> $run_path/log_fifo
 fi
+
+exec {fd}>&1
+coproc error_handler { exec 1>&$fd; while read error; do log_msg "ERROR" "$error"; done; }
+exec 3>&${error_handler[1]}
 
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
@@ -1184,7 +1180,7 @@ sum_dl_delays=0
 sum_ul_delays=0
 
 mkfifo $run_path/ping_fifo
-exec 5<> $run_path/ping_fifo
+exec {fd}<> $run_path/ping_fifo
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_us>0)); then
@@ -1360,7 +1356,7 @@ do
 	fi
 
 	# Initiate termination of ping processes and wait until complete
-	kill $maintain_pingers_pid 2> /dev/null
+	kill $maintain_pingers_pid 3>&2
 	wait $maintain_pingers_pid
 
 	# reset idle timer
