@@ -14,6 +14,9 @@
 # Possible performance improvement
 export LC_ALL=C
 
+# Disable job control so that INT on ctrl-c does not kill children
+set -m
+
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -47,7 +50,7 @@ log_msg()
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
         
-        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $msg"
+        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -63,7 +66,7 @@ log_msg_bypass_fifo()
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
 
-        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $msg"
+        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 print_headers()
@@ -599,7 +602,7 @@ kill_pinger()
 	local pinger=$1
 	kill ${pinger_pids[$pinger]} 2>&3
 	kill ${monitor_pids[$pinger]} 2>&3
-	exec {pinger_fids[$pinger]}<&-
+	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 }
 
@@ -621,7 +624,7 @@ kill_pingers()
 			done
 		;;
 	esac
-	wait
+#	wait
 	exit
 }
 
@@ -1086,7 +1089,7 @@ if ! (($terminal)); then
 fi
 
 exec {fd}>&1
-coproc error_handler { exec 1>&$fd; while read error; do log_msg "ERROR" "$error"; done; }
+coproc error_handler { exec >/proc/$PPID/fd/1; while read error; do log_msg "ERROR" "$error"; done; }
 exec 3>&${error_handler[1]}
 
 if (( $debug )) ; then
