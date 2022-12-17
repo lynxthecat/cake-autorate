@@ -534,7 +534,7 @@ start_pinger()
 	local pinger=$1
 
 	mkfifo $run_path/pinger_${pinger}_fifo
-	exec 3<> $run_path/pinger_${pinger}_fifo
+	eval "exec $((6+$pinger))<> $run_path/pinger_${pinger}_fifo"
 
 	case $pinger_binary in
 
@@ -611,7 +611,6 @@ kill_pingers()
 			done
 		;;
 	esac
-	ps
 	wait
 	exit
 }
