@@ -14,9 +14,6 @@
 # Possible performance improvement
 export LC_ALL=C
 
-# Disable job control so that INT on ctrl-c does not kill children
-set -m
-
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -159,6 +156,7 @@ kill_maintain_log_file()
 
 maintain_log_file()
 {
+	trap '' INT
 	trap "kill_maintain_log_file" TERM EXIT
 
 	trap 'export_log_file "default"' USR1
@@ -259,6 +257,8 @@ get_next_shaper_rate()
 
 monitor_achieved_rates()
 {
+	trap '' INT	
+
 	# track rx and tx bytes transfered and divide by time since last update
 	# to determine achieved dl and ul transfer rates
 
@@ -554,6 +554,7 @@ start_pinger()
 	case $pinger_binary in
 
 		fping)
+			pinger=0
 			$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/pinger_${pinger}_fifo&
 		;;
 		ping)
@@ -603,8 +604,16 @@ sleep_until_next_pinger_time_slot()
 kill_pinger()
 {
 	local pinger=$1
-	kill ${pinger_pids[$pinger]} 2>&3
-	kill ${monitor_pids[$pinger]} 2>&3
+
+	[[ $pinger_binary == "fping" ]] && pinger=0
+
+	# These will get killed via INT from CTRL-C
+	# or via the kill commands below 
+	kill ${pinger_pids[$pinger]} 2> /dev/null
+	kill ${monitor_pids[$pinger]} 2> /dev/null
+
+	wait ${pinger_pids[$pinger]} ${monitor_pids[$pinger]} 
+
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
 }
@@ -668,7 +677,8 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap 'terminate_reflector_maintenance=1' TERM EXIT
+ 	trap '' INT
+	trap 'terminate_reflector_maintenance=1' TERM EXIT
 
 	trap '((pause_reflector_maintenance^=1))' USR2
 
@@ -995,6 +1005,54 @@ randomize_array()
 	done
 }
 
+# DEBUGGING ROUTINES
+
+# redirecting stderr to 2>&${error_handler[1]} will print stderr to log file / logger
+# can use e.g. "exec 3>&${error_handler[1]}" to facilitate redirects 2>&3
+coproc error_handler { exec >/proc/$PPID/fd/1; while read error; do log_msg "ERROR" "$error"; done; }
+
+# this is inspired by sqm-script's cmd_wrapper (with permission).
+cmd_wrapper(){
+    # $1: the identifier of the calling position, e.g. the name of the calling function
+    # $2: the name of the binary to call (potentially including the full path)
+    # $3-$end: the actual arguments for $2
+    local CALLERID
+    local CMD_BINARY
+    local LAST_ERROR
+    local RET
+    local ERRLOG
+
+    CALLERID=$1 ; shift 1 # extract and remove the binary
+    CMD_BINARY=$1 ; shift 1 # extract and remove the binary
+
+#    # Handle silencing of errors from callers
+#    ERRLOG="sqm_error"
+#    if [ "$SILENT" -eq "1" ]; then
+#        ERRLOG="sqm_debug"
+#        log_msg "DEBUG" "cmd_wrapper: ${CMD_BINARY}: invocation silenced by request, FAILURE either expected or acceptable."
+#        # The busybox shell doesn't understand the concept of an inline variable
+#        # only applying to a single command, so we need to reset SILENT
+#        # afterwards. Ugly, but it works...
+#        SILENT=0
+#    fi
+
+#    log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: COMMAND: ${CMD_BINARY} $@"
+    LAST_ERROR=$( ${CMD_BINARY} "$@" 2>&1 )
+    RET=$?
+
+    if [ "$RET" -eq "0" ] ; then
+        log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: SUCCESS: ${CMD_BINARY} $@"
+    else
+        # this went south, try to capture & report more detail
+        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: FAILURE (${RET}): ${CMD_BINARY} $@"
+        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: LAST ERROR: ${LAST_ERROR}"
+    fi
+
+    return $RET
+}
+
+# END OF DEBUGGING ROUTINES
+
 # ======= Start of the Main Routine ========
 
 [[ -t 1 ]] && terminal=1
@@ -1084,16 +1142,11 @@ if (($log_to_file)); then
 	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
 
-
 # test if stdout is a tty (terminal)
 if ! (($terminal)); then
 	echo "stdout not a terminal so redirecting output to: $log_file_path"
 	(($log_to_file)) && exec 1> $run_path/log_fifo
 fi
-
-exec {fd}>&1
-coproc error_handler { exec >/proc/$PPID/fd/1; while read error; do log_msg "ERROR" "$error"; done; }
-exec 3>&${error_handler[1]}
 
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
