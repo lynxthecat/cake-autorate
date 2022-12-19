@@ -23,14 +23,23 @@ cleanup_and_killall()
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 
-	kill $maintain_pingers_pid
-	wait $maintain_pingers_pid
-	kill $monitor_achieved_rates_pid
-	wait $monitor_achieved_rates_pid
+	# Errors are redirected to file descriptor 3 to print out to log file 
+	# See error_redirect() function definition below
 
-	log_to_file=0
-	kill $maintain_log_file_pid
-	wait $maintain_log_file_pid
+	if ! [[ -z $maintain_pingers_pid ]]; then
+		kill $maintain_pingers_pid 2>&3
+		wait $maintain_pingers_pid 
+	fi
+	
+	if ! [[ -z $monitor_achieved_rates_pid ]]; then
+		kill $monitor_achieved_rates_pid 2>&3
+		wait $monitor_achieved_rates_pid 
+	fi
+
+	if ! [[ -z $maintain_log_file_pid ]]; then
+		kill $maintain_log_file_pid 2>&3
+		wait $maintain_log_file_pid
+	fi
 
 	[[ -d $run_path ]] && rm -r $run_path
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
@@ -548,16 +557,17 @@ start_pinger()
 {
 	local pinger=$1
 
-	mkfifo $run_path/pinger_${pinger}_fifo
-	exec {pinger_fds[$pinger]}<> $run_path/pinger_${pinger}_fifo
-
 	case $pinger_binary in
 
 		fping)
 			pinger=0
+			mkfifo $run_path/pinger_${pinger}_fifo
+			exec {pinger_fds[$pinger]}<> $run_path/pinger_${pinger}_fifo
 			$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/pinger_${pinger}_fifo&
 		;;
 		ping)
+			mkfifo $run_path/pinger_${pinger}_fifo
+			exec {pinger_fds[$pinger]}<> $run_path/pinger_${pinger}_fifo
 			sleep_until_next_pinger_time_slot $pinger
 			$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} 2> /dev/null > $run_path/pinger_${pinger}_fifo &
 		;;
@@ -605,13 +615,26 @@ kill_pinger()
 {
 	local pinger=$1
 
-	[[ $pinger_binary == "fping" ]] && pinger=0
+	case $pinger_binary in
+
+		fping)
+			pinger=0
+		;;
+		*)
+			:
+		;;
+	esac
 
 	# These will get killed via INT from CTRL-C
 	# or via the kill commands below 
-	kill ${pinger_pids[$pinger]} 2> /dev/null
-	kill ${monitor_pids[$pinger]} 2> /dev/null
-
+	if (($trapped_INT)); then
+		kill ${pinger_pids[$pinger]} 2> /dev/null
+		kill ${monitor_pids[$pinger]} 2> /dev/null
+	else
+		kill ${pinger_pids[$pinger]} 2>&3
+		kill ${monitor_pids[$pinger]} 2>&3
+	fi
+	
 	wait ${pinger_pids[$pinger]} ${monitor_pids[$pinger]} 
 
 	exec {pinger_fds[$pinger]}<&-
@@ -677,7 +700,7 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap '' INT
+ 	trap 'trapped_INT=1' INT
 	trap 'terminate_reflector_maintenance=1' TERM EXIT
 
 	trap '((pause_reflector_maintenance^=1))' USR2
@@ -1007,12 +1030,16 @@ randomize_array()
 
 # DEBUGGING ROUTINES
 
-# redirecting stderr to 2>&${error_handler[1]} will print stderr to log file / logger
-# can use e.g. "exec 3>&${error_handler[1]}" to facilitate redirects 2>&3
-coproc error_handler { exec >/proc/$PPID/fd/1; while read error; do log_msg "ERROR" "$error"; done; }
+# redirecting stderr to 2>&3 will print stderr to log file / logger
+error_redirect()
+{
+	coproc error_handler { exec >/proc/$PPID/fd/1; while read -r error; do log_msg "ERROR" "$error"; done; }
+	exec 3>&${error_handler[1]}
+}
 
 # this is inspired by sqm-script's cmd_wrapper (with permission).
-cmd_wrapper(){
+cmd_wrapper()
+{
     # $1: the identifier of the calling position, e.g. the name of the calling function
     # $2: the name of the binary to call (potentially including the full path)
     # $3-$end: the actual arguments for $2
@@ -1148,6 +1175,10 @@ if ! (($terminal)); then
 	(($log_to_file)) && exec 1> $run_path/log_fifo
 fi
 
+# Henceforth error redirection 2>&3 will print ERROR messages to log_msg
+# See error_redirect() definition above
+error_redirect
+
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
 	log_msg "DEBUG" "config_path: $config_path"
@@ -1159,6 +1190,7 @@ if (( $debug )) ; then
 	log_msg "DEBUG" "rx_bytes_path: $rx_bytes_path"
 	log_msg "DEBUG" "tx_bytes_path: $tx_bytes_path"
 fi
+
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
 # Initialize variables
@@ -1214,9 +1246,6 @@ get_max_wire_packet_size_bits $dl_if dl_max_wire_packet_size_bits
 get_max_wire_packet_size_bits $ul_if ul_max_wire_packet_size_bits
 
 set_shaper_rates
-
-#set_cake_rate $dl_if $dl_shaper_rate_kbps adjust_dl_shaper_rate t_prev_dl_rate_set_us
-#set_cake_rate $ul_if $ul_shaper_rate_kbps adjust_ul_shaper_rate t_prev_ul_rate_set_us
 
 update_max_wire_packet_compensation
 
