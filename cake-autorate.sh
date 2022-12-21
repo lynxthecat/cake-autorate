@@ -59,7 +59,8 @@ log_msg()
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
         
-        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+        [[ $type == "ERROR" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
+        [[ $type == "DEBUG" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -75,7 +76,8 @@ log_msg_bypass_fifo()
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
 
-        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+        [[ $type == "ERROR" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
+        [[ $type == "DEBUG" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
 }
 
 print_headers()
@@ -390,6 +392,16 @@ monitor_reflector_responses_fping()
 
 	t_start_us=${EPOCHREALTIME/./}
 
+
+	case $pinger_binary in
+		fping)
+			pinger=0
+			;;
+		ping)
+		;;
+	esac
+
+
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<$no_reflectors; reflector++ ))
 	do
@@ -564,20 +576,24 @@ start_pinger()
 			mkfifo $run_path/pinger_${pinger}_fifo
 			exec {pinger_fds[$pinger]}<> $run_path/pinger_${pinger}_fifo
 			$ping_prefix_string fping $ping_extra_args --timestamp --loop --period $reflector_ping_interval_ms --interval $ping_response_interval_ms --timeout 10000 ${reflectors[@]:0:$no_pingers} 2> /dev/null > $run_path/pinger_${pinger}_fifo&
+			#pinger_pids[$pinger]=$!
 		;;
 		ping)
 			mkfifo $run_path/pinger_${pinger}_fifo
 			exec {pinger_fds[$pinger]}<> $run_path/pinger_${pinger}_fifo
 			sleep_until_next_pinger_time_slot $pinger
 			$ping_prefix_string ping $ping_extra_args -D -i $reflector_ping_interval_s ${reflectors[$pinger]} 2> /dev/null > $run_path/pinger_${pinger}_fifo &
+			#pinger_pids[$pinger]=$!
 		;;
 	esac
 	
 	pinger_pids[$pinger]=$!
 	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
+	log_msg "DEBUG" "pinger process: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )"
 
 	monitor_reflector_responses_$pinger_binary $pinger &
 	monitor_pids[$pinger]=$!
+	log_msg "DEBUG" "monitor process: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )" 
 }
 
 start_pingers()
@@ -628,10 +644,18 @@ kill_pinger()
 	# These will get killed via INT from CTRL-C
 	# or via the kill commands below 
 	if (($trapped_INT)); then
+		log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
+		#cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
 		kill ${pinger_pids[$pinger]} 2> /dev/null
+		log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
+		#cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
 		kill ${monitor_pids[$pinger]} 2> /dev/null
 	else
+		log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
+		#cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
 		kill ${pinger_pids[$pinger]} 2>&3
+		log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
+		#cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
 		kill ${monitor_pids[$pinger]} 2>&3
 	fi
 	
@@ -1084,6 +1108,9 @@ cmd_wrapper()
 
 [[ -t 1 ]] && terminal=1
 
+$( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once...
+#export use_logger
+
 log_file_path=/var/log/cake-autorate.log
 
 # WARNING: take great care if attempting to alter the run_path!
@@ -1102,6 +1129,7 @@ if [[ ! -f "$config_path" ]]; then
 	exit
 fi
 
+
 . $config_path
 
 if [[ $config_file_check != "cake-autorate" ]]; then
@@ -1116,6 +1144,10 @@ else
 	log_msg_bypass_fifo "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
 	exit
 fi
+
+# it is quite helpful to have a start marker per utorate instance in the system log
+(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config ${config_path}"
+
 
 if [[ ! -z "$log_file_path_override" ]]; then 
 	if [[ ! -d $log_file_path_override ]]; then
@@ -1174,6 +1206,7 @@ if ! (($terminal)); then
 	echo "stdout not a terminal so redirecting output to: $log_file_path"
 	(($log_to_file)) && exec 1> $run_path/log_fifo
 fi
+
 
 # Henceforth error redirection 2>&3 will print ERROR messages to log_msg
 # See error_redirect() definition above
