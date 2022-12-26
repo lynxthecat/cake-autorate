@@ -23,7 +23,7 @@ do
 	wait ${cake_instance_pids[${COUNT}]}
 	COUNT+=1
 done
-
+	kill ${sleep_pid}
 	exit
 }
 
@@ -41,6 +41,6 @@ do
 done
 
 sleep inf&
-cake_instance_pids+=($!)
+sleep_pid+=($!)
 wait
 

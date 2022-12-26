@@ -27,16 +27,19 @@ cleanup_and_killall()
 	# See error_redirect() function definition below
 
 	if ! [[ -z $maintain_pingers_pid ]]; then
-		kill $maintain_pingers_pid 2>&3
+		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
+		kill -USR1 $maintain_pingers_pid 2>&3
 		wait $maintain_pingers_pid 
 	fi
 	
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
+		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		kill $monitor_achieved_rates_pid 2>&3
 		wait $monitor_achieved_rates_pid 
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
+		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		kill $maintain_log_file_pid 2>&3
 		wait $maintain_log_file_pid
 	fi
@@ -630,6 +633,7 @@ sleep_until_next_pinger_time_slot()
 kill_pinger()
 {
 	local pinger=$1
+	local SILENCE_CMD=$2
 
 	case $pinger_binary in
 
@@ -641,13 +645,24 @@ kill_pinger()
 		;;
 	esac
 
-	# SILENT_TERM is set in maintain_pingers()
-	log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
-	SILENCE_CMD=${SILENT_TERM} cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
-	log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
-	SILENCE_CMD=${SILENT_TERM}  cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
-	
+	if ! [[ -z ${pinger_pids[$pinger]} ]]; then
+	    # SILENT_TERM is set in maintain_pingers()
+	    log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
+	    SILENCE_CMD=${SILENCE_CMD} cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
+	else
+	    log_msg "DEBUG" "pinger_pids[pinger] is empty, nothing to kill" 	        
+	fi
+
+	if ! [[ -z ${monitor_pids[$pinger]} ]]; then
+    	    log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
+	    SILENCE_CMD=${SILENCE_CMD}  cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
+	else
+	    log_msg "DEBUG" "monitor_pids[pinger] is empty, nothing to kill" 	        
+	fi
+
 	wait ${pinger_pids[$pinger]} ${monitor_pids[$pinger]} 
+	pinger_pids[$pinger]=
+	monitor_pids[$pinger]=
 
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
@@ -656,18 +671,19 @@ kill_pinger()
 kill_pingers()
 {
 	trap - TERM EXIT
+	local SILENCE=$1
 	
 	case $pinger_binary in
 
 		fping)
 			log_msg "DEBUG" "Killing fping instance."
-			kill_pinger 0
+			kill_pinger 0 ${SILENCE}
 		;;
 		ping)
 			for (( pinger=0; pinger<$no_pingers; pinger++))
 			do
 				log_msg "DEBUG" "Killing pinger instance: $pinger"
-				kill_pinger $pinger
+				kill_pinger $pinger ${SILENCE}
 			done
 		;;
 	esac
@@ -685,10 +701,11 @@ replace_pinger_reflector()
 	# and finally the indices for $reflectors are updated to reflect the new order
 	
 	local pinger=$1
+	local SILENCE=$2
 
 	if(($no_reflectors>$no_pingers)); then
 		(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
-		kill_pinger $pinger
+		kill_pinger $pinger ${SILENCE}
 		bad_reflector=${reflectors[$pinger]}
 		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
 		reflectors[$pinger]=${reflectors[$no_pingers]}
@@ -712,8 +729,9 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap 'trapped_INT=1 ; SILENT_TERM=1' INT
-	trap 'terminate_reflector_maintenance=1 ; SILENT_TERM=1' TERM EXIT
+ 	trap 'trapped_INT=1' INT
+	trap 'terminate_reflector_maintenance=1' TERM EXIT
+	trap 'terminate_reflector_maintenance_silently=1' USR1
 
 	trap '((pause_reflector_maintenance^=1))' USR2
 
@@ -722,10 +740,11 @@ maintain_pingers()
 	declare -A dl_owd_delta_ewmas_us
 	declare -A ul_owd_delta_ewmas_us
 
+	local SILENCE=0
 	#trapped_INT=0
-	SILENT_TERM=0
 	pause_reflector_maintenance=0
 	terminate_reflector_maintenance=0
+	terminate_reflector_maintenance_silently=0
 
 	reflector_offences_idx=0
 
@@ -751,21 +770,21 @@ maintain_pingers()
 	start_pingers
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
-	while (($terminate_reflector_maintenance==0))
+	while (( ($terminate_reflector_maintenance + $terminate_reflector_maintenance_silently) == 0 ))
 	do
 		sleep_s $reflector_health_check_interval_s
 
 		(($pause_reflector_maintenance)) && continue
 
-		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_replacement_interval_mins*60*1000000))); then
+		if ((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_replacement_interval_mins*60*1000000))); then
 	
 			(($debug)) && log_msg "DEBUG" "reflector: ${reflectors[$pinger]} randomly selected for replacement."
-			replace_pinger_reflector $(($RANDOM%$no_pingers))
+			replace_pinger_reflector $(($RANDOM%$no_pingers)) ${SILENCE}
 			t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 			continue
 		fi
 
-		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_comparison_interval_mins*60*1000000))); then
+		if ((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_comparison_interval_mins*60*1000000))); then
 
 			t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 			
@@ -813,25 +832,25 @@ maintain_pingers()
 
 				if (($dl_owd_baseline_delta_us>$reflector_owd_baseline_delta_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger ${SILENCE}
 					continue 2
 				fi
 
 				if (($dl_owd_delta_ewma_delta_us>$reflector_owd_delta_ewma_delta_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger ${SILENCE}
 					continue 2
 				fi
 				
 				if (($ul_owd_baseline_delta_us>$reflector_owd_baseline_delta_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger ${SILENCE}
 					continue 2
 				fi
 
 				if (($ul_owd_delta_ewma_delta_us>$reflector_owd_delta_ewma_delta_thr_us)); then
 					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
-					replace_pinger_reflector $pinger
+					replace_pinger_reflector $pinger ${SILENCE}
 					continue 2
 				fi
 			done
@@ -856,7 +875,7 @@ maintain_pingers()
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
 				(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
-				replace_pinger_reflector $pinger
+				replace_pinger_reflector $pinger ${SILENCE}
 
 				for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 				sum_reflector_offences[$pinger]=0
@@ -865,8 +884,10 @@ maintain_pingers()
 		((reflector_offences_idx=(reflector_offences_idx+1)%$reflector_misbehaving_detection_window))
 	done
 
+	# this is tricky, are we getting killed because of autorate terminating or because we enter reflector sleep
 	log_msg "DEBUG" "Reflector maintenance terminated."
-	kill_pingers
+
+	kill_pingers ${terminate_reflector_maintenance_silently}
 }
 
 set_cake_rate()
@@ -1101,8 +1122,9 @@ cmd_wrapper()
 
 $( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once...
 
-syslog_DEBUG=0	# log DEBUG records into the system logfile
+syslog_DEBUG=1	# log DEBUG records into the system logfile
 SILENCE_CMD=0 # by default log command execution errors as ERRORs (if set to 1 these are demoted to DEBUG), note this is the base intialisation that will be overridden case by case
+TERMINATION_IN_PROCESS=0
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1473,6 +1495,7 @@ do
 	# Initiate termination of ping processes and wait until complete
 	kill $maintain_pingers_pid 3>&2
 	wait $maintain_pingers_pid
+	maintain_pingers_pid=	# let's not have this linger around with a stale value
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
