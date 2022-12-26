@@ -60,7 +60,7 @@ log_msg()
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
         
         [[ $type == "ERROR" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
-        [[ $type == "DEBUG" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
+        (( ${syslog_DEBUG} )) && [[ $type == "DEBUG" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -77,7 +77,7 @@ log_msg_bypass_fifo()
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
 
         [[ $type == "ERROR" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
-        [[ $type == "DEBUG" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
+        (( ${syslog_DEBUG} )) && [[ $type == "DEBUG" ]] && (( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "$type: $log_timestamp $msg"
 }
 
 print_headers()
@@ -641,23 +641,11 @@ kill_pinger()
 		;;
 	esac
 
-	# These will get killed via INT from CTRL-C
-	# or via the kill commands below 
-	if (($trapped_INT)); then
-		log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
-		#cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
-		kill ${pinger_pids[$pinger]} 2> /dev/null
-		log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
-		#cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
-		kill ${monitor_pids[$pinger]} 2> /dev/null
-	else
-		log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
-		#cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
-		kill ${pinger_pids[$pinger]} 2>&3
-		log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
-		#cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
-		kill ${monitor_pids[$pinger]} 2>&3
-	fi
+	# SILENT_TERM is set in maintain_pingers()
+	log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
+	SILENCE_CMD=${SILENT_TERM} cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
+	log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
+	SILENCE_CMD=${SILENT_TERM}  cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
 	
 	wait ${pinger_pids[$pinger]} ${monitor_pids[$pinger]} 
 
@@ -724,8 +712,8 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap 'trapped_INT=1' INT
-	trap 'terminate_reflector_maintenance=1' TERM EXIT
+ 	trap 'trapped_INT=1 ; SILENT_TERM=1' INT
+	trap 'terminate_reflector_maintenance=1 ; SILENT_TERM=1' TERM EXIT
 
 	trap '((pause_reflector_maintenance^=1))' USR2
 
@@ -734,6 +722,8 @@ maintain_pingers()
 	declare -A dl_owd_delta_ewmas_us
 	declare -A ul_owd_delta_ewmas_us
 
+	#trapped_INT=0
+	SILENT_TERM=0
 	pause_reflector_maintenance=0
 	terminate_reflector_maintenance=0
 
@@ -1076,16 +1066,16 @@ cmd_wrapper()
     CALLERID=$1 ; shift 1 # extract and remove the binary
     CMD_BINARY=$1 ; shift 1 # extract and remove the binary
 
-#    # Handle silencing of errors from callers
-#    ERRLOG="sqm_error"
-#    if [ "$SILENT" -eq "1" ]; then
-#        ERRLOG="sqm_debug"
-#        log_msg "DEBUG" "cmd_wrapper: ${CMD_BINARY}: invocation silenced by request, FAILURE either expected or acceptable."
-#        # The busybox shell doesn't understand the concept of an inline variable
-#        # only applying to a single command, so we need to reset SILENT
-#        # afterwards. Ugly, but it works...
-#        SILENT=0
-#    fi
+    # Handle silencing of errors from callers
+    ERRLOGTYPE="ERROR"
+    if [ "$SILENCE_CMD" -eq "1" ]; then
+        ERRLOGTYPE="DEBUG"
+        log_msg "DEBUG" "cmd_wrapper: ${CMD_BINARY}: invocation silenced by request, FAILURE either expected or acceptable."
+        # The busybox shell doesn't understand the concept of an inline variable
+        # only applying to a single command, so we need to reset SILENT
+        # afterwards. Ugly, but it works...
+        SILENCE_CMD=0
+    fi
 
 #    log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: COMMAND: ${CMD_BINARY} $@"
     LAST_ERROR=$( ${CMD_BINARY} "$@" 2>&1 )
@@ -1095,8 +1085,8 @@ cmd_wrapper()
         log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: SUCCESS: ${CMD_BINARY} $@"
     else
         # this went south, try to capture & report more detail
-        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: FAILURE (${RET}): ${CMD_BINARY} $@"
-        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: LAST ERROR: ${LAST_ERROR}"
+        log_msg "${ERRLOGTYPE}" "cmd_wrapper: ${CALLERID}: FAILURE (${RET}): ${CMD_BINARY} $@"
+        log_msg "${ERRLOGTYPE}" "cmd_wrapper: ${CALLERID}: LAST ERROR: ${LAST_ERROR}"
     fi
 
     return $RET
@@ -1108,8 +1098,11 @@ cmd_wrapper()
 
 [[ -t 1 ]] && terminal=1
 
+
 $( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once...
-#export use_logger
+
+syslog_DEBUG=0	# log DEBUG records into the system logfile
+SILENCE_CMD=0 # by default log command execution errors as ERRORs (if set to 1 these are demoted to DEBUG), note this is the base intialisation that will be overridden case by case
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1131,6 +1124,7 @@ fi
 
 
 . $config_path
+
 
 if [[ $config_file_check != "cake-autorate" ]]; then
 	log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries." 
