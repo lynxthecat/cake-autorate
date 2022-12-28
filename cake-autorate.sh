@@ -23,21 +23,24 @@ cleanup_and_killall()
 	log_msg_bypass_fifo "INFO" ""
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 
-	# Errors are redirected to file descriptor 3 to print out to log file 
-	# See error_redirect() function definition below
-
 	if ! [[ -z $maintain_pingers_pid ]]; then
-		kill $maintain_pingers_pid 2>&3
+		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
+		[ -d "/proc/${maintain_pingers_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_pingers_cmd: $( tr -d '\0' < /proc/${maintain_pingers_pid}/cmdline )."
+		kill $maintain_pingers_pid 
 		wait $maintain_pingers_pid 
 	fi
 	
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
-		kill $monitor_achieved_rates_pid 2>&3
+		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
+		#[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_msg_bypass_fifo "DEBUG" "monitor_achieved_rates_cmd: $( tr -d '\0' < /proc/${monitor_achieved_rates_pid}/cmdline )."
+		kill $monitor_achieved_rates_pid 
 		wait $monitor_achieved_rates_pid 
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
-		kill $maintain_log_file_pid 2>&3
+		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
+		#[ -d "/proc/${maintain_log_file_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_log_file_cmd: $( tr -d '\0' < /proc/${maintain_log_file_pid}/cmdline )."
+		kill $maintain_log_file_pid
 		wait $maintain_log_file_pid
 	fi
 
@@ -59,7 +62,9 @@ log_msg()
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
         
-        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+        [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+        
+	[[ $type == "SYSLOG_DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -75,7 +80,9 @@ log_msg_bypass_fifo()
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
 
-        [[ $type == "ERROR" ]] && type logger &> /dev/null && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+        [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+        
+	[[ $type == "SYSLOG_DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 print_headers()
@@ -266,7 +273,7 @@ get_next_shaper_rate()
 
 monitor_achieved_rates()
 {
-	trap '' INT	
+	trap '' INT
 
 	# track rx and tx bytes transfered and divide by time since last update
 	# to determine achieved dl and ul transfer rates
@@ -383,6 +390,7 @@ kill_monitor_reflector_responses_fping()
 
 monitor_reflector_responses_fping()
 {
+	trap '' INT
 	trap kill_monitor_reflector_responses_fping TERM EXIT		
 
 	declare -A rtt_baselines_us
@@ -474,6 +482,7 @@ kill_monitor_reflector_responses_ping()
 
 monitor_reflector_responses_ping() 
 {
+	trap '' INT
 	trap kill_monitor_reflector_responses_ping TERM EXIT		
 
 	# ping reflector, maintain baseline and output deltas to a common fifo
@@ -546,7 +555,6 @@ monitor_reflector_responses_ping()
 		printf '%s' "$timestamp_us" > $run_path/reflectors_last_timestamp_us
 
 	done 2>/dev/null <$run_path/pinger_${pinger}_fifo
-
 }
 
 # END OF IPUTILS-PING FUNCTIONS
@@ -575,9 +583,11 @@ start_pinger()
 	
 	pinger_pids[$pinger]=$!
 	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
+	log_msg "DEBUG" "pinger process: $( cat /proc/${pinger_pids[$pinger]}/cmdline )"
 
 	monitor_reflector_responses_$pinger_binary $pinger &
 	monitor_pids[$pinger]=$!
+	log_msg "DEBUG" "monitor process: $( cat /proc/${monitor_pids[$pinger]}/cmdline )"
 }
 
 start_pingers()
@@ -611,6 +621,27 @@ sleep_until_next_pinger_time_slot()
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
 }
 
+
+kill_and_wait_by_pid()
+{
+	local pid=${!1}
+	local pid_name=$1
+	local err_silence=$2
+
+	if ! [[ -z $pid ]]; then
+	    if [ -d "/proc/$pid_to_kill" ] ; then
+		log_msg "DEBUG" "expected $pid_name process [PID CMD]: $( tr -d '\0' < /proc/$pid/cmdline )" 
+	    else
+		log_msg "DEBUG" "expected $pid_name process: $pid does not exist - nothing to kill." 
+	    fi
+	    debug_cmd kill $pid 
+	else
+	    log_msg "DEBUG" "pid ($pid_name) is empty, nothing to kill." 	        
+	fi
+
+    wait $pid
+}
+
 kill_pinger()
 {
 	local pinger=$1
@@ -628,14 +659,12 @@ kill_pinger()
 	# These will get killed via INT from CTRL-C
 	# or via the kill commands below 
 	if (($trapped_INT)); then
-		kill ${pinger_pids[$pinger]} 2> /dev/null
-		kill ${monitor_pids[$pinger]} 2> /dev/null
+		kill_and_wait_by_pid pinger_pids[$pinger] 1
 	else
-		kill ${pinger_pids[$pinger]} 2>&3
-		kill ${monitor_pids[$pinger]} 2>&3
+		kill_and_wait_by_pid pinger_pids[$pinger] 0
 	fi
 	
-	wait ${pinger_pids[$pinger]} ${monitor_pids[$pinger]} 
+	kill_and_wait_by_pid monitor_pids[$pinger] 0
 
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
@@ -659,7 +688,6 @@ kill_pingers()
 			done
 		;;
 	esac
-	wait
 	exit
 }
 
@@ -1028,54 +1056,56 @@ randomize_array()
 	done
 }
 
-# DEBUGGING ROUTINES
+# DEBUG COMMAND WRAPPER
+# INSPIRED BY cmd_wrapper of sqm-script
 
-# redirecting stderr to 2>&3 will print stderr to log file / logger
-error_redirect()
+debug_cmd()
 {
-	coproc error_handler { exec >/proc/$PPID/fd/1; while read -r error; do log_msg "ERROR" "$error"; done; }
-	exec 3>&${error_handler[1]}
-}
+	# Usage: debug_cmd cmd arguments
+	# Error messages are output as log_msg ERROR messages
+	# Or set error_silence=1 to output errors as log_msg DEBUG messages
 
-# this is inspired by sqm-script's cmd_wrapper (with permission).
-cmd_wrapper()
-{
-    # $1: the identifier of the calling position, e.g. the name of the calling function
-    # $2: the name of the binary to call (potentially including the full path)
-    # $3-$end: the actual arguments for $2
-    local CALLERID
-    local CMD_BINARY
-    local LAST_ERROR
-    local RET
-    local ERRLOG
+        local caller_id
+        local err_type
 
-    CALLERID=$1 ; shift 1 # extract and remove the binary
-    CMD_BINARY=$1 ; shift 1 # extract and remove the binary
+        local cmd
+        local ret
+        local stderr
 
-#    # Handle silencing of errors from callers
-#    ERRLOG="sqm_error"
-#    if [ "$SILENT" -eq "1" ]; then
-#        ERRLOG="sqm_debug"
-#        log_msg "DEBUG" "cmd_wrapper: ${CMD_BINARY}: invocation silenced by request, FAILURE either expected or acceptable."
-#        # The busybox shell doesn't understand the concept of an inline variable
-#        # only applying to a single command, so we need to reset SILENT
-#        # afterwards. Ugly, but it works...
-#        SILENT=0
-#    fi
+        cmd=$1
+        shift 1
+        args=$@
 
-#    log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: COMMAND: ${CMD_BINARY} $@"
-    LAST_ERROR=$( ${CMD_BINARY} "$@" 2>&1 )
-    RET=$?
 
-    if [ "$RET" -eq "0" ] ; then
-        log_msg "DEBUG" "cmd_wrapper: ${CALLERID}: SUCCESS: ${CMD_BINARY} $@"
-    else
-        # this went south, try to capture & report more detail
-        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: FAILURE (${RET}): ${CMD_BINARY} $@"
-        log_msg "ERROR" "cmd_wrapper: ${CALLERID}: LAST ERROR: ${LAST_ERROR}"
-    fi
+        err_type="ERROR"
 
-    return $RET
+	[[ -z $err_silence ]] && err_silence=0
+
+        if (($err_silence)); then
+                log_msg "DEBUG" "debug_cmd: $cmd: invocation error silenced by request"
+                err_type="DEBUG"
+		unset err_silence
+        fi
+
+        stderr=$($cmd $args 2>&1)
+        ret=$?
+
+	caller_id=$(caller)
+
+	if (($ret==0)); then
+                log_msg "DEBUG" "debug_cmd: $caller_id: SUCCESS: $cmd $@"
+        else
+           	log_msg "$err_type" "debug_cmd: $caller_id: FAILURE ($ret): $cmd $args"
+               	log_msg "$err_type" "debug_cmd: $caller_id: LAST ERROR ($stderr)"
+		frame=1
+		caller_output=$(caller $frame)
+		while (($?==0))
+		do
+           		log_msg "$err_type" "debug_cmd: $caller_id: CALL CHAIN: $caller_output"
+			((++frame))
+			caller_output=$(caller $frame)
+		done
+        fi
 }
 
 # END OF DEBUGGING ROUTINES
@@ -1083,6 +1113,8 @@ cmd_wrapper()
 # ======= Start of the Main Routine ========
 
 [[ -t 1 ]] && terminal=1
+
+$( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once.
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1116,6 +1148,8 @@ else
 	log_msg_bypass_fifo "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
 	exit
 fi
+
+(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config ${config_path}"
 
 if [[ ! -z "$log_file_path_override" ]]; then 
 	if [[ ! -d $log_file_path_override ]]; then
@@ -1174,10 +1208,6 @@ if ! (($terminal)); then
 	echo "stdout not a terminal so redirecting output to: $log_file_path"
 	(($log_to_file)) && exec 1> $run_path/log_fifo
 fi
-
-# Henceforth error redirection 2>&3 will print ERROR messages to log_msg
-# See error_redirect() definition above
-error_redirect
 
 if (( $debug )) ; then
 	log_msg "DEBUG" "Starting CAKE-autorate $cake_autorate_version"
