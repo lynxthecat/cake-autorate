@@ -28,18 +28,21 @@ cleanup_and_killall()
 
 	if ! [[ -z $maintain_pingers_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
+		#log_msg_bypass_fifo "DEBUG" "maintain_pingers:$( tr -d '\0' < /proc/${maintain_pingers_pid}/cmdline )."
 		kill -USR1 $maintain_pingers_pid 2>&3
 		wait $maintain_pingers_pid 
 	fi
 	
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
+		#log_msg_bypass_fifo "DEBUG" "monitor_achieved_rates: $( tr -d '\0' < /proc/${monitor_achieved_rates_pid}/cmdline )."
 		kill $monitor_achieved_rates_pid 2>&3
 		wait $monitor_achieved_rates_pid 
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
+		#log_msg_bypass_fifo "DEBUG" "maintain_log_file: $( tr -d '\0' < /proc/${maintain_log_file_pid}/cmdline )."
 		kill $maintain_log_file_pid 2>&3
 		wait $maintain_log_file_pid
 	fi
@@ -592,11 +595,13 @@ start_pinger()
 	
 	pinger_pids[$pinger]=$!
 	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
-	log_msg "DEBUG" "pinger process: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )"
+#	log_msg "DEBUG" "pinger process: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )"
+	log_msg "DEBUG" "pinger process: $( cat /proc${pinger_pids[$pinger]}/cmdline )"
 
 	monitor_reflector_responses_$pinger_binary $pinger &
 	monitor_pids[$pinger]=$!
-	log_msg "DEBUG" "monitor process: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )" 
+#	log_msg "DEBUG" "monitor process: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )" 
+	log_msg "DEBUG" "monitor process: $( cat /proc/${monitor_pids[$pinger]}/cmdline )" 
 }
 
 start_pingers()
@@ -630,6 +635,36 @@ sleep_until_next_pinger_time_slot()
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
 }
 
+
+
+# we need this at least twice so move to own function
+# we arguably should store /proc/${PID_TO_KILL}/cmdline on start and only actually kill a process if
+# the current /proc/${PID_TO_KILL}/cmdline is a perfect match to the one we started, but let's first see
+# whether we need that complexity
+kill_and_wait_by_pid()
+{
+	local PID_TO_KILL=$1
+	local NAME=$2
+	local CALLER_ID=$3
+	local SILENCE_CMD=$4
+
+
+	if ! [[ -z ${PID_TO_KILL} ]]; then
+	    if [ -d "/proc/${PID_TO_KILL}" ] ; then
+#		    log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${PID_TO_KILL} )" 
+		log_msg "DEBUG" "expected ${NAME} process [PID CMD]: $( tr -d '\0' < /proc/${PID_TO_KILL}/cmdline )" 
+	    else
+		log_msg "DEBUG" "expected ${NAME} process: ${PID_TO_KILL} does not exist, nothing to kill." 
+	    fi
+	    SILENCE_CMD=${SILENCE_CMD} cmd_wrapper "${CALLER_ID}_${NAME}" kill ${PID_TO_KILL} 
+	else
+	    log_msg "DEBUG" "pid_to_kill (${NAME}) is empty, nothing to kill" 	        
+	fi
+
+    wait ${PID_TO_KILL}
+}
+
+
 kill_pinger()
 {
 	local pinger=$1
@@ -645,24 +680,14 @@ kill_pinger()
 		;;
 	esac
 
-	if ! [[ -z ${pinger_pids[$pinger]} ]]; then
-	    # SILENT_TERM is set in maintain_pingers()
-	    log_msg "DEBUG" "expected pinger process [PID CMD]: $( ps -o pid= -o cmd= -p ${pinger_pids[$pinger]} )" 
-	    SILENCE_CMD=${SILENCE_CMD} cmd_wrapper "${FUNCNAME[0]}_pinger_PIDs" kill ${pinger_pids[$pinger]} 
-	else
-	    log_msg "DEBUG" "pinger_pids[pinger] is empty, nothing to kill" 	        
-	fi
-
-	if ! [[ -z ${monitor_pids[$pinger]} ]]; then
-    	    log_msg "DEBUG" "expected monitor process [PID CMD]: $( ps -o pid= -o cmd= -p ${monitor_pids[$pinger]} )"
-	    SILENCE_CMD=${SILENCE_CMD}  cmd_wrapper "${FUNCNAME[0]}_monitor_PIDs" kill ${monitor_pids[$pinger]}
-	else
-	    log_msg "DEBUG" "monitor_pids[pinger] is empty, nothing to kill" 	        
-	fi
-
-	wait ${pinger_pids[$pinger]} ${monitor_pids[$pinger]} 
+        kill_and_wait_by_pid ${pinger_pids[$pinger]} "pinger" "${FUNCNAME[0]}_pinger_PIDs" "$SILENCE_CMD"
+	# to avoid passing the pid array to kill_and_wait_by_pid (and to keep that generic) clear this here
 	pinger_pids[$pinger]=
+
+        kill_and_wait_by_pid ${monitor_pids[$pinger]} "monitor" "${FUNCNAME[0]}_monitor_PIDs" "$SILENCE_CMD"
+	# to avoid passing the pid array to kill_and_wait_by_pid (and to keep that generic) clear this here
 	monitor_pids[$pinger]=
+
 
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
@@ -1122,7 +1147,7 @@ cmd_wrapper()
 
 $( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once...
 
-syslog_DEBUG=1	# log DEBUG records into the system logfile
+syslog_DEBUG=0	# log DEBUG records into the system logfile
 SILENCE_CMD=0 # by default log command execution errors as ERRORs (if set to 1 these are demoted to DEBUG), note this is the base intialisation that will be overridden case by case
 TERMINATION_IN_PROCESS=0
 
