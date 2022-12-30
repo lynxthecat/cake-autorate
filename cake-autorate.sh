@@ -636,6 +636,7 @@ kill_and_wait_by_pid()
 		if [[ -d "/proc/$pid" ]]; then
 			log_process_cmdline pid
 	    		debug_cmd ${!pid} $err_silence kill $pid
+			wait $pid
 	    	else
 			log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
 	    	fi
@@ -643,7 +644,9 @@ kill_and_wait_by_pid()
 		log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
 	fi
 
-	wait $pid
+	# Reset pid
+	pid=
+
 }
 
 kill_pinger()
@@ -663,9 +666,6 @@ kill_pinger()
 	kill_and_wait_by_pid pinger_pids[$pinger] $err_silence
 
 	kill_and_wait_by_pid monitor_pids[$pinger] 0
-	
-	pinger_pids[$pinger]= 
-	monitor_pids[$pinger]=
 
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
