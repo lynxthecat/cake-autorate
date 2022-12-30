@@ -26,7 +26,7 @@ cleanup_and_killall()
 	if ! [[ -z $maintain_pingers_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
 		[ -d "/proc/${maintain_pingers_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_pingers_cmd: $( tr -d '\0' < /proc/${maintain_pingers_pid}/cmdline )."
-		kill $maintain_pingers_pid 
+		kill -USR1 $maintain_pingers_pid 
 		wait $maintain_pingers_pid 
 	fi
 	
@@ -656,15 +656,12 @@ kill_pinger()
 		;;
 	esac
 
-	# These will get killed via INT from CTRL-C
-	# or via the kill commands below 
-	if (($trapped_INT)); then
-		kill_and_wait_by_pid pinger_pids[$pinger] 1
-	else
-		kill_and_wait_by_pid pinger_pids[$pinger] 0
-	fi
-	
+	kill_and_wait_by_pid pinger_pids[$pinger] $err_silence
+
 	kill_and_wait_by_pid monitor_pids[$pinger] 0
+	
+	pinger_pids[$pinger]= 
+	monitor_pids[$pinger]=
 
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
@@ -728,9 +725,10 @@ maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
- 	trap 'trapped_INT=1' INT
+ 	trap '' INT
 	trap 'terminate_reflector_maintenance=1' TERM EXIT
 
+	trap 'err_silence=1; terminate_reflector_maintenance=1' USR1
 	trap '((pause_reflector_maintenance^=1))' USR2
 
 	declare -A dl_owd_baselines_us
