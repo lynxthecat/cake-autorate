@@ -62,7 +62,7 @@ log_msg()
         
         [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
         
-	[[ $type == "SYSLOG_DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+	(($log_DEBUG_messages_to_syslog)) && [[ $type == "DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 # Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
@@ -80,7 +80,7 @@ log_msg_bypass_fifo()
 
         [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
         
-	[[ $type == "SYSLOG_DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+	(($log_DEBUG_messages_to_sytlog)) && [[ $type == "DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 print_headers()
