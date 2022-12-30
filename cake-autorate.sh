@@ -33,13 +33,13 @@ cleanup_and_killall()
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_process_cmdline monitor_achieved_rates_pid
-		kill_and_wait_by_pid monitor_achieved_rates_pid 0
+		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		[ -d "/proc/${maintain_log_file_pid}/" ] && log_process_cmdline maintain_log_file_pid
-		kill_and_wait_by_pid maintain_log_file_pid 0
+		kill_and_wait_by_pid_name maintain_log_file_pid 0
 	fi
 
 	[[ -d $run_path ]] && rm -r $run_path
@@ -627,7 +627,7 @@ log_process_cmdline()
 	log_msg "DEBUG" "${!process_pid}=$process_pid cmdline: $process_cmdline"
 }
 
-kill_and_wait_by_pid()
+kill_and_wait_by_pid_name()
 {
 	local -n pid=$1
 	local err_silence=$2
@@ -663,9 +663,9 @@ kill_pinger()
 		;;
 	esac
 
-	kill_and_wait_by_pid pinger_pids[$pinger] $err_silence
+	kill_and_wait_by_pid_name pinger_pids[$pinger] $err_silence
 
-	kill_and_wait_by_pid monitor_pids[$pinger] 0
+	kill_and_wait_by_pid_name monitor_pids[$pinger] 0
 
 	exec {pinger_fds[$pinger]}<&-
 	[[ -p $run_path/pinger_${pinger}_fifo ]] && rm $run_path/pinger_${pinger}_fifo
@@ -1480,7 +1480,7 @@ do
 	fi
 
 	# Initiate termination of ping processes and wait until complete
-	kill_and_wait_by_pid maintain_pingers_pid 0
+	kill_and_wait_by_pid_name maintain_pingers_pid 0
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
