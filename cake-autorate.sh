@@ -27,21 +27,19 @@ cleanup_and_killall()
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
 		[ -d "/proc/${maintain_pingers_pid}/" ] && log_process_cmdline maintain_pingers_pid
 		kill -USR1 $maintain_pingers_pid 
-		wait $maintain_pingers_pid 
+		wait $maintain_pingers_pid
 	fi
 
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_process_cmdline monitor_achieved_rates_pid
-		kill $monitor_achieved_rates_pid 
-		wait $monitor_achieved_rates_pid 
+		kill_and_wait_by_pid monitor_achieved_rates_pid 0
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		[ -d "/proc/${maintain_log_file_pid}/" ] && log_process_cmdline maintain_log_file_pid
-		kill $maintain_log_file_pid
-		wait $maintain_log_file_pid
+		kill_and_wait_by_pid maintain_log_file_pid 0
 	fi
 
 	[[ -d $run_path ]] && rm -r $run_path
@@ -623,29 +621,29 @@ sleep_until_next_pinger_time_slot()
 
 log_process_cmdline()
 {
-	declare -n process_pid=$1
+	local -n process_pid=$1
 
 	read process_cmdline < /proc/$process_pid/cmdline
-	log_msg "DEBUG" "${!process_pid} cmdline: $process_cmdline"
+	log_msg "DEBUG" "${!process_pid}=$process_pid cmdline: $process_cmdline"
 }
 
 kill_and_wait_by_pid()
 {
-	declare -n pid=$1
+	local -n pid=$1
 	local err_silence=$2
 
 	if ! [[ -z $pid ]]; then
-	    if [ -d "/proc/$pid_to_kill" ] ; then
-		log_process_cmdline pid
-	    else
-		log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
-	    fi
-	    debug_cmd kill $pid 
+		if [[ -d "/proc/$pid" ]]; then
+			log_process_cmdline pid
+	    		debug_cmd ${!pid} $err_silence kill $pid
+	    	else
+			log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
+	    	fi
 	else
-	    log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
+		log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
 	fi
 
-    wait $pid
+	wait $pid
 }
 
 kill_pinger()
@@ -741,6 +739,8 @@ maintain_pingers()
 	declare -A ul_owd_baselines_us
 	declare -A dl_owd_delta_ewmas_us
 	declare -A ul_owd_delta_ewmas_us
+
+	err_silence=0
 
 	pause_reflector_maintenance=0
 	terminate_reflector_maintenance=0
@@ -1065,47 +1065,46 @@ randomize_array()
 
 debug_cmd()
 {
-	# Usage: debug_cmd cmd arguments
+	# Usage: debug_cmd debug_msg err_silence cmd arg1 arg2, etc.
+
 	# Error messages are output as log_msg ERROR messages
 	# Or set error_silence=1 to output errors as log_msg DEBUG messages
 
-        local caller_id
+	local debug_msg=$1
+	local err_silence=$2
+        local cmd=$3
+
+	shift 3
+
+	local args=$@
+        
+	local caller_id
         local err_type
 
-        local cmd
         local ret
         local stderr
 
-        cmd=$1
-        shift 1
-        args=$@
-
-
         err_type="ERROR"
 
-	[[ -z $err_silence ]] && err_silence=0
-
         if (($err_silence)); then
-                log_msg "DEBUG" "debug_cmd: $cmd: invocation error silenced by request"
                 err_type="DEBUG"
-		unset err_silence
         fi
 
-        stderr=$($cmd $args 2>&1)
+	stderr=$($cmd $args 2>&1)
         ret=$?
-
+	
 	caller_id=$(caller)
 
 	if (($ret==0)); then
-                log_msg "DEBUG" "debug_cmd: $caller_id: SUCCESS: $cmd $@"
+                log_msg "DEBUG" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=SUCCESS"
         else
-           	log_msg "$err_type" "debug_cmd: $caller_id: FAILURE ($ret): $cmd $args"
-               	log_msg "$err_type" "debug_cmd: $caller_id: LAST ERROR ($stderr)"
+           	log_msg "$err_type" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=FAILURE ($ret)"
+               	log_msg "$err_type" "debug_cmd: LAST ERROR ($stderr)"
 		frame=1
 		caller_output=$(caller $frame)
 		while (($?==0))
 		do
-           		log_msg "$err_type" "debug_cmd: $caller_id: CALL CHAIN: $caller_output"
+           		log_msg "$err_type" "debug_cmd: CALL CHAIN: $caller_output"
 			((++frame))
 			caller_output=$(caller $frame)
 		done
