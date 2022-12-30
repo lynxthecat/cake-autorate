@@ -583,11 +583,11 @@ start_pinger()
 	
 	pinger_pids[$pinger]=$!
 	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
-	log_msg "DEBUG" "pinger process: $( cat /proc/${pinger_pids[$pinger]}/cmdline )"
+	log_process_cmdline pinger_pids[$pinger]
 
 	monitor_reflector_responses_$pinger_binary $pinger &
 	monitor_pids[$pinger]=$!
-	log_msg "DEBUG" "monitor process: $( cat /proc/${monitor_pids[$pinger]}/cmdline )"
+	log_process_cmdline monitor_pids[$pinger]
 }
 
 start_pingers()
@@ -626,7 +626,7 @@ log_process_cmdline()
 	declare -n process_pid=$1
 
 	read process_cmdline < /proc/$process_pid/cmdline
-	log_msg "DEBUG" "expected ${!process_pid} cmdline: $process_cmdline"
+	log_msg "DEBUG" "${!process_pid} cmdline: $process_cmdline"
 }
 
 kill_and_wait_by_pid()
