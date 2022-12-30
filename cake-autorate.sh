@@ -1480,8 +1480,7 @@ do
 	fi
 
 	# Initiate termination of ping processes and wait until complete
-	kill $maintain_pingers_pid 3>&2
-	wait $maintain_pingers_pid
+	kill_and_wait_by_pid maintain_pingers_pid 0
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
