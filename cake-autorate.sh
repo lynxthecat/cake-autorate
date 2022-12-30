@@ -27,24 +27,27 @@ cleanup_and_killall()
 	# See error_redirect() function definition below
 
 	if ! [[ -z $maintain_pingers_pid ]]; then
-		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
-		#log_msg_bypass_fifo "DEBUG" "maintain_pingers:$( tr -d '\0' < /proc/${maintain_pingers_pid}/cmdline )."
+		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}." 
+		#[ -d "/proc/${maintain_pingers_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_pingers:$( tr -d '\0' < /proc/${maintain_pingers_pid}/cmdline )."  
 		kill -USR1 $maintain_pingers_pid 2>&3
 		wait $maintain_pingers_pid 
+		maintain_pingers_pid=
 	fi
 	
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
-		#log_msg_bypass_fifo "DEBUG" "monitor_achieved_rates: $( tr -d '\0' < /proc/${monitor_achieved_rates_pid}/cmdline )."
+		#[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_msg_bypass_fifo "DEBUG" "monitor_achieved_rates_pid: $( tr -d '\0' < /proc/${monitor_achieved_rates_pid}/cmdline )." 
 		kill $monitor_achieved_rates_pid 2>&3
-		wait $monitor_achieved_rates_pid 
+		wait $monitor_achieved_rates_pid
+		monitor_achieved_rates_pid= 
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
-		#log_msg_bypass_fifo "DEBUG" "maintain_log_file: $( tr -d '\0' < /proc/${maintain_log_file_pid}/cmdline )."
+		#[ -d "/proc/${maintain_log_file_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_log_file: $( tr -d '\0' < /proc/${maintain_log_file_pid}/cmdline )." 
 		kill $maintain_log_file_pid 2>&3
 		wait $maintain_log_file_pid
+		maintain_log_file_pid=
 	fi
 
 	[[ -d $run_path ]] && rm -r $run_path
@@ -656,7 +659,10 @@ kill_and_wait_by_pid()
 	    else
 		log_msg "DEBUG" "expected ${NAME} process: ${PID_TO_KILL} does not exist, nothing to kill." 
 	    fi
-	    SILENCE_CMD=${SILENCE_CMD} cmd_wrapper "${CALLER_ID}_${NAME}" kill ${PID_TO_KILL} 
+#	    SILENCE_CMD=${SILENCE_CMD} cmd_wrapper "${CALLER_ID}_${NAME}" kill ${PID_TO_KILL} 
+	    
+	    debug_cmd kill ${PID_TO_KILL}
+	    
 	else
 	    log_msg "DEBUG" "pid_to_kill (${NAME}) is empty, nothing to kill" 	        
 	fi
@@ -680,11 +686,11 @@ kill_pinger()
 		;;
 	esac
 
-        kill_and_wait_by_pid ${pinger_pids[$pinger]} "pinger" "${FUNCNAME[0]}_pinger_PIDs" "$SILENCE_CMD"
+        kill_and_wait_by_pid "${pinger_pids[$pinger]}" "pinger" "${FUNCNAME[0]}_pinger_PIDs" "$SILENCE_CMD"
 	# to avoid passing the pid array to kill_and_wait_by_pid (and to keep that generic) clear this here
 	pinger_pids[$pinger]=
 
-        kill_and_wait_by_pid ${monitor_pids[$pinger]} "monitor" "${FUNCNAME[0]}_monitor_PIDs" "$SILENCE_CMD"
+        kill_and_wait_by_pid "${monitor_pids[$pinger]}" "monitor" "${FUNCNAME[0]}_monitor_PIDs" "$SILENCE_CMD"
 	# to avoid passing the pid array to kill_and_wait_by_pid (and to keep that generic) clear this here
 	monitor_pids[$pinger]=
 
@@ -1138,6 +1144,56 @@ cmd_wrapper()
     return $RET
 }
 
+debug_cmd()
+{
+    # Usage: debug_cmd cmd arguments
+    # Error messages are output as log_msg ERROR messages
+    # Or set error_silence=1 to output errors as log_msg DEBUG messages
+
+        local caller_id
+        local err_type
+
+        local cmd
+        local ret
+        local stderr
+
+        cmd=$1
+        shift 1
+        args=$@
+
+
+        err_type="ERROR"
+
+    [[ -z $err_silence ]] && err_silence=0
+
+        if (($err_silence)); then
+                log_msg "DEBUG" "debug_cmd: $cmd: invocation error silenced by request"
+                err_type="DEBUG"
+	unset err_silence
+        fi
+
+        stderr=$($cmd $args 2>&1)
+        ret=$?
+
+    caller_id=$(caller)
+
+    if (($ret==0)); then
+                log_msg "DEBUG" "debug_cmd: $caller_id: SUCCESS: $cmd $@"
+        else
+            log_msg "$err_type" "debug_cmd: $caller_id: FAILURE ($ret): $cmd $args"
+                log_msg "$err_type" "debug_cmd: $caller_id: LAST ERROR ($stderr)"
+	frame=1
+	caller_output=$(caller $frame)
+	while (($?==0))
+	do
+        	log_msg "$err_type" "debug_cmd: $caller_id: CALL CHAIN: $caller_output"
+	    ((++frame))
+	    caller_output=$(caller $frame)
+	done
+        fi
+}
+
+
 # END OF DEBUGGING ROUTINES
 
 # ======= Start of the Main Routine ========
@@ -1147,7 +1203,7 @@ cmd_wrapper()
 
 $( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once...
 
-syslog_DEBUG=0	# log DEBUG records into the system logfile
+syslog_DEBUG=1	# log DEBUG records into the system logfile
 SILENCE_CMD=0 # by default log command execution errors as ERRORs (if set to 1 these are demoted to DEBUG), note this is the base intialisation that will be overridden case by case
 TERMINATION_IN_PROCESS=0
 
@@ -1461,7 +1517,7 @@ do
 
 		# send signal USR2 to pause reflector maintenance
 		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
-		kill -USR2 $maintain_pingers_pid
+		kill -USR2 $maintain_pingers_pid 3>%2
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1479,7 +1535,7 @@ do
 
 				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
 				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
-				kill -USR2 $maintain_pingers_pid
+				kill -USR2 $maintain_pingers_pid 3>&2
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
@@ -1518,8 +1574,9 @@ do
 	fi
 
 	# Initiate termination of ping processes and wait until complete
-	kill $maintain_pingers_pid 3>&2
-	wait $maintain_pingers_pid
+	kill_and_wait_by_pid "${maintain_pingers_pid}" "maintain_pingers" "mainloop_maintain_pingers_PIDs" "0"  
+	#kill $maintain_pingers_pid 3>&2
+	#wait $maintain_pingers_pid
 	maintain_pingers_pid=	# let's not have this linger around with a stale value
 
 	# reset idle timer
