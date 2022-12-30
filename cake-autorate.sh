@@ -25,21 +25,21 @@ cleanup_and_killall()
 
 	if ! [[ -z $maintain_pingers_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
-		[ -d "/proc/${maintain_pingers_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_pingers_cmd: $( tr -d '\0' < /proc/${maintain_pingers_pid}/cmdline )."
+		[ -d "/proc/${maintain_pingers_pid}/" ] && log_process_cmdline maintain_pingers_pid
 		kill -USR1 $maintain_pingers_pid 
 		wait $maintain_pingers_pid 
 	fi
-	
+
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
-		#[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_msg_bypass_fifo "DEBUG" "monitor_achieved_rates_cmd: $( tr -d '\0' < /proc/${monitor_achieved_rates_pid}/cmdline )."
+		[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_process_cmdline monitor_achieved_rates_pid
 		kill $monitor_achieved_rates_pid 
 		wait $monitor_achieved_rates_pid 
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
 		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
-		#[ -d "/proc/${maintain_log_file_pid}/" ] && log_msg_bypass_fifo "DEBUG" "maintain_log_file_cmd: $( tr -d '\0' < /proc/${maintain_log_file_pid}/cmdline )."
+		[ -d "/proc/${maintain_log_file_pid}/" ] && log_process_cmdline maintain_log_file_pid
 		kill $maintain_log_file_pid
 		wait $maintain_log_file_pid
 	fi
@@ -621,22 +621,28 @@ sleep_until_next_pinger_time_slot()
 	sleep_remaining_tick_time $t_start_us $time_to_next_time_slot_us
 }
 
+log_process_cmdline()
+{
+	declare -n process_pid=$1
+
+	read process_cmdline < /proc/$process_pid/cmdline
+	log_msg "DEBUG" "expected ${!process_pid} cmdline: $process_cmdline"
+}
 
 kill_and_wait_by_pid()
 {
-	local pid=${!1}
-	local pid_name=$1
+	declare -n pid=$1
 	local err_silence=$2
 
 	if ! [[ -z $pid ]]; then
 	    if [ -d "/proc/$pid_to_kill" ] ; then
-		log_msg "DEBUG" "expected $pid_name process [PID CMD]: $( tr -d '\0' < /proc/$pid/cmdline )" 
+		log_process_cmdline pid
 	    else
-		log_msg "DEBUG" "expected $pid_name process: $pid does not exist - nothing to kill." 
+		log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
 	    fi
 	    debug_cmd kill $pid 
 	else
-	    log_msg "DEBUG" "pid ($pid_name) is empty, nothing to kill." 	        
+	    log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
 	fi
 
     wait $pid
@@ -1197,6 +1203,7 @@ if (($log_to_file)); then
 	exec {fd}<> $run_path/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
+	log_msg "DEBUG" "Started maintain log file process with pid=$maintain_log_file_pid"
 	rotate_log_file # rotate here to force header prints at top of log file
 	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
@@ -1310,6 +1317,8 @@ fi
 # Initiate achived rate monitor
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
+	
+log_msg "DEBUG" "Started monitor achieved rates process with pid=$monitor_achieved_rates_pid"
 
 printf '%s' "0" > $run_path/dl_load_percent
 printf '%s' "0" > $run_path/ul_load_percent
