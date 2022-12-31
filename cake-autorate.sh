@@ -53,7 +53,7 @@ log_msg()
 	local type=$1
 	local msg=$2
 	
-	[[ "$type" == "DEBUG" && "$debug" == "0" ]] && continue # skip over DEBUG messages where debug disabled 
+	[[ "$type" == "DEBUG" && "$debug" == "0" ]] && return # skip over DEBUG messages where debug disabled 
 	
 	log_timestamp=${EPOCHREALTIME}
 
