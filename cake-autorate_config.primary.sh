@@ -11,11 +11,12 @@ cake_autorate_version="1.2.0"
 
 # *** OUTPUT AND LOGGING OPTIONS ***
 
-output_processing_stats=1 # enable (1) or disable (0) output monitoring lines showing processing stats
-output_load_stats=1       # enable (1) or disable (0) output monitoring lines showing achieved loads
-output_reflector_stats=1  # enable (1) or disable (0) output monitoring lines showing reflector stats
-output_cake_changes=0     # enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
-debug=1 		  # enable (1) or disable (0) out of debug lines
+output_processing_stats=1 	# enable (1) or disable (0) output monitoring lines showing processing stats
+output_load_stats=1       	# enable (1) or disable (0) output monitoring lines showing achieved loads
+output_reflector_stats=1  	# enable (1) or disable (0) output monitoring lines showing reflector stats
+output_cake_changes=0     	# enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
+debug=1 		  	# enable (1) or disable (0) out of debug lines
+log_DEBUG_messages_to_syslog=1	# enable (1) or disable (0) logging of all DEBUG records into the system log, Please note this can be a LOT of records so be careful
 
 # ** Take care with these settings to ensure you won't run into OOM issues on your router ***
 # every write the cumulative write time and bytes associated with each log line are checked
