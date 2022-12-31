@@ -24,20 +24,20 @@ cleanup_and_killall()
 	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
 
 	if ! [[ -z $maintain_pingers_pid ]]; then
-		log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
+		(($debug)) && log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
 		[ -d "/proc/${maintain_pingers_pid}/" ] && log_process_cmdline maintain_pingers_pid
 		kill -USR1 $maintain_pingers_pid 
 		wait $maintain_pingers_pid
 	fi
 
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
-		log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
+		(($debug)) && log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_process_cmdline monitor_achieved_rates_pid
 		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
-		log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
+		(($debug)) && log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		[ -d "/proc/${maintain_log_file_pid}/" ] && log_process_cmdline maintain_log_file_pid
 		kill_and_wait_by_pid_name maintain_log_file_pid 0
 	fi
@@ -580,7 +580,7 @@ start_pinger()
 	esac
 	
 	pinger_pids[$pinger]=$!
-	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
+	(($debug)) && log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
 	log_process_cmdline pinger_pids[$pinger]
 
 	monitor_reflector_responses_$pinger_binary $pinger &
@@ -638,10 +638,10 @@ kill_and_wait_by_pid_name()
 	    		debug_cmd ${!pid} $err_silence kill $pid
 			wait $pid
 	    	else
-			log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
+			(($debug)) && log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
 	    	fi
 	else
-		log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
+		(($debug)) && log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
 	fi
 
 	# Reset pid
@@ -678,13 +678,13 @@ kill_pingers()
 	case $pinger_binary in
 
 		fping)
-			log_msg "DEBUG" "Killing fping instance."
+			(($debug)) && log_msg "DEBUG" "Killing fping instance."
 			kill_pinger 0
 		;;
 		ping)
 			for (( pinger=0; pinger<$no_pingers; pinger++))
 			do
-				log_msg "DEBUG" "Killing pinger instance: $pinger"
+				(($debug)) && log_msg "DEBUG" "Killing pinger instance: $pinger"
 				kill_pinger $pinger
 			done
 		;;
@@ -867,8 +867,8 @@ maintain_pingers()
 			
 			if ((reflector_offences[$reflector_offences_idx])); then 
 				((sum_reflector_offences[$pinger]++))
-				log_msg "DEBUG" "no ping response from reflector: ${reflectors[$pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
-				log_msg "DEBUG" "reflector=${reflectors[$pinger]}, sum_reflector_offences=$sum_reflector_offences and reflector_misbehaving_detection_thr=$reflector_misbehaving_detection_thr"
+				(($debug)) && log_msg "DEBUG" "no ping response from reflector: ${reflectors[$pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
+				(($debug)) && log_msg "DEBUG" "reflector=${reflectors[$pinger]}, sum_reflector_offences=$sum_reflector_offences and reflector_misbehaving_detection_thr=$reflector_misbehaving_detection_thr"
 			fi
 
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
@@ -883,7 +883,7 @@ maintain_pingers()
 		((reflector_offences_idx=(reflector_offences_idx+1)%$reflector_misbehaving_detection_window))
 	done
 
-	log_msg "DEBUG" "Reflector maintenance terminated."
+	(($debug)) && log_msg "DEBUG" "Reflector maintenance terminated."
 	kill_pingers
 }
 
@@ -907,7 +907,7 @@ set_cake_rate()
 		time_rate_set_us=${EPOCHREALTIME/./}
 
 	else
-		(($output_cake_changes)) && log_msg "DEBUG" "$adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
+		(($output_cake_changes)) && (($debug)) && log_msg "DEBUG" "$adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
 	fi
 }
 
@@ -978,8 +978,8 @@ concurrent_read_integer()
 		else
 			if (($debug)); then
 				read -r caller_output< <(caller)
-				log_msg "DEBUG" "concurrent_read_integer() misfire: $read_try of 10, with the following particulars:"
-				log_msg "DEBUG" "caller=$caller_output, value=$value and path=$path"
+				(($debug)) && log_msg "DEBUG" "concurrent_read_integer() misfire: $read_try of 10, with the following particulars:"
+				(($debug)) && log_msg "DEBUG" "caller=$caller_output, value=$value and path=$path"
 			fi 
 			sleep_us $concurrent_read_integer_interval_us
 			continue
@@ -988,7 +988,7 @@ concurrent_read_integer()
 	
 	if (($debug)); then
 		read -r caller_output< <(caller)
-		log_msg "DEBUG" "concurrent_read_integer() 10x misfires. Setting value to 0."
+		(($debug)) && log_msg "DEBUG" "concurrent_read_integer() 10x misfires. Setting value to 0."
 	fi 
 	value=0
 	false
@@ -1096,8 +1096,10 @@ debug_cmd()
 	caller_id=$(caller)
 
 	if (($ret==0)); then
-                log_msg "DEBUG" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=SUCCESS"
+                (($debug)) && log_msg "DEBUG" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=SUCCESS"
         else
+		[[ "$err_type" == "DEBUG" && "$debug" == "0" ]] && continue # if debug disabled, then skip on DEBUG but not on ERROR
+
            	log_msg "$err_type" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=FAILURE ($ret)"
                	log_msg "$err_type" "debug_cmd: LAST ERROR ($stderr)"
 		frame=1
@@ -1202,7 +1204,7 @@ if (($log_to_file)); then
 	exec {fd}<> $run_path/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
-	log_msg "DEBUG" "Started maintain log file process with pid=$maintain_log_file_pid"
+	(($debug)) && log_msg "DEBUG" "Started maintain log file process with pid=$maintain_log_file_pid"
 	rotate_log_file # rotate here to force header prints at top of log file
 	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
@@ -1317,7 +1319,7 @@ fi
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 	
-log_msg "DEBUG" "Started monitor achieved rates process with pid=$monitor_achieved_rates_pid"
+(($debug)) && log_msg "DEBUG" "Started monitor achieved rates process with pid=$monitor_achieved_rates_pid"
 
 printf '%s' "0" > $run_path/dl_load_percent
 printf '%s' "0" > $run_path/ul_load_percent
