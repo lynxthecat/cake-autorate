@@ -20,24 +20,24 @@ cleanup_and_killall()
 {	
 	trap - INT TERM EXIT
 
-	log_msg_bypass_fifo "INFO" ""
-	log_msg_bypass_fifo "INFO" "Killing all background processes and cleaning up temporary files."
+	log_msg "INFO" ""
+	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
 	if ! [[ -z $maintain_pingers_pid ]]; then
-		(($debug)) && log_msg_bypass_fifo "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
+		log_msg "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
 		[ -d "/proc/${maintain_pingers_pid}/" ] && log_process_cmdline maintain_pingers_pid
 		kill -USR1 $maintain_pingers_pid 
 		wait $maintain_pingers_pid
 	fi
 
 	if ! [[ -z $monitor_achieved_rates_pid ]]; then
-		(($debug)) && log_msg_bypass_fifo "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
+		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_process_cmdline monitor_achieved_rates_pid
 		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
 	fi
 
 	if ! [[ -z $maintain_log_file_pid ]]; then
-		(($debug)) && log_msg_bypass_fifo "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
+		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		[ -d "/proc/${maintain_log_file_pid}/" ] && log_process_cmdline maintain_log_file_pid
 		kill_and_wait_by_pid_name maintain_log_file_pid 0
 	fi
@@ -48,39 +48,28 @@ cleanup_and_killall()
 	exit
 }
 
-# Send message to fifo for sending to log file w/ log file rotation check
 log_msg()
 {
 	local type=$1
 	local msg=$2
 	
-	log_timestamp=${EPOCHREALTIME}
+	[[ "$type" == "DEBUG" && "$debug" == "0" ]] && continue # skip over DEBUG messages where debug disabled 
 	
-	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
+	log_timestamp=${EPOCHREALTIME}
+
+	# Output to the log fifo if available (for rotation handling)
+	# else output directly to the log file
+	if [[ -p $run_path/log_fifo ]]; then
+		(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
+	else
+        	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
+	fi
         
 	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
         
         [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
         
 	(($log_DEBUG_messages_to_syslog)) && [[ $type == "DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
-}
-
-# Send message directly to log file wo/ log file rotation check (e.g. before maintain_log_file() is up)
-log_msg_bypass_fifo()
-{
-	
-	local type=$1
-	local msg=$2
-
-	log_timestamp=${EPOCHREALTIME}
-	
-        (($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
-        
-	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
-
-        [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
-        
-	(($log_DEBUG_messages_to_sytlog)) && [[ $type == "DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
 }
 
 print_headers()
@@ -125,17 +114,17 @@ export_log_file()
 
 		default)
 			printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
-        		(($debug)) && log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
+        		log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
         		log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
         		;;
 
 		alternative)
-			(($debug)) && log_msg "DEBUG" "Exporting log file with alternative path: $log_file_export_alternative_path"
+			log_msg "DEBUG" "Exporting log file with alternative path: $log_file_export_alternative_path"
         		log_file_export_path=$log_file_export_alternative_path
 			;;
 
 		*)
-			(($debug)) && log_msg "DEBUG" "Unrecognised export type. Not exporting log file."
+			log_msg "DEBUG" "Unrecognised export type. Not exporting log file."
 			return
 		;;
 	esac
@@ -194,7 +183,7 @@ maintain_log_file()
 		# Verify log file time < configured maximum
 		if (( (${EPOCHREALTIME/./}-$t_log_file_start_us) > $log_file_max_time_us )); then
 
-			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
+			log_msg "DEBUG" "log file maximum time: $log_file_max_time_mins minutes has elapsed so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
 			log_file_size_bytes=0
@@ -202,7 +191,7 @@ maintain_log_file()
 
 		if (( $log_file_size_bytes > $log_file_max_size_bytes )); then
 			log_file_size_KB=$((log_file_size_bytes/1024))
-			(($debug)) && log_msg_bypass_fifo "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
+			log_msg "DEBUG" "log file size: $log_file_size_KB KB has exceeded configured maximum: $log_file_max_size_KB KB so rotating log file"
 			rotate_log_file
 			t_log_file_start_us=${EPOCHREALTIME/./}
 			log_file_size_bytes=0
@@ -580,7 +569,7 @@ start_pinger()
 	esac
 	
 	pinger_pids[$pinger]=$!
-	(($debug)) && log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
+	log_msg "DEBUG" "Started pinger $pinger with pid=${pinger_pids[$pinger]}"
 	log_process_cmdline pinger_pids[$pinger]
 
 	monitor_reflector_responses_$pinger_binary $pinger &
@@ -638,10 +627,10 @@ kill_and_wait_by_pid_name()
 	    		debug_cmd ${!pid} $err_silence kill $pid
 			wait $pid
 	    	else
-			(($debug)) && log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
+			log_msg "DEBUG" "expected ${!pid} process: $pid does not exist - nothing to kill." 
 	    	fi
 	else
-		(($debug)) && log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
+		log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
 	fi
 
 	# Reset pid
@@ -678,13 +667,13 @@ kill_pingers()
 	case $pinger_binary in
 
 		fping)
-			(($debug)) && log_msg "DEBUG" "Killing fping instance."
+			log_msg "DEBUG" "Killing fping instance."
 			kill_pinger 0
 		;;
 		ping)
 			for (( pinger=0; pinger<$no_pingers; pinger++))
 			do
-				(($debug)) && log_msg "DEBUG" "Killing pinger instance: $pinger"
+				log_msg "DEBUG" "Killing pinger instance: $pinger"
 				kill_pinger $pinger
 			done
 		;;
@@ -704,7 +693,7 @@ replace_pinger_reflector()
 	local pinger=$1
 
 	if(($no_reflectors>$no_pingers)); then
-		(($debug)) && log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
+		log_msg "DEBUG" "replacing reflector: ${reflectors[$pinger]} with ${reflectors[$no_pingers]}."
 		kill_pinger $pinger
 		bad_reflector=${reflectors[$pinger]}
 		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..$no_pingers-1)
@@ -718,7 +707,7 @@ replace_pinger_reflector()
 		# set up the new pinger with the new reflector and retain pid	
 		start_pinger $pinger
 	else
-		(($debug)) && log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
+		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[$pinger]}."
 		reflector_offences[$pinger]=0
 	fi
 }
@@ -777,7 +766,7 @@ maintain_pingers()
 
 		if((${EPOCHREALTIME/./}>($t_last_reflector_comparison_us+$reflector_replacement_interval_mins*60*1000000))); then
 	
-			(($debug)) && log_msg "DEBUG" "reflector: ${reflectors[$pinger]} randomly selected for replacement."
+			log_msg "DEBUG" "reflector: ${reflectors[$pinger]} randomly selected for replacement."
 			replace_pinger_reflector $(($RANDOM%$no_pingers))
 			t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 			continue
@@ -830,25 +819,25 @@ maintain_pingers()
 				fi
 
 				if (($dl_owd_baseline_delta_us>$reflector_owd_baseline_delta_thr_us)); then
-					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector $pinger
 					continue 2
 				fi
 
 				if (($dl_owd_delta_ewma_delta_us>$reflector_owd_delta_ewma_delta_thr_us)); then
-					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
 					replace_pinger_reflector $pinger
 					continue 2
 				fi
 				
 				if (($ul_owd_baseline_delta_us>$reflector_owd_baseline_delta_thr_us)); then
-					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector $pinger
 					continue 2
 				fi
 
 				if (($ul_owd_delta_ewma_delta_us>$reflector_owd_delta_ewma_delta_thr_us)); then
-					(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
 					replace_pinger_reflector $pinger
 					continue 2
 				fi
@@ -867,13 +856,13 @@ maintain_pingers()
 			
 			if ((reflector_offences[$reflector_offences_idx])); then 
 				((sum_reflector_offences[$pinger]++))
-				(($debug)) && log_msg "DEBUG" "no ping response from reflector: ${reflectors[$pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
-				(($debug)) && log_msg "DEBUG" "reflector=${reflectors[$pinger]}, sum_reflector_offences=$sum_reflector_offences and reflector_misbehaving_detection_thr=$reflector_misbehaving_detection_thr"
+				log_msg "DEBUG" "no ping response from reflector: ${reflectors[$pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
+				log_msg "DEBUG" "reflector=${reflectors[$pinger]}, sum_reflector_offences=$sum_reflector_offences and reflector_misbehaving_detection_thr=$reflector_misbehaving_detection_thr"
 			fi
 
 			if ((sum_reflector_offences[$pinger]>=$reflector_misbehaving_detection_thr)); then
 
-				(($debug)) && log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
+				log_msg "DEBUG" "Warning: reflector: ${reflectors[$pinger]} seems to be misbehaving."
 				replace_pinger_reflector $pinger
 
 				for ((i=0; i<$reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
@@ -883,7 +872,7 @@ maintain_pingers()
 		((reflector_offences_idx=(reflector_offences_idx+1)%$reflector_misbehaving_detection_window))
 	done
 
-	(($debug)) && log_msg "DEBUG" "Reflector maintenance terminated."
+	log_msg "DEBUG" "Reflector maintenance terminated."
 	kill_pingers
 }
 
@@ -907,7 +896,7 @@ set_cake_rate()
 		time_rate_set_us=${EPOCHREALTIME/./}
 
 	else
-		(($output_cake_changes)) && (($debug)) && log_msg "DEBUG" "$adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
+		(($output_cake_changes)) && log_msg "DEBUG" "$adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
 	fi
 }
 
@@ -978,8 +967,8 @@ concurrent_read_integer()
 		else
 			if (($debug)); then
 				read -r caller_output< <(caller)
-				(($debug)) && log_msg "DEBUG" "concurrent_read_integer() misfire: $read_try of 10, with the following particulars:"
-				(($debug)) && log_msg "DEBUG" "caller=$caller_output, value=$value and path=$path"
+				log_msg "DEBUG" "concurrent_read_integer() misfire: $read_try of 10, with the following particulars:"
+				log_msg "DEBUG" "caller=$caller_output, value=$value and path=$path"
 			fi 
 			sleep_us $concurrent_read_integer_interval_us
 			continue
@@ -988,7 +977,7 @@ concurrent_read_integer()
 	
 	if (($debug)); then
 		read -r caller_output< <(caller)
-		(($debug)) && log_msg "DEBUG" "concurrent_read_integer() 10x misfires. Setting value to 0."
+		log_msg "DEBUG" "concurrent_read_integer() 10x misfires. Setting value to 0."
 	fi 
 	value=0
 	false
@@ -1002,8 +991,8 @@ verify_ifs_up()
 
 	while [[ ! -f $rx_bytes_path || ! -f $tx_bytes_path ]]
 	do
-		(($debug)) && [[ ! -f $rx_bytes_path ]] && log_msg "DEBUG" "Warning: The configured download interface: '$dl_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
-		(($debug)) && [[ ! -f $tx_bytes_path ]] && log_msg "DEBUG" "Warning: The configured upload interface: '$ul_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
+		[[ ! -f $rx_bytes_path ]] && log_msg "DEBUG" "Warning: The configured download interface: '$dl_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
+		[[ ! -f $tx_bytes_path ]] && log_msg "DEBUG" "Warning: The configured upload interface: '$ul_if' does not appear to be present. Waiting $if_up_check_interval_s seconds for the interface to come up." 
 		sleep_s $if_up_check_interval_s
 	done
 }
@@ -1096,7 +1085,7 @@ debug_cmd()
 	caller_id=$(caller)
 
 	if (($ret==0)); then
-                (($debug)) && log_msg "DEBUG" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=SUCCESS"
+                log_msg "DEBUG" "debug_cmd: err_silence=$err_silence; debug_msg=$debug_msg; caller_id=$caller_id; command=$cmd $args; result=SUCCESS"
         else
 		[[ "$err_type" == "DEBUG" && "$debug" == "0" ]] && continue # if debug disabled, then skip on DEBUG but not on ERROR
 
@@ -1135,14 +1124,14 @@ else
 fi
 
 if [[ ! -f "$config_path" ]]; then
-	log_msg_bypass_fifo "ERROR" "No config file found. Exiting now."
+	log_msg "ERROR" "No config file found. Exiting now."
 	exit
 fi
 
 . $config_path
 
 if [[ $config_file_check != "cake-autorate" ]]; then
-	log_msg_bypass_fifo "ERROR" "Config file error. Please check config file entries." 
+	log_msg "ERROR" "Config file error. Please check config file entries." 
 	exit
 fi
 
@@ -1150,7 +1139,7 @@ if [[ $config_path =~ cake-autorate_config\.(.*)\.sh ]]; then
 	instance_id=${BASH_REMATCH[1]}
 	run_path=/var/run/cake-autorate/$instance_id
 else
-	log_msg_bypass_fifo "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
+	log_msg "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
 	exit
 fi
 
@@ -1160,7 +1149,7 @@ if [[ ! -z "$log_file_path_override" ]]; then
 	if [[ ! -d $log_file_path_override ]]; then
 		broken_log_file_path_override=$log_file_path_override
 		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
-		log_msg_bypass_fifo "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."
+		log_msg "ERROR" "Log file path override: '$broken_log_file_path_override' does not exist. Exiting now."
 		exit
 	fi
 	log_file_path=${log_file_path_override}/cake-autorate${instance_id:+.${instance_id}}.log
@@ -1171,7 +1160,7 @@ fi
 # $run_path/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d $run_path ]]; then
-        log_msg_bypass_fifo "ERROR" "$run_path already exists. Is another instance running? Exiting script."
+        log_msg "ERROR" "$run_path already exists. Is another instance running? Exiting script."
         trap - INT TERM EXIT
         exit
 else
@@ -1184,16 +1173,16 @@ exec {fd}<> $run_path/sleep_fifo
 no_reflectors=${#reflectors[@]} 
 
 # Check ping binary exists
-command -v "$pinger_binary" &> /dev/null || { log_msg_bypass_fifo "ERROR" "ping binary $ping_binary does not exist. Exiting script."; exit; }
+command -v "$pinger_binary" &> /dev/null || { log_msg "ERROR" "ping binary $ping_binary does not exist. Exiting script."; exit; }
 
 # Check no_pingers <= no_reflectors
-(( $no_pingers > $no_reflectors)) && { log_msg_bypass_fifo "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
+(( $no_pingers > $no_reflectors)) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
 
 # Check dl/if interface not the same
-[[ $dl_if == $ul_if ]] && { log_msg_bypass_fifo "ERROR" "download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
+[[ $dl_if == $ul_if ]] && { log_msg "ERROR" "download interface and upload interface are both set to: '$dl_if', but cannot be the same. Exiting script."; exit; }
 
 # Check bufferbloat detection threshold not greater than window length
-(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { log_msg_bypass_fifo "ERROR" "bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
+(( $bufferbloat_detection_thr > $bufferbloat_detection_window )) && { log_msg "ERROR" "bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
 # Passed error checks 
 
@@ -1204,7 +1193,7 @@ if (($log_to_file)); then
 	exec {fd}<> $run_path/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=$!
-	(($debug)) && log_msg "DEBUG" "Started maintain log file process with pid=$maintain_log_file_pid"
+	log_msg "DEBUG" "Started maintain log file process with pid=$maintain_log_file_pid"
 	rotate_log_file # rotate here to force header prints at top of log file
 	echo $maintain_log_file_pid > $run_path/maintain_log_file_pid
 fi
@@ -1308,7 +1297,7 @@ exec {fd}<> $run_path/ping_fifo
 
 # Wait if $startup_wait_s > 0
 if (($startup_wait_us>0)); then
-        (($debug)) && log_msg "DEBUG" "Waiting $startup_wait_s seconds before startup."
+        log_msg "DEBUG" "Waiting $startup_wait_s seconds before startup."
         sleep_us $startup_wait_us
 fi
 
@@ -1319,7 +1308,7 @@ fi
 monitor_achieved_rates $rx_bytes_path $tx_bytes_path $monitor_achieved_rates_interval_us&
 monitor_achieved_rates_pid=$!
 	
-(($debug)) && log_msg "DEBUG" "Started monitor achieved rates process with pid=$monitor_achieved_rates_pid"
+log_msg "DEBUG" "Started monitor achieved rates process with pid=$monitor_achieved_rates_pid"
 
 printf '%s' "0" > $run_path/dl_load_percent
 printf '%s' "0" > $run_path/ul_load_percent
@@ -1345,7 +1334,7 @@ do
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if ((($t_start_us - 10#"${timestamp//[.]}")>500000)); then
-			(($debug)) && log_msg "DEBUG" "processed response from [$reflector] that is > 500ms old. Skipping." 
+			log_msg "DEBUG" "processed response from [$reflector] that is > 500ms old. Skipping." 
 			continue
 		fi
 
@@ -1403,28 +1392,28 @@ do
 	if (( ${PIPESTATUS[0]} == 142 )); then
 
 
-		(($debug)) && log_msg "DEBUG" "Warning: no reflector response within: $stall_detection_timeout_s seconds. Checking for loads."
+		log_msg "DEBUG" "Warning: no reflector response within: $stall_detection_timeout_s seconds. Checking for loads."
 
 		get_loads
 
-		(($debug)) && log_msg "DEBUG" "load check is: (($dl_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps && $ul_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps))"
+		log_msg "DEBUG" "load check is: (($dl_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps && $ul_achieved_rate_kbps kbps > $connection_stall_thr_kbps kbps))"
 
 		# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 		# and therefore resume normal operation
 		if (($dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps )); then
 
-			(($debug)) && log_msg "DEBUG" "load above connection stall threshold so resuming normal operation."
+			log_msg "DEBUG" "load above connection stall threshold so resuming normal operation."
 			continue
 
 		fi
 
-		(($debug)) && log_msg "DEBUG" "Warning: connection stall detection. Waiting for new ping or increased load"
+		log_msg "DEBUG" "Warning: connection stall detection. Waiting for new ping or increased load"
 
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_integer initial_reflectors_last_timestamp_us $run_path/reflectors_last_timestamp_us
 
 		# send signal USR2 to pause reflector maintenance
-		(($debug)) && log_msg "DEBUG" "Pausing reflector health check."
+		log_msg "DEBUG" "Pausing reflector health check."
 		kill -USR2 $maintain_pingers_pid
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1439,10 +1428,10 @@ do
 
 			if (( $new_reflectors_last_timestamp_us != $initial_reflectors_last_timestamp_us || ( $dl_achieved_rate_kbps > $connection_stall_thr_kbps && $ul_achieved_rate_kbps > $connection_stall_thr_kbps) )); then
 
-				(($debug)) && log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
+				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
-				(($debug)) && log_msg "DEBUG" "Resuming reflector health check."
+				log_msg "DEBUG" "Resuming reflector health check."
 				kill -USR2 $maintain_pingers_pid
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
@@ -1453,24 +1442,20 @@ do
 
 			if (( $t_start_us > ($t_connection_stall_time_us + $global_ping_response_timeout_us - $stall_detection_timeout_us) )); then 
 		
-				if (($debug)); then
-					if (($min_shaper_rates_enforcement)); then
-						log_msg "DEBUG" "Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
-					else
-						log_msg "DEBUG" "Warning: Global ping response timeout. Waiting for minimum load." 
-					fi
+				if (($min_shaper_rates_enforcement)); then
+					log_msg "DEBUG" "Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
+				else
+					log_msg "DEBUG" "Warning: Global ping response timeout. Waiting for minimum load." 
 				fi
 				break
 			fi
 	        done	
 
 	else
-		if (($debug)); then
-			if (($min_shaper_rates_enforcement)); then
-				log_msg "DEBUG" "Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
-			else
-				log_msg "DEBUG" "Connection idle. Waiting for minimum load."
-			fi
+		if (($min_shaper_rates_enforcement)); then
+			log_msg "DEBUG" "Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
+		else
+			log_msg "DEBUG" "Connection idle. Waiting for minimum load."
 		fi
 	fi
 	
@@ -1497,7 +1482,7 @@ do
 		get_loads
 
 		if ((10#${dl_achieved_rate_kbps}>$connection_active_thr_kbps || 10#${ul_achieved_rate_kbps}>$connection_active_thr_kbps)); then
-			(($debug)) && log_msg "DEBUG" "dl achieved rate: $dl_achieved_rate_kbps kbps or ul achieved rate: $ul_achieved_rate_kbps kbps exceeded connection active threshold: $connection_active_thr_kbps kbps. Resuming normal operation."
+			log_msg "DEBUG" "dl achieved rate: $dl_achieved_rate_kbps kbps or ul achieved rate: $ul_achieved_rate_kbps kbps exceeded connection active threshold: $connection_active_thr_kbps kbps. Resuming normal operation."
 			break 
 		fi
 		sleep_remaining_tick_time $t_start_us $reflector_ping_interval_us
