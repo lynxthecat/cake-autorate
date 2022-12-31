@@ -11,23 +11,20 @@ kill_cake_instances()
 {
 	trap - INT TERM EXIT
 
-COUNT=0
-for cake_instance in "${cake_instances[@]}"
-do
-	echo "Killing all instances of cake one-by-one now:."
-	out_string="INFO: ${EPOCHREALTIME} terminating ${cake_instance_list[${COUNT}]}"
-	echo ${out_string}
-	# it is quite helpful to have a start marker per utorate instance in the system log
-	(( ${use_logger} )) && logger -t "cake-autorate_launcher" "${out_string}"
-	kill ${cake_instance_pids[${COUNT}]}
-	wait ${cake_instance_pids[${COUNT}]}
-	COUNT+=1
-done
+	echo "Killing all instances of cake one-by-one now."
+
+	for ((cake_instance=0; cake_instance<${#cake_instances[@]}; cake_instance++))
+	do
+		out_string="INFO: ${EPOCHREALTIME} terminating ${cake_instance_list[${cake_instance}]}"
+		echo ${out_string}
+		# it is quite helpful to have a start marker per autorate instance in the system log
+		(( ${use_logger} )) && logger -t "cake-autorate_launcher" "${out_string}"
+		kill ${cake_instance_pids[${cake_instance}]}
+		wait ${cake_instance_pids[${cake_instance}]}
+	done
 	kill ${sleep_pid}
 	exit
 }
-
-cake_instance_pids=()
 
 for cake_instance in "${cake_instances[@]}"
 do
