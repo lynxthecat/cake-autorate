@@ -6,12 +6,6 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
-## Unreleased - Version 1.2
-
-- Many adjustments to the underlying code (what?)
-- Many tweaks to plotting code (what?)
-- What else?
-
 ## 2022-09-28 - Version 1.1
 
 Implemented several new features such as:
