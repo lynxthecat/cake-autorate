@@ -19,7 +19,9 @@ trap cleanup_and_killall INT TERM EXIT
 cleanup_and_killall()
 {	
 	trap - INT TERM EXIT
-
+	
+	(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopping cake-autorate with config: ${config_path}"
+	
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
@@ -52,24 +54,31 @@ log_msg()
 {
 	local type=$1
 	local msg=$2
-	
-	[[ "$type" == "DEBUG" && "$debug" == "0" ]] && return # skip over DEBUG messages where debug disabled 
-	
+
 	log_timestamp=${EPOCHREALTIME}
 
-	# Output to the log fifo if available (for rotation handling)
-	# else output directly to the log file
-	if [[ -p $run_path/log_fifo ]]; then
-		(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
-	else
-        	(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
-	fi
+	case $type in
+
+		DEBUG)
+			[[ "$debug" == "0" ]] && return # skip over DEBUG messages where debug disabled 
+			(($log_DEBUG_messages_to_syslog)) && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+			;;&
+	
+        	ERROR)
+			(($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+			;;&
+		*)
+			# Output to the log fifo if available (for rotation handling)
+			# else output directly to the log file
+			if [[ -p $run_path/log_fifo ]]; then
+				(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
+			else
+       		 		(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
+			fi
         
-	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
-        
-        [[ $type == "ERROR" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
-        
-	(($log_DEBUG_messages_to_syslog)) && [[ $type == "DEBUG" ]] && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
+			(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
+	esac
+			
 }
 
 print_headers()
@@ -216,11 +225,11 @@ get_next_shaper_rate()
 
 		# upload Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
 		ul*sss)
-				shaper_rate_kbps=$min_shaper_rate_kbps
+			shaper_rate_kbps=$min_shaper_rate_kbps
 			;;
 		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
-				shaper_rate_kbps=$(( $shaper_rate_kbps > $base_shaper_rate_kbps ? $base_shaper_rate_kbps : $shaper_rate_kbps))
+			shaper_rate_kbps=$(( $shaper_rate_kbps > $base_shaper_rate_kbps ? $base_shaper_rate_kbps : $shaper_rate_kbps))
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
@@ -1143,7 +1152,7 @@ else
 	exit
 fi
 
-(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config ${config_path}"
+(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config: ${config_path}"
 
 if [[ ! -z "$log_file_path_override" ]]; then 
 	if [[ ! -d $log_file_path_override ]]; then
