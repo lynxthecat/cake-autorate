@@ -55,30 +55,32 @@ log_msg()
 	local type=$1
 	local msg=$2
 
-	log_timestamp=${EPOCHREALTIME}
-
 	case $type in
 
 		DEBUG)
 			[[ "$debug" == "0" ]] && return # skip over DEBUG messages where debug disabled 
+			log_timestamp=${EPOCHREALTIME}
 			(($log_DEBUG_messages_to_syslog)) && (($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
-			;;&
+			;;
 	
         	ERROR)
+			log_timestamp=${EPOCHREALTIME}
 			(($use_logger)) && logger -t "cake-autorate" "$type: $log_timestamp $msg"
-			;;&
+			;;
 		*)
-			# Output to the log fifo if available (for rotation handling)
-			# else output directly to the log file
-			if [[ -p $run_path/log_fifo ]]; then
-				(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
-			else
-       		 		(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
-			fi
-        
-			(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
+			log_timestamp=${EPOCHREALTIME}
+			;;
 	esac
 			
+	# Output to the log fifo if available (for rotation handling)
+	# else output directly to the log file
+	if [[ -p $run_path/log_fifo ]]; then
+		(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" > $run_path/log_fifo
+	else
+       		(($log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg" >> $log_file_path
+	fi
+        
+	(($terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "$type" -1 "${log_timestamp}" "$msg"
 }
 
 print_headers()
