@@ -47,6 +47,7 @@ cleanup_and_killall()
 	[[ -d ${run_path} ]] && rm -r ${run_path}
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 
+	(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopped cake-autorate with config: ${config_path}"
 	exit
 }
 
@@ -159,6 +160,7 @@ export_log_file()
 kill_maintain_log_file()
 {
 	trap - TERM EXIT
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
 	while read -t 0.1 log_line
 	do
 		printf '%s\n' "${log_line}" >> ${log_file_path}		
@@ -176,6 +178,7 @@ maintain_log_file()
 
 	t_log_file_start_us=${EPOCHREALTIME/./}
 	log_file_size_bytes=0
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
 
 	while read log_line
 	do
@@ -282,6 +285,9 @@ monitor_achieved_rates()
 
 	[[ -f ${rx_bytes_path} ]] && { read -r prev_rx_bytes < ${rx_bytes_path}; } 2> /dev/null || prev_rx_bytes=0
         [[ -f ${tx_bytes_path} ]] && { read -r prev_tx_bytes < ${tx_bytes_path}; } 2> /dev/null || prev_tx_bytes=0
+
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
+
 
 	while true
 	do
@@ -394,6 +400,8 @@ monitor_reflector_responses_fping()
 
 	t_start_us=${EPOCHREALTIME/./}
 
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
+
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<${no_reflectors}; reflector++ ))
 	do
@@ -484,6 +492,8 @@ monitor_reflector_responses_ping()
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
 	local pinger=${1}
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
+
 
 	if [[ -f ${run_path}/reflector_${reflectors[${pinger}]//./-}_baseline_us ]]; then
 			read rtt_baseline_us < ${run_path}/reflector_${reflectors[${pinger}]//./-}_baseline_us
@@ -749,6 +759,8 @@ maintain_pingers()
 	t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 	t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
+
 	for ((reflector=0; reflector<${no_reflectors}; reflector++))
 	do
 		printf '%s' "${pingers_t_start_us}" > ${run_path}/reflector_${reflectors[${reflector}]//./-}_last_timestamp_us
@@ -1000,6 +1012,7 @@ verify_ifs_up()
 {
 	# Check the rx/tx paths exist and give extra time for ifb's to come up if needed
 	# This will block if ifs never come up
+	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
 
 	while [[ ! -f ${rx_bytes_path} || ! -f ${tx_bytes_path} ]]
 	do
@@ -1327,6 +1340,8 @@ printf '%s' "0" > ${run_path}/ul_load_percent
 
 maintain_pingers&
 maintain_pingers_pid=${!}
+log_msg "DEBUG" "main pre-loop: maintain_pingers_pid: $[maintain_pingers_pid]"
+
 
 if ((${debug})); then
 	if (( ${bufferbloat_refractory_period_us} < (${bufferbloat_detection_window}*${ping_response_interval_us}) )); then
@@ -1425,7 +1440,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us ${run_path}/reflectors_last_timestamp_us
 
 		# send signal USR2 to pause reflector maintenance
-		log_msg "DEBUG" "Pausing reflector health check."
+		log_msg "DEBUG" "Pausing reflector health check (SIGUSR2)."
 		kill -USR2 ${maintain_pingers_pid}
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1443,7 +1458,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
-				log_msg "DEBUG" "Resuming reflector health check."
+				log_msg "DEBUG" "Resuming reflector health check (SIGUSR2)."
 				kill -USR2 ${maintain_pingers_pid}
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
@@ -1503,4 +1518,5 @@ do
 	# Start up ping processes
 	maintain_pingers&
 	maintain_pingers_pid=${!}
+	log_msg "DEBUG" "main loop: maintain_pingers_pid: $[maintain_pingers_pid]"
 done
