@@ -47,6 +47,7 @@ cleanup_and_killall()
 	[[ -d ${run_path} ]] && rm -r ${run_path}
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 
+	(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopped cake-autorate with config: ${config_path}"
 	exit
 }
 
