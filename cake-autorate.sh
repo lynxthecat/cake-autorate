@@ -60,12 +60,12 @@ log_msg()
 		DEBUG)
 			[[ "${debug}" == "0" ]] && return # skip over DEBUG messages where debug disabled 
 			log_timestamp=${EPOCHREALTIME}
-			((${log_DEBUG_messages_to_syslog})) && ((${use_logger})) && logger -t "cake-autorate" "${type}: ${log_timestamp} ${msg}"
+			((${log_DEBUG_messages_to_syslog})) && ((${use_logger})) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 	
         	ERROR)
 			log_timestamp=${EPOCHREALTIME}
-			((${use_logger})) && logger -t "cake-autorate" "${type}: ${log_timestamp} ${msg}"
+			((${use_logger})) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 		*)
 			log_timestamp=${EPOCHREALTIME}
