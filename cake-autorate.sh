@@ -160,7 +160,7 @@ export_log_file()
 kill_maintain_log_file()
 {
 	trap - TERM EXIT
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	while read -t 0.1 log_line
 	do
 		printf '%s\n' "${log_line}" >> ${log_file_path}		
@@ -176,9 +176,11 @@ maintain_log_file()
 	trap 'export_log_file "default"' USR1
 	trap 'export_log_file "alternative"' USR2
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	t_log_file_start_us=${EPOCHREALTIME/./}
+
 	log_file_size_bytes=0
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
 
 	while read log_line
 	do
@@ -281,13 +283,12 @@ monitor_achieved_rates()
 	local tx_bytes_path=${2}
 	local monitor_achieved_rates_interval_us=${3} # (microseconds)
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	compensated_monitor_achieved_rates_interval_us=${monitor_achieved_rates_interval_us}
 
 	[[ -f ${rx_bytes_path} ]] && { read -r prev_rx_bytes < ${rx_bytes_path}; } 2> /dev/null || prev_rx_bytes=0
         [[ -f ${tx_bytes_path} ]] && { read -r prev_tx_bytes < ${tx_bytes_path}; } 2> /dev/null || prev_tx_bytes=0
-
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
-
 
 	while true
 	do
@@ -395,12 +396,12 @@ monitor_reflector_responses_fping()
 	trap '' INT
 	trap kill_monitor_reflector_responses_fping TERM EXIT		
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	declare -A rtt_baselines_us
 	declare -A rtt_delta_ewmas_us
 
 	t_start_us=${EPOCHREALTIME/./}
-
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
 
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<${no_reflectors}; reflector++ ))
@@ -492,8 +493,8 @@ monitor_reflector_responses_ping()
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
 	local pinger=${1}
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
-
+	
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	if [[ -f ${run_path}/reflector_${reflectors[${pinger}]//./-}_baseline_us ]]; then
 			read rtt_baseline_us < ${run_path}/reflector_${reflectors[${pinger}]//./-}_baseline_us
@@ -743,6 +744,8 @@ maintain_pingers()
 	trap 'err_silence=1; terminate_reflector_maintenance=1' USR1
 	trap '((pause_reflector_maintenance^=1))' USR2
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	declare -A dl_owd_baselines_us
 	declare -A ul_owd_baselines_us
 	declare -A dl_owd_delta_ewmas_us
@@ -759,7 +762,6 @@ maintain_pingers()
 	t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 	t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
 
 	for ((reflector=0; reflector<${no_reflectors}; reflector++))
 	do
@@ -1012,7 +1014,7 @@ verify_ifs_up()
 {
 	# Check the rx/tx paths exist and give extra time for ifb's to come up if needed
 	# This will block if ifs never come up
-	log_msg "DEBUG" "${FUNCNAME[0]}: Starting up... PID: ${BASHPID}"
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	while [[ ! -f ${rx_bytes_path} || ! -f ${tx_bytes_path} ]]
 	do
