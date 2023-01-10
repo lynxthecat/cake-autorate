@@ -682,8 +682,6 @@ kill_pinger()
 
 kill_pingers()
 {
-	trap - TERM EXIT
-	
 	case ${pinger_binary} in
 
 		fping)
@@ -698,7 +696,6 @@ kill_pingers()
 			done
 		;;
 	esac
-	exit
 }
 
 replace_pinger_reflector()
@@ -711,6 +708,9 @@ replace_pinger_reflector()
 	# and finally the indices for ${reflectors} are updated to reflect the new order
 	
 	local pinger=${1}
+
+	flock ${replace_pinger_lock}
+	log_msg "DEBUG" "Acquired replace_pinger_lock."
 
 	if((${no_reflectors} > ${no_pingers})); then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[${pinger}]} with ${reflectors[${no_pingers}]}."
@@ -730,18 +730,34 @@ replace_pinger_reflector()
 		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[${pinger}]}."
 		reflector_offences[${pinger}]=0
 	fi
+
+	flock -u ${replace_pinger_lock}
+	log_msg "DEBUG" "Released replace_pinger_lock."
 }
 
 # END OF GENERIC PINGER START AND STOP FUNCTIONS
+
+kill_maintain_pingers()
+{
+	trap - TERM EXIT
+
+	log_msg "DEBUG" "Terminating maintain_pingers."
+	flock ${replace_pinger_lock}
+	log_msg "DEBUG" "Acquired replace_pinger_lock."
+	kill_pingers
+	flock -u ${replace_pinger_lock}
+	log_msg "DEBUG" "Released replace_pinger_lock."
+	exit
+}
 
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap '' INT
-	trap 'terminate_reflector_maintenance=1' TERM EXIT
+	trap 'kill_maintain_pingers' TERM EXIT
 
-	trap 'err_silence=1; terminate_reflector_maintenance=1' USR1
+	trap 'err_silence=1; kill_maintain_pingers' USR1
 	trap '((pause_reflector_maintenance^=1))' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
@@ -754,7 +770,6 @@ maintain_pingers()
 	err_silence=0
 
 	pause_reflector_maintenance=0
-	terminate_reflector_maintenance=0
 
 	reflector_offences_idx=0
 
@@ -781,7 +796,7 @@ maintain_pingers()
 	start_pingers
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
-	while ((${terminate_reflector_maintenance}==0))
+	while true
 	do
 		sleep_s ${reflector_health_check_interval_s}
 
@@ -894,9 +909,6 @@ maintain_pingers()
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%${reflector_misbehaving_detection_window}))
 	done
-
-	log_msg "DEBUG" "Reflector maintenance terminated."
-	kill_pingers
 }
 
 set_cake_rate()
@@ -1319,32 +1331,6 @@ delays_idx=0
 sum_dl_delays=0
 sum_ul_delays=0
 
-mkfifo ${run_path}/ping_fifo
-exec {fd}<> ${run_path}/ping_fifo
-
-# Wait if ${startup_wait_s} > 0
-if ((${startup_wait_us}>0)); then
-        log_msg "DEBUG" "Waiting ${startup_wait_s} seconds before startup."
-        sleep_us ${startup_wait_us}
-fi
-
-# Randomize reflectors array providing randomize_reflectors set to 1
-((${randomize_reflectors})) && randomize_array reflectors
-
-# Initiate achived rate monitor
-monitor_achieved_rates ${rx_bytes_path} ${tx_bytes_path} ${monitor_achieved_rates_interval_us}&
-monitor_achieved_rates_pid=${!}
-	
-log_msg "DEBUG" "Started monitor achieved rates process with pid=${monitor_achieved_rates_pid}"
-
-printf '%s' "0" > ${run_path}/dl_load_percent
-printf '%s' "0" > ${run_path}/ul_load_percent
-
-maintain_pingers&
-maintain_pingers_pid=${!}
-log_msg "DEBUG" "main pre-loop: maintain_pingers_pid: $[maintain_pingers_pid]"
-
-
 if ((${debug})); then
 	if (( ${bufferbloat_refractory_period_us} < (${bufferbloat_detection_window}*${ping_response_interval_us}) )); then
 		log_msg "DEBUG" "Warning: bufferbloat refractory period: ${bufferbloat_refractory_period_us} us."
@@ -1356,6 +1342,35 @@ if ((${debug})); then
 		log_msg "DEBUG" "Warning: consider setting an increased reflector_response_deadline."
 	fi
 fi
+
+# Randomize reflectors array providing randomize_reflectors set to 1
+((${randomize_reflectors})) && randomize_array reflectors
+
+# Wait if ${startup_wait_s} > 0
+if ((${startup_wait_us}>0)); then
+        log_msg "DEBUG" "Waiting ${startup_wait_s} seconds before startup."
+        sleep_us ${startup_wait_us}
+fi
+
+# Initiate achived rate monitor
+monitor_achieved_rates ${rx_bytes_path} ${tx_bytes_path} ${monitor_achieved_rates_interval_us}&
+monitor_achieved_rates_pid=${!}
+	
+log_msg "DEBUG" "Started monitor achieved rates process with pid=${monitor_achieved_rates_pid}"
+
+printf '%s' "0" > ${run_path}/dl_load_percent
+printf '%s' "0" > ${run_path}/ul_load_percent
+
+mkfifo ${run_path}/ping_fifo
+exec {fd}<> ${run_path}/ping_fifo
+
+# flock ${replace_pinger_lock} and flock -u ${replace_pinger_lock}
+# to provide exclusive access and free up again
+exec {replace_pinger_lock}>${run_path}/replace_pinger_lock
+
+maintain_pingers&
+maintain_pingers_pid=${!}
+log_msg "DEBUG" "main pre-loop: maintain_pingers_pid: $[maintain_pingers_pid]"
 
 while true
 do
