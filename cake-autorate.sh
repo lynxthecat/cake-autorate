@@ -597,24 +597,6 @@ start_pinger()
 	log_process_cmdline monitor_pids[${pinger}]
 }
 
-start_pingers()
-{
-	# Initiate pingers
-
-	case ${pinger_binary} in
-
-		fping)
-			start_pinger 0
-		;;
-		ping)
-			for ((pinger=0; pinger<${no_pingers}; pinger++))
-			do
-				start_pinger ${pinger}
-			done
-		;;
-	esac
-}
-
 sleep_until_next_pinger_time_slot()
 {
 	# wait until next pinger time slot and start pinger in its slot
@@ -792,7 +774,19 @@ maintain_pingers()
                 sum_reflector_offences[${pinger}]=0
         done
 
-	start_pingers
+	# Initiate pingers
+	case ${pinger_binary} in
+
+		fping)
+			start_pinger 0
+		;;
+		ping)
+			for ((pinger=0; pinger<${no_pingers}; pinger++))
+			do
+				start_pinger ${pinger}
+			done
+		;;
+	esac
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
