@@ -680,24 +680,6 @@ kill_pinger()
 	[[ -p ${run_path}/pinger_${pinger}_fifo ]] && rm ${run_path}/pinger_${pinger}_fifo
 }
 
-kill_pingers()
-{
-	case ${pinger_binary} in
-
-		fping)
-			log_msg "DEBUG" "Killing fping instance."
-			kill_pinger 0
-		;;
-		ping)
-			for (( pinger=0; pinger<${no_pingers}; pinger++))
-			do
-				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
-				kill_pinger ${pinger}
-			done
-		;;
-	esac
-}
-
 replace_pinger_reflector()
 {
 	# pingers always use reflectors[0]..[${no_pingers}-1] as the initial set
@@ -742,11 +724,28 @@ kill_maintain_pingers()
 	trap - TERM EXIT
 
 	log_msg "DEBUG" "Terminating maintain_pingers."
+
 	flock ${replace_pinger_lock}
 	log_msg "DEBUG" "Acquired replace_pinger_lock."
-	kill_pingers
+	
+	case ${pinger_binary} in
+
+		fping)
+			log_msg "DEBUG" "Killing fping instance."
+			kill_pinger 0
+		;;
+		ping)
+			for (( pinger=0; pinger<${no_pingers}; pinger++))
+			do
+				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
+				kill_pinger ${pinger}
+			done
+		;;
+	esac
+
 	flock -u ${replace_pinger_lock}
 	log_msg "DEBUG" "Released replace_pinger_lock."
+
 	exit
 }
 
