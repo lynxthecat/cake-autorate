@@ -20,7 +20,7 @@ cleanup_and_killall()
 {	
 	trap - INT TERM EXIT
 	
-	(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopping cake-autorate with config: ${config_path}"
+	((use_logger)) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopping cake-autorate with config: ${config_path}"
 	
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
@@ -47,7 +47,7 @@ cleanup_and_killall()
 	[[ -d ${run_path} ]] && rm -r ${run_path}
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 
-	(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopped cake-autorate with config: ${config_path}"
+	((use_logger)) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopped cake-autorate with config: ${config_path}"
 	exit
 }
 
@@ -61,12 +61,12 @@ log_msg()
 		DEBUG)
 			[[ "${debug}" == "0" ]] && return # skip over DEBUG messages where debug disabled 
 			log_timestamp=${EPOCHREALTIME}
-			((${log_DEBUG_messages_to_syslog})) && ((${use_logger})) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
+			((log_DEBUG_messages_to_syslog)) && ((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 	
         	ERROR)
 			log_timestamp=${EPOCHREALTIME}
-			((${use_logger})) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
+			((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 		*)
 			log_timestamp=${EPOCHREALTIME}
@@ -76,27 +76,27 @@ log_msg()
 	# Output to the log fifo if available (for rotation handling)
 	# else output directly to the log file
 	if [[ -p ${run_path}/log_fifo ]]; then
-		((${log_to_file})) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" > ${run_path}/log_fifo
+		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" > ${run_path}/log_fifo
 	else
-       		((${log_to_file})) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> ${log_file_path}
+       		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> ${log_file_path}
 	fi
         
-	((${terminal})) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
+	((terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
 }
 
 print_headers()
 {
 	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
- 	((${log_to_file})) && printf '%s\n' "${header}" > ${run_path}/log_fifo
- 	((${terminal})) && printf '%s\n' "${header}"
+ 	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
+ 	((terminal)) && printf '%s\n' "${header}"
 
 	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
- 	((${log_to_file})) && printf '%s\n' "${header}" > ${run_path}/log_fifo
- 	((${terminal})) && printf '%s\n' "${header}"
+ 	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
+ 	((terminal)) && printf '%s\n' "${header}"
 
 	header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; DL_MIN_BASELINE_US; DL_BASELINE_US; DL_BASELINE_DELTA_US; DL_BASELINE_DELTA_THR_US; DL_MIN_DELTA_EWMA_US; DL_DELTA_EWMA_US; DL_DELTA_EWMA_DELTA_US; DL_DELTA_EWMA_DELTA_THR; UL_MIN_BASELINE_US; UL_BASELINE_US; UL_BASELINE_DELTA_US; UL_BASELINE_DELTA_THR_US; UL_MIN_DELTA_EWMA_US; UL_DELTA_EWMA_US; UL_DELTA_EWMA_DELTA_US; UL_DELTA_EWMA_DELTA_THR"
- 	((${log_to_file})) && printf '%s\n' "${header}" > ${run_path}/log_fifo
- 	((${terminal})) && printf '%s\n' "${header}"
+ 	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
+ 	((terminal)) && printf '%s\n' "${header}"
 }
 
 ewma_iteration()
@@ -105,7 +105,7 @@ ewma_iteration()
 	local alpha=${2} # alpha must be scaled by factor of 1000000
 	local -n ewma=${3}
 
-	ewma=$(( (${alpha}*${value}+(1000000-${alpha})*${ewma})/1000000 ))
+	ewma=$(( (alpha*value+(1000000-alpha)*ewma)/1000000 ))
 }
 
 # MAINTAIN_LOG_FILE + HELPER FUNCTIONS
@@ -113,7 +113,7 @@ ewma_iteration()
 rotate_log_file()
 {
 	[[ -f ${log_file_path} ]] && mv ${log_file_path} ${log_file_path}.old
-	((${output_processing_stats})) && print_headers
+	((output_processing_stats)) && print_headers
 }
 
 export_log_file()
@@ -140,7 +140,7 @@ export_log_file()
 	esac
 
 	# Now export with or without compression to the appropriate export path
-	if ((${log_file_export_compress})); then
+	if ((log_file_export_compress)); then
 		if [[ -f ${log_file_path}.old ]]; then 
 			gzip -c ${log_file_path}.old > ${log_file_export_path}.gz
 			gzip -c ${log_file_path} >> ${log_file_export_path}.gz
@@ -195,7 +195,7 @@ maintain_log_file()
 		((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
 
 		# Verify log file time < configured maximum
-		if (( (${EPOCHREALTIME/./}-${t_log_file_start_us}) > ${log_file_max_time_us} )); then
+		if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us )); then
 
 			log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so rotating log file"
 			rotate_log_file
@@ -203,7 +203,7 @@ maintain_log_file()
 			log_file_size_bytes=0
 		fi
 
-		if (( ${log_file_size_bytes} > ${log_file_max_size_bytes} )); then
+		if (( log_file_size_bytes > log_file_max_size_bytes )); then
 			log_file_size_KB=$((log_file_size_bytes/1024))
 			log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so rotating log file"
 			rotate_log_file
@@ -234,33 +234,33 @@ get_next_shaper_rate()
 			;;
 		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
-			shaper_rate_kbps=$(( ${shaper_rate_kbps} > ${base_shaper_rate_kbps} ? ${base_shaper_rate_kbps} : ${shaper_rate_kbps}))
+			shaper_rate_kbps=$(( shaper_rate_kbps > base_shaper_rate_kbps ? base_shaper_rate_kbps : shaper_rate_kbps ))
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
-			if (( ${t_next_rate_us} > (${t_last_bufferbloat_us}+${bufferbloat_refractory_period_us}) )); then
-				adjusted_achieved_rate_kbps=$(( (${achieved_rate_kbps}*${achieved_rate_adjust_down_bufferbloat})/1000 )) 
-				adjusted_shaper_rate_kbps=$(( (${shaper_rate_kbps}*${shaper_rate_adjust_down_bufferbloat})/1000 )) 
-				shaper_rate_kbps=$(( ${adjusted_achieved_rate_kbps} > ${min_shaper_rate_kbps} && ${adjusted_achieved_rate_kbps} < ${adjusted_shaper_rate_kbps} ? ${adjusted_achieved_rate_kbps} : ${adjusted_shaper_rate_kbps} ))
+			if (( t_next_rate_us > (t_last_bufferbloat_us+bufferbloat_refractory_period_us) )); then
+				adjusted_achieved_rate_kbps=$(( (achieved_rate_kbps*achieved_rate_adjust_down_bufferbloat)/1000 )) 
+				adjusted_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_down_bufferbloat)/1000 )) 
+				shaper_rate_kbps=$(( adjusted_achieved_rate_kbps > min_shaper_rate_kbps && adjusted_achieved_rate_kbps < adjusted_shaper_rate_kbps ? adjusted_achieved_rate_kbps : adjusted_shaper_rate_kbps ))
 				t_last_bufferbloat_us=${EPOCHREALTIME/./}
 			fi
 			;;
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		*high*)	
-			if (( ${t_next_rate_us} > (${t_last_bufferbloat_us}+${bufferbloat_refractory_period_us}) )); then
-				shaper_rate_kbps=$(( (${shaper_rate_kbps}*${shaper_rate_adjust_up_load_high})/1000 ))
+			if (( t_next_rate_us > (t_last_bufferbloat_us+bufferbloat_refractory_period_us) )); then
+				shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		*low*|*idle*)
-			if ((${t_next_rate_us} > (${t_last_decay_us}+${decay_refractory_period_us}) )); then
+			if (( t_next_rate_us > (t_last_decay_us+decay_refractory_period_us) )); then
 
-	                	if ((${shaper_rate_kbps} > ${base_shaper_rate_kbps})); then
-					decayed_shaper_rate_kbps=$(( (${shaper_rate_kbps}*${shaper_rate_adjust_down_load_low})/1000 ))
-					shaper_rate_kbps=$(( ${decayed_shaper_rate_kbps} > ${base_shaper_rate_kbps} ? ${decayed_shaper_rate_kbps} : ${base_shaper_rate_kbps}))
-				elif ((${shaper_rate_kbps} < ${base_shaper_rate_kbps})); then
-        			        decayed_shaper_rate_kbps=$(( (${shaper_rate_kbps}*${shaper_rate_adjust_up_load_low})/1000 ))
-					shaper_rate_kbps=$(( ${decayed_shaper_rate_kbps} < ${base_shaper_rate_kbps} ? ${decayed_shaper_rate_kbps} : ${base_shaper_rate_kbps}))
+	                	if ((shaper_rate_kbps > base_shaper_rate_kbps)); then
+					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_down_load_low)/1000 ))
+					shaper_rate_kbps=$(( decayed_shaper_rate_kbps > base_shaper_rate_kbps ? decayed_shaper_rate_kbps : base_shaper_rate_kbps))
+				elif ((shaper_rate_kbps < base_shaper_rate_kbps)); then
+        			        decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_up_load_low)/1000 ))
+					shaper_rate_kbps=$(( decayed_shaper_rate_kbps < base_shaper_rate_kbps ? decayed_shaper_rate_kbps : base_shaper_rate_kbps))
                 		fi
 
 				t_last_decay_us=${EPOCHREALTIME/./}
@@ -268,8 +268,8 @@ get_next_shaper_rate()
 			;;
 	esac
         # make sure to only return rates between cur_min_rate and cur_max_rate
-        ((${shaper_rate_kbps} < ${min_shaper_rate_kbps})) && shaper_rate_kbps=${min_shaper_rate_kbps}
-        ((${shaper_rate_kbps} > ${max_shaper_rate_kbps})) && shaper_rate_kbps=${max_shaper_rate_kbps}
+        ((shaper_rate_kbps < min_shaper_rate_kbps)) && shaper_rate_kbps=${min_shaper_rate_kbps}
+        ((shaper_rate_kbps > max_shaper_rate_kbps)) && shaper_rate_kbps=${max_shaper_rate_kbps}
 }
 
 monitor_achieved_rates()
@@ -299,16 +299,16 @@ monitor_achieved_rates()
        		[[ -f ${rx_bytes_path} ]] && { read -r rx_bytes < ${rx_bytes_path}; } 2> /dev/null || rx_bytes=${prev_rx_bytes}
        		[[ -f ${tx_bytes_path} ]] && { read -r tx_bytes < ${tx_bytes_path}; } 2> /dev/null || tx_bytes=${prev_tx_bytes}
 
-        	dl_achieved_rate_kbps=$(( ((8000*(${rx_bytes} - ${prev_rx_bytes})) / ${compensated_monitor_achieved_rates_interval_us} ) ))
-       		ul_achieved_rate_kbps=$(( ((8000*(${tx_bytes} - ${prev_tx_bytes})) / ${compensated_monitor_achieved_rates_interval_us} ) ))
+        	dl_achieved_rate_kbps=$(( ((8000*(rx_bytes - prev_rx_bytes)) / compensated_monitor_achieved_rates_interval_us ) ))
+       		ul_achieved_rate_kbps=$(( ((8000*(tx_bytes - prev_tx_bytes)) / compensated_monitor_achieved_rates_interval_us ) ))
 		
-		((${dl_achieved_rate_kbps}<0)) && dl_achieved_rate_kbps=0
-		((${ul_achieved_rate_kbps}<0)) && ul_achieved_rate_kbps=0
+		((dl_achieved_rate_kbps<0)) && dl_achieved_rate_kbps=0
+		((ul_achieved_rate_kbps<0)) && ul_achieved_rate_kbps=0
 	
 		printf '%s' "${dl_achieved_rate_kbps}" > ${run_path}/dl_achieved_rate_kbps
 		printf '%s' "${ul_achieved_rate_kbps}" > ${run_path}/ul_achieved_rate_kbps
 		
-		if ((${output_load_stats})); then 
+		if ((output_load_stats)); then 
 		
 			concurrent_read_integer dl_shaper_rate_kbps ${run_path}/dl_shaper_rate_kbps	
 			concurrent_read_integer ul_shaper_rate_kbps ${run_path}/ul_shaper_rate_kbps	
@@ -322,7 +322,7 @@ monitor_achieved_rates()
 		# read in the max_wire_packet_rtt_us
 		concurrent_read_integer max_wire_packet_rtt_us ${run_path}/max_wire_packet_rtt_us
 
-		compensated_monitor_achieved_rates_interval_us=$(( ((${monitor_achieved_rates_interval_us}>(10*${max_wire_packet_rtt_us}) )) ? ${monitor_achieved_rates_interval_us} : $((10*${max_wire_packet_rtt_us})) ))
+		compensated_monitor_achieved_rates_interval_us=$(( ((monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) )) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us ))
 
 		sleep_remaining_tick_time ${t_start_us} ${compensated_monitor_achieved_rates_interval_us}		
 	done
@@ -335,8 +335,8 @@ get_loads()
 	concurrent_read_integer dl_achieved_rate_kbps ${run_path}/dl_achieved_rate_kbps 
 	concurrent_read_integer ul_achieved_rate_kbps ${run_path}/ul_achieved_rate_kbps 
 
-	dl_load_percent=$(((100*10#${dl_achieved_rate_kbps})/${dl_shaper_rate_kbps}))
-	ul_load_percent=$(((100*10#${ul_achieved_rate_kbps})/${ul_shaper_rate_kbps}))
+	dl_load_percent=$(( (100*dl_achieved_rate_kbps)/dl_shaper_rate_kbps ))
+	ul_load_percent=$(( (100*ul_achieved_rate_kbps)/ul_shaper_rate_kbps ))
 
 	printf '%s' "${dl_load_percent}" > ${run_path}/dl_load_percent
 	printf '%s' "${ul_load_percent}" > ${run_path}/ul_load_percent
@@ -351,21 +351,21 @@ classify_load()
 	local bufferbloat_detected=${3}
 	local -n load_condition=${4}
 	
-	if (( ${load_percent} > ${high_load_thr_percent} )); then
+	if (( load_percent > high_load_thr_percent )); then
 		load_condition="high"  
-	elif (( 10#${achieved_rate_kbps} > ${connection_active_thr_kbps} )); then
+	elif (( achieved_rate_kbps > connection_active_thr_kbps )); then
 		load_condition="low"
 	else 
 		load_condition="idle"
 	fi
 	
-	((${bufferbloat_detected})) && load_condition=${load_condition}"_bb"
+	((bufferbloat_detected)) && load_condition=${load_condition}"_bb"
 		
 	if ((sss_compensation)); then
 		for sss_time_us in "${sss_times_us[@]}"
 		do
 			((timestamp_usecs_past_minute=${EPOCHREALTIME/./}%60000000))
-			if (( (${timestamp_usecs_past_minute} > (${sss_time_us}-${sss_compensation_pre_duration_us})) && (${timestamp_usecs_past_minute} < (${sss_time_us}+${sss_compensation_post_duration_us})) )); then
+			if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) )); then
 				load_condition=${load_condition}"_sss"
 				break
 			fi
@@ -431,29 +431,29 @@ monitor_reflector_responses_fping()
 		rtt_us=${BASH_REMATCH[3]}000
 		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
 
-		alpha=$(( (( ${rtt_us} >= ${rtt_baselines_us[${reflector}]} )) ? ${alpha_baseline_increase} : ${alpha_baseline_decrease} ))
+		alpha=$(( (( rtt_us >= rtt_baselines_us[${reflector}] )) ? alpha_baseline_increase : alpha_baseline_decrease ))
 
 		ewma_iteration ${rtt_us} ${alpha} rtt_baselines_us[${reflector}]
 
-		rtt_delta_us=$(( ${rtt_us}-${rtt_baselines_us[${reflector}]} ))
+		rtt_delta_us=$(( rtt_us-rtt_baselines_us[${reflector}] ))
 	
 		concurrent_read_integer dl_load_percent ${run_path}/dl_load_percent 
 		concurrent_read_integer ul_load_percent ${run_path}/ul_load_percent 
 
-		if((${dl_load_percent} < ${high_load_thr_percent} && ${ul_load_percent} < ${high_load_thr_percent})); then
+		if(( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent)); then
 			ewma_iteration ${rtt_delta_us} ${alpha_delta_ewma} rtt_delta_ewmas_us[${reflector}]
 		fi
 
-		dl_owd_baseline_us=$((${rtt_baselines_us[${reflector}]}/2))
+		dl_owd_baseline_us=$((rtt_baselines_us[${reflector}]/2))
 		ul_owd_baseline_us=${dl_owd_baseline_us}
 
-		dl_owd_delta_ewma_us=$((${rtt_delta_ewmas_us[${reflector}]}/2))
+		dl_owd_delta_ewma_us=$((rtt_delta_ewmas_us[${reflector}]/2))
 		ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
 
-		dl_owd_us=$((${rtt_us}/2))
+		dl_owd_us=$((rtt_us/2))
 		ul_owd_us=${dl_owd_us}
 
-		dl_owd_delta_us=$((${rtt_delta_us}/2))
+		dl_owd_delta_us=$((rtt_delta_us/2))
 		ul_owd_delta_us=${dl_owd_delta_us}
 		
 		timestamp=${timestamp//[\[\]]}0
@@ -520,29 +520,29 @@ monitor_reflector_responses_ping()
 
 		reflector=${reflector//:/}
 
-		alpha=$(( (( ${rtt_us} >= ${rtt_baseline_us} )) ? ${alpha_baseline_increase} : ${alpha_baseline_decrease} ))
+		alpha=$(( (( rtt_us >= rtt_baseline_us )) ? alpha_baseline_increase : alpha_baseline_decrease ))
 
 		ewma_iteration ${rtt_us} ${alpha} rtt_baseline_us
 		
-		rtt_delta_us=$(( ${rtt_us}-${rtt_baseline_us} ))
+		rtt_delta_us=$(( rtt_us-rtt_baseline_us ))
 	
 		concurrent_read_integer dl_load_percent ${run_path}/dl_load_percent
                 concurrent_read_integer ul_load_percent ${run_path}/ul_load_percent
 
-                if((${dl_load_percent} < ${high_load_thr_percent} && ${ul_load_percent} < ${high_load_thr_percent})); then
+                if(( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent )); then
 			ewma_iteration ${rtt_delta_us} ${alpha_delta_ewma} rtt_delta_ewma_us
 		fi
 
-		dl_owd_baseline_us=$((${rtt_baseline_us}/2))
+		dl_owd_baseline_us=$((rtt_baseline_us/2))
 		ul_owd_baseline_us=${dl_owd_baseline_us}
 		
-		dl_owd_delta_ewma_us=$((${rtt_delta_ewma_us}/2))
+		dl_owd_delta_ewma_us=$((rtt_delta_ewma_us/2))
 		ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
 
-		dl_owd_us=$((${rtt_us}/2))
+		dl_owd_us=$((rtt_us/2))
 		ul_owd_us=${dl_owd_us}
 
-		dl_owd_delta_us=$((${rtt_delta_us}/2))
+		dl_owd_delta_us=$((rtt_delta_us/2))
 		ul_owd_delta_us=${dl_owd_delta_us}	
 
 		timestamp=${timestamp//[\[\]]}
@@ -606,7 +606,7 @@ sleep_until_next_pinger_time_slot()
 	local pinger=${1}
 	
 	t_start_us=${EPOCHREALTIME/./}
-	time_to_next_time_slot_us=$(( (${reflector_ping_interval_us}-(${t_start_us}-${pingers_t_start_us})%${reflector_ping_interval_us}) + ${pinger}*${ping_response_interval_us} ))
+	time_to_next_time_slot_us=$(( (reflector_ping_interval_us-(t_start_us-pingers_t_start_us)%reflector_ping_interval_us) + pinger*ping_response_interval_us ))
 	sleep_remaining_tick_time ${t_start_us} ${time_to_next_time_slot_us}
 }
 
@@ -795,15 +795,15 @@ maintain_pingers()
 
 		((${pause_reflector_maintenance})) && continue
 
-		if((${EPOCHREALTIME/./}>(${t_last_reflector_comparison_us}+${reflector_replacement_interval_mins}*60*1000000))); then
+		if(( ${EPOCHREALTIME/./}>(t_last_reflector_comparison_us+reflector_replacement_interval_mins*60*1000000))); then
 	
 			log_msg "DEBUG" "reflector: ${reflectors[${pinger}]} randomly selected for replacement."
-			replace_pinger_reflector $((${RANDOM}%${no_pingers}))
+			replace_pinger_reflector $((RANDOM%no_pingers))
 			t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 			continue
 		fi
 
-		if((${EPOCHREALTIME/./}>(${t_last_reflector_comparison_us}+${reflector_comparison_interval_mins}*60*1000000))); then
+		if(( ${EPOCHREALTIME/./}>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) )); then
 
 			t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 			
@@ -830,44 +830,44 @@ maintain_pingers()
 				concurrent_read_integer ul_owd_delta_ewmas_us[${reflectors[${pinger}]}] ${run_path}/reflector_${reflectors[${pinger}]//./-}_ul_owd_delta_ewma_us
 				(( ${?} != 0 )) && continue 2
 				
-				((${dl_owd_baselines_us[${reflectors[${pinger}]}]} < ${dl_min_owd_baseline_us})) && dl_min_owd_baseline_us=${dl_owd_baselines_us[${reflectors[${pinger}]}]}
-				((${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]} < ${dl_min_owd_delta_ewma_us})) && dl_min_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]}
-				((${ul_owd_baselines_us[${reflectors[${pinger}]}]} < ${ul_min_owd_baseline_us})) && ul_min_owd_baseline_us=${ul_owd_baselines_us[${reflectors[${pinger}]}]}
-				((${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]} < ${ul_min_owd_delta_ewma_us})) && ul_min_owd_delta_ewma_us=${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]}
+				((   dl_owd_baselines_us[${reflectors[pinger]}] < dl_min_owd_baseline_us   )) && dl_min_owd_baseline_us=${dl_owd_baselines_us[${reflectors[${pinger}]}]}
+				(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < dl_min_owd_delta_ewma_us )) && dl_min_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]}
+				((   ul_owd_baselines_us[${reflectors[pinger]}] < ul_min_owd_baseline_us   )) && ul_min_owd_baseline_us=${ul_owd_baselines_us[${reflectors[${pinger}]}]}
+				(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < ul_min_owd_delta_ewma_us )) && ul_min_owd_delta_ewma_us=${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]}
 			done
 
 			for ((pinger=0; pinger<${no_pingers}; pinger++))
 			do
 				
-				dl_owd_baseline_delta_us=$((${dl_owd_baselines_us[${reflectors[${pinger}]}]}-${dl_min_owd_baseline_us}))
-				dl_owd_delta_ewma_delta_us=$((${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]}-${dl_min_owd_delta_ewma_us}))
-				ul_owd_baseline_delta_us=$((${ul_owd_baselines_us[${reflectors[${pinger}]}]}-${ul_min_owd_baseline_us}))
-				ul_owd_delta_ewma_delta_us=$((${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]}-${ul_min_owd_delta_ewma_us}))
+				dl_owd_baseline_delta_us=$((   dl_owd_baselines_us[${reflectors[pinger]}]   - dl_min_owd_baseline_us   ))
+				dl_owd_delta_ewma_delta_us=$(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] - dl_min_owd_delta_ewma_us ))
+				ul_owd_baseline_delta_us=$((   ul_owd_baselines_us[${reflectors[pinger]}]   - ul_min_owd_baseline_us   ))
+				ul_owd_delta_ewma_delta_us=$(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] - ul_min_owd_delta_ewma_us ))
 
 				if ((${output_reflector_stats})); then
 					printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' ${EPOCHREALTIME} ${reflectors[${pinger}]} ${dl_min_owd_baseline_us} ${dl_owd_baselines_us[${reflectors[${pinger}]}]} ${dl_owd_baseline_delta_us} ${reflector_owd_baseline_delta_thr_us} ${dl_min_owd_delta_ewma_us} ${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]} ${dl_owd_delta_ewma_delta_us} ${reflector_owd_delta_ewma_delta_thr_us} ${ul_min_owd_baseline_us} ${ul_owd_baselines_us[${reflectors[${pinger}]}]} ${ul_owd_baseline_delta_us} ${reflector_owd_baseline_delta_thr_us} ${ul_min_owd_delta_ewma_us} ${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]} ${ul_owd_delta_ewma_delta_us} ${reflector_owd_delta_ewma_delta_thr_us}
 					log_msg "REFLECTOR" "${reflector_stats}"
 				fi
 
-				if ((${dl_owd_baseline_delta_us} > ${reflector_owd_baseline_delta_thr_us})); then
+				if (( dl_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
 					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} dl_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
 
-				if ((${dl_owd_delta_ewma_delta_us} > ${reflector_owd_delta_ewma_delta_thr_us})); then
+				if (( dl_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
 					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
 				
-				if ((${ul_owd_baseline_delta_us} > ${reflector_owd_baseline_delta_thr_us})); then
+				if (( ul_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
 					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} ul_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
 
-				if ((${ul_owd_delta_ewma_delta_us} > ${reflector_owd_delta_ewma_delta_thr_us})); then
+				if (( ul_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
 					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
@@ -882,25 +882,25 @@ maintain_pingers()
 			concurrent_read_integer reflector_last_timestamp_us ${run_path}/reflector_${reflectors[${pinger}]//./-}_last_timestamp_us
 			declare -n reflector_offences="reflector_${pinger}_offences"
 
-			(( ${reflector_offences[${reflector_offences_idx}]} )) && ((sum_reflector_offences[${pinger}]--))
-			reflector_offences[${reflector_offences_idx}]=$(( (((${EPOCHREALTIME/./}-${reflector_last_timestamp_us}) > ${reflector_response_deadline_us})) ? 1 : 0 ))
+			(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
+			reflector_offences[${reflector_offences_idx}]=$(( (((${EPOCHREALTIME/./}-reflector_last_timestamp_us) > reflector_response_deadline_us)) ? 1 : 0 ))
 			
-			if ((reflector_offences[${reflector_offences_idx}])); then 
-				((sum_reflector_offences[${pinger}]++))
+			if (( reflector_offences[reflector_offences_idx] )); then 
+				((sum_reflector_offences[pinger]++))
 				log_msg "DEBUG" "no ping response from reflector: ${reflectors[${pinger}]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
 				log_msg "DEBUG" "reflector=${reflectors[${pinger}]}, sum_reflector_offences=${sum_reflector_offences} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
 			fi
 
-			if ((sum_reflector_offences[${pinger}] >= ${reflector_misbehaving_detection_thr})); then
+			if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
 
 				log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} seems to be misbehaving."
 				replace_pinger_reflector ${pinger}
 
-				for ((i=0; i<${reflector_misbehaving_detection_window}; i++)) do reflector_offences[i]=0; done
+				for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 				sum_reflector_offences[${pinger}]=0
 			fi		
 		done
-		((reflector_offences_idx=(reflector_offences_idx+1)%${reflector_misbehaving_detection_window}))
+		((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
 	done
 }
 
@@ -911,11 +911,11 @@ set_cake_rate()
 	local adjust_shaper_rate=${3}
 	local -n time_rate_set_us=${4}
 	
-	((${output_cake_changes})) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
+	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 
 	if ((${!adjust_shaper_rate})); then
 
-		if ((${debug})); then
+		if ((debug)); then
 			tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit
 		else
 			tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit 2> /dev/null
@@ -924,21 +924,21 @@ set_cake_rate()
 		time_rate_set_us=${EPOCHREALTIME/./}
 
 	else
-		((${output_cake_changes})) && log_msg "DEBUG" "adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
+		((output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
 	fi
 }
 
 set_shaper_rates()
 {
-	if (( ${dl_shaper_rate_kbps} != ${last_dl_shaper_rate_kbps} || ${ul_shaper_rate_kbps} != ${last_ul_shaper_rate_kbps} )); then 
+	if (( dl_shaper_rate_kbps != last_dl_shaper_rate_kbps || ul_shaper_rate_kbps != last_ul_shaper_rate_kbps )); then 
      	
 		# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-		if (( ${dl_shaper_rate_kbps} != ${last_dl_shaper_rate_kbps} )); then 
+		if (( dl_shaper_rate_kbps != last_dl_shaper_rate_kbps )); then 
 			set_cake_rate ${dl_if} ${dl_shaper_rate_kbps} adjust_dl_shaper_rate t_prev_dl_rate_set_us
 			printf '%s' "${dl_shaper_rate_kbps}" > ${run_path}/dl_shaper_rate_kbps
 		 	last_dl_shaper_rate_kbps=${dl_shaper_rate_kbps};
 		fi
-		if (( ${ul_shaper_rate_kbps} != ${last_ul_shaper_rate_kbps} )); then 
+		if (( ul_shaper_rate_kbps != last_ul_shaper_rate_kbps )); then 
 			set_cake_rate ${ul_if} ${ul_shaper_rate_kbps} adjust_ul_shaper_rate t_prev_ul_rate_set_us
 			printf '%s' "${ul_shaper_rate_kbps}" > ${run_path}/ul_shaper_rate_kbps
 			last_ul_shaper_rate_kbps=${ul_shaper_rate_kbps}
@@ -955,7 +955,7 @@ get_max_wire_packet_size_bits()
  
 	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu" 
 	[[ $(tc qdisc show dev ${interface}) =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
-	[[ ! -z "${BASH_REMATCH[2]}" ]] && max_wire_packet_size_bits=$((8*(${max_wire_packet_size_bits}+${BASH_REMATCH[2]}))) 
+	[[ ! -z "${BASH_REMATCH[2]}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
 	[[ "${BASH_REMATCH[1]}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((${max_wire_packet_size_bits}+376)/384) ))
 }
@@ -966,13 +966,13 @@ update_max_wire_packet_compensation()
 	# This will serve to increase the delay thr at rates below around 12Mbit/s
 
 	# compensated OWD delay thresholds in microseconds
-	compensated_dl_delay_thr_us=$(( ${dl_delay_thr_us} + (1000*${dl_max_wire_packet_size_bits})/${dl_shaper_rate_kbps} ))
-	compensated_ul_delay_thr_us=$(( ${ul_delay_thr_us} + (1000*${ul_max_wire_packet_size_bits})/${ul_shaper_rate_kbps} ))
+	compensated_dl_delay_thr_us=$(( dl_delay_thr_us + (1000*dl_max_wire_packet_size_bits)/dl_shaper_rate_kbps ))
+	compensated_ul_delay_thr_us=$(( ul_delay_thr_us + (1000*ul_max_wire_packet_size_bits)/ul_shaper_rate_kbps ))
 	printf '%s' "${compensated_dl_delay_thr_us}" > ${run_path}/compensated_dl_delay_thr_us
 	printf '%s' "${compensated_ul_delay_thr_us}" > ${run_path}/compensated_ul_delay_thr_us
 
 	# determine and write out ${max_wire_packet_rtt_us}
-	max_wire_packet_rtt_us=$(( (1000*${dl_max_wire_packet_size_bits})/${dl_shaper_rate_kbps} + (1000*${ul_max_wire_packet_size_bits})/${ul_shaper_rate_kbps} ))
+	max_wire_packet_rtt_us=$(( (1000*dl_max_wire_packet_size_bits)/dl_shaper_rate_kbps + (1000*ul_max_wire_packet_size_bits)/ul_shaper_rate_kbps ))
 	printf '%s' "${max_wire_packet_rtt_us}" > ${run_path}/max_wire_packet_rtt_us
 }
 
@@ -990,6 +990,8 @@ concurrent_read_integer()
 	do
 		read -r value < ${path}; 
 		if [[ ${value} =~ ^[-]?[0-9]+$ ]]; then
+			# Remove any leading zeros
+			value=$((10#${value}))
 			true
 			return
 		else
@@ -1107,7 +1109,7 @@ debug_cmd()
 
         err_type="ERROR"
 
-        if ((${err_silence})); then
+        if ((err_silence)); then
                 err_type="DEBUG"
         fi
 
@@ -1116,7 +1118,7 @@ debug_cmd()
 	
 	caller_id=$(caller)
 
-	if ((${ret}==0)); then
+	if ((ret==0)); then
                 log_msg "DEBUG" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args}; result=SUCCESS"
         else
 		[[ "${err_type}" == "DEBUG" && "${debug}" == "0" ]] && continue # if debug disabled, then skip on DEBUG but not on ERROR
@@ -1208,7 +1210,7 @@ no_reflectors=${#reflectors[@]}
 command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${ping_binary} does not exist. Exiting script."; exit; }
 
 # Check no_pingers <= no_reflectors
-(( ${no_pingers} > ${no_reflectors})) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
+(( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit; }
 
 # Check dl/if interface not the same
 [[ ${dl_if} == ${ul_if} ]] && { log_msg "ERROR" "download interface and upload interface are both set to: '${dl_if}', but cannot be the same. Exiting script."; exit; }
@@ -1231,9 +1233,9 @@ if ((${log_to_file})); then
 fi
 
 # test if stdout is a tty (terminal)
-if ! ((${terminal})); then
+if ! ((terminal)); then
 	echo "stdout not a terminal so redirecting output to: ${log_file_path}"
-	((${log_to_file})) && exec 1> ${run_path}/log_fifo
+	((log_to_file)) && exec 1> ${run_path}/log_fifo
 fi
 
 if (( ${debug} )) ; then
@@ -1284,14 +1286,14 @@ done
 printf -v sss_compensation_pre_duration_us %.0f "${sss_compensation_pre_duration_ms}e3"
 printf -v sss_compensation_post_duration_us %.0f "${sss_compensation_post_duration_ms}e3"
 
-ping_response_interval_us=$((${reflector_ping_interval_us}/${no_pingers}))
-ping_response_interval_ms=$((${ping_response_interval_us}/1000))
+ping_response_interval_us=$(( reflector_ping_interval_us/no_pingers ))
+ping_response_interval_ms=$(( ping_response_interval_us/1000 ))
 
-stall_detection_timeout_us=$(( ${stall_detection_thr}*${ping_response_interval_us} ))
+stall_detection_timeout_us=$(( stall_detection_thr*ping_response_interval_us ))
 stall_detection_timeout_s=000000${stall_detection_timeout_us}
-stall_detection_timeout_s=$((10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
+stall_detection_timeout_s=$(( 10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
 
-concurrent_read_integer_interval_us=$((${ping_response_interval_us}/4))
+concurrent_read_integer_interval_us=$((ping_response_interval_us/4))
 
 dl_shaper_rate_kbps=${base_dl_shaper_rate_kbps}
 ul_shaper_rate_kbps=${base_ul_shaper_rate_kbps}
@@ -1324,23 +1326,23 @@ delays_idx=0
 sum_dl_delays=0
 sum_ul_delays=0
 
-if ((${debug})); then
-	if (( ${bufferbloat_refractory_period_us} < (${bufferbloat_detection_window}*${ping_response_interval_us}) )); then
+if ((debug)); then
+	if (( bufferbloat_refractory_period_us < (bufferbloat_detection_window*ping_response_interval_us) )); then
 		log_msg "DEBUG" "Warning: bufferbloat refractory period: ${bufferbloat_refractory_period_us} us."
 		log_msg "DEBUG" "Warning: but expected time to overwrite samples in bufferbloat detection window is: $((${bufferbloat_detection_window}*${ping_response_interval_us})) us." 
 		log_msg "DEBUG" "Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
-	if (( ${reflector_response_deadline_us} < 2*${reflector_ping_interval_us} )); then 
+	if (( reflector_response_deadline_us < 2*reflector_ping_interval_us )); then 
 		log_msg "DEBUG" "Warning: reflector_response_deadline_s < 2*reflector_ping_interval_s"
 		log_msg "DEBUG" "Warning: consider setting an increased reflector_response_deadline."
 	fi
 fi
 
 # Randomize reflectors array providing randomize_reflectors set to 1
-((${randomize_reflectors})) && randomize_array reflectors
+((randomize_reflectors)) && randomize_array reflectors
 
 # Wait if ${startup_wait_s} > 0
-if ((${startup_wait_us}>0)); then
+if ((startup_wait_us>0)); then
         log_msg "DEBUG" "Waiting ${startup_wait_s} seconds before startup."
         sleep_us ${startup_wait_us}
 fi
@@ -1370,25 +1372,25 @@ do
 	while read -t ${stall_detection_timeout_s} timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
-		if (((${t_start_us} - 10#"${timestamp//[.]}")>500000)); then
+		if (( (t_start_us - 10#"${timestamp//[.]}")>500000 )); then
 			log_msg "DEBUG" "processed response from [${reflector}] that is > 500ms old. Skipping." 
 			continue
 		fi
 
 		# Keep track of number of dl delays across detection window
 		# .. for download:
-		(( ${dl_delays[${delays_idx}]} )) && ((sum_dl_delays--))
-		dl_delays[${delays_idx}]=$(( ${dl_owd_delta_us} > ${compensated_dl_delay_thr_us} ? 1 : 0 ))
-		((dl_delays[${delays_idx}])) && ((sum_dl_delays++))
+		(( dl_delays[delays_idx] )) && ((sum_dl_delays--))
+		dl_delays[${delays_idx}]=$(( dl_owd_delta_us > compensated_dl_delay_thr_us ? 1 : 0 ))
+		((dl_delays[delays_idx])) && ((sum_dl_delays++))
 		# .. for upload
-		(( ${ul_delays[${delays_idx}]} )) && ((sum_ul_delays--))
-		ul_delays[${delays_idx}]=$(( ${ul_owd_delta_us} > ${compensated_ul_delay_thr_us} ? 1 : 0 ))
-		((ul_delays[${delays_idx}])) && ((sum_ul_delays++))
+		(( ul_delays[delays_idx] )) && ((sum_ul_delays--))
+		ul_delays[${delays_idx}]=$(( ul_owd_delta_us > compensated_ul_delay_thr_us ? 1 : 0 ))
+		((ul_delays[delays_idx])) && ((sum_ul_delays++))
 	 	# .. and move index on	
-		(( delays_idx=(delays_idx+1)%${bufferbloat_detection_window} ))
+		(( delays_idx=(delays_idx+1)%bufferbloat_detection_window ))
 
-		dl_bufferbloat_detected=$(( ((${sum_dl_delays} >= ${bufferbloat_detection_thr})) ? 1 : 0 ))
-		ul_bufferbloat_detected=$(( ((${sum_ul_delays} >= ${bufferbloat_detection_thr})) ? 1 : 0 ))
+		dl_bufferbloat_detected=$(( ((sum_dl_delays >= bufferbloat_detection_thr)) ? 1 : 0 ))
+		ul_bufferbloat_detected=$(( ((sum_ul_delays >= bufferbloat_detection_thr)) ? 1 : 0 ))
 
 		get_loads
 
@@ -1403,16 +1405,16 @@ do
 
 		set_shaper_rates
 
-		if ((${output_processing_stats})); then 
+		if (( output_processing_stats )); then 
 			printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' ${EPOCHREALTIME} ${dl_achieved_rate_kbps} ${ul_achieved_rate_kbps} ${dl_load_percent} ${ul_load_percent} ${timestamp} ${reflector} ${seq} ${dl_owd_baseline_us} ${dl_owd_us} ${dl_owd_delta_ewma_us} ${dl_owd_delta_us} ${compensated_dl_delay_thr_us} ${ul_owd_baseline_us} ${ul_owd_us} ${ul_owd_delta_ewma_us} ${ul_owd_delta_us} ${compensated_ul_delay_thr_us} ${sum_dl_delays} ${sum_ul_delays} ${dl_load_condition} ${ul_load_condition} ${dl_shaper_rate_kbps} ${ul_shaper_rate_kbps}
 			log_msg "DATA" "${processing_stats}"
 		fi
 
 		# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-		if ((${enable_sleep_function})); then
+		if (( enable_sleep_function )); then
 			if [[ ${dl_load_condition} == *idle* && ${ul_load_condition} == *idle* ]]; then
-				((t_sustained_connection_idle_us+=$((${EPOCHREALTIME/./}-${t_end_us}))))
-				((${t_sustained_connection_idle_us} > ${sustained_idle_sleep_thr_us})) && break
+				((t_sustained_connection_idle_us += (${EPOCHREALTIME/./}-t_end_us) ))
+				((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us)) && break
 			else
 				# reset timer
 				t_sustained_connection_idle_us=0
@@ -1426,7 +1428,7 @@ do
 	# stall handling procedure
 	# PIPESTATUS[0] == 142 corresponds with while loop timeout
 	# i.e. no reflector responses within ${stall_detection_thr} * ${ping_response_interval_us}
-	if (( ${PIPESTATUS[0]} == 142 )); then
+	if (( PIPESTATUS[0] == 142 )); then
 
 
 		log_msg "DEBUG" "Warning: no reflector response within: ${stall_detection_timeout_s} seconds. Checking for loads."
@@ -1437,7 +1439,7 @@ do
 
 		# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 		# and therefore resume normal operation
-		if ((${dl_achieved_rate_kbps} > ${connection_stall_thr_kbps} && ${ul_achieved_rate_kbps} > ${connection_stall_thr_kbps} )); then
+		if (( dl_achieved_rate_kbps > connection_stall_thr_kbps && ul_achieved_rate_kbps > connection_stall_thr_kbps )); then
 
 			log_msg "DEBUG" "load above connection stall threshold so resuming normal operation."
 			continue
@@ -1463,7 +1465,7 @@ do
 			concurrent_read_integer new_reflectors_last_timestamp_us ${run_path}/reflectors_last_timestamp_us
 	                get_loads
 
-			if (( ${new_reflectors_last_timestamp_us} != ${initial_reflectors_last_timestamp_us} || ( ${dl_achieved_rate_kbps} > ${connection_stall_thr_kbps} && ${ul_achieved_rate_kbps} > ${connection_stall_thr_kbps}) )); then
+			if (( new_reflectors_last_timestamp_us != initial_reflectors_last_timestamp_us || ( dl_achieved_rate_kbps > connection_stall_thr_kbps && ul_achieved_rate_kbps > connection_stall_thr_kbps) )); then
 
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
@@ -1489,14 +1491,14 @@ do
 	        done	
 
 	else
-		if ((${min_shaper_rates_enforcement})); then
+		if ((min_shaper_rates_enforcement)); then
 			log_msg "DEBUG" "Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
 		else
 			log_msg "DEBUG" "Connection idle. Waiting for minimum load."
 		fi
 	fi
 	
-	if ((${min_shaper_rates_enforcement})); then
+	if ((min_shaper_rates_enforcement)); then
 		# conservatively set hard minimums and wait until there is a load increase again
 		dl_shaper_rate_kbps=${min_dl_shaper_rate_kbps}
 		ul_shaper_rate_kbps=${min_ul_shaper_rate_kbps}
@@ -1518,7 +1520,7 @@ do
 		t_start_us=${EPOCHREALTIME/./}	
 		get_loads
 
-		if ((10#${dl_achieved_rate_kbps} > ${connection_active_thr_kbps} || 10#${ul_achieved_rate_kbps} > ${connection_active_thr_kbps})); then
+		if (( dl_achieved_rate_kbps > connection_active_thr_kbps || ul_achieved_rate_kbps > connection_active_thr_kbps )); then
 			log_msg "DEBUG" "dl achieved rate: ${dl_achieved_rate_kbps} kbps or ul achieved rate: ${ul_achieved_rate_kbps} kbps exceeded connection active threshold: ${connection_active_thr_kbps} kbps. Resuming normal operation."
 			break 
 		fi
