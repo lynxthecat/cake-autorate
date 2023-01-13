@@ -12,7 +12,7 @@ The CAKE algorithm always uses fixed upload and download bandwidth settings to m
 
 As CAKE works with a fixed set bandwidth this effectively forces the user to choose a compromise bandwidth setting, but typically this means lost bandwidth in exchange for latency control and/or bufferbloat during the worst conditions. This compromise is hardly ideal: whilst the actual usable line rate is above the set compromise bandwidth, the connection is unnecessarily throttled back to the compromise setting resulting in lost bandwidth (yellow); and whilst the actual usable line rate is below the compromise value, the connection is not throttled enough (green) resulting in bufferbloat.
 
-<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/bandwidth-compromise.png" width=80% height=80%>
+<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/bandwidth-compromise.png" width=70% height=70%>
 
 ## The Solution: Automatic Bandwidth Adjustment based on LOAD and RTT
 
@@ -26,7 +26,7 @@ The **cake-autorate.sh** script periodically measures the load and Round-Trip-Ti
 - with high load, increase rate subject to set maximum
 - on bufferbloat, decrease rate subject to set min (and subject to refractory period)
 
-<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/cake-bandwidth-autorate-rate-control.png"width=50% height=50%>
+<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/cake-bandwidth-autorate-rate-control.png" width=70% height=70%>
 
 **Setting the minimum bandwidth:** 
 Set the minimum value to the worst possible observed bufferbloat free bandwidth. Ideally this CAKE bandwidth should never result in bufferbloat even under the worst conditions. This is a hard minimum - the script will never reduce the bandwidth below this level.
@@ -66,7 +66,7 @@ The pinger binary that cake-autorate uses is set using the $pinger_binary variab
 - Install SQM (`luci-app-sqm`) and enable CAKE on the interface(s)
 as described in the
 [OpenWrt SQM documentation](https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm)
-- Alternatively, and if you want to work with DSCPs, consider [cake-simple-qos](https://github.com/lynxthecat/cake-qos-simple) or for unnusual setups such as those with WireGuard with PBR, then you may want to consider [cake-dual-ifb](https://github.com/lynxthecat/cake-dual-ifb).
+- Alternatively, and if you want to work with DSCPs, consider [cake-simple-qos](https://github.com/lynxthecat/cake-qos-simple) or for unusual setups such as those with WireGuard with PBR, then you may want to consider [cake-dual-ifb](https://github.com/lynxthecat/cake-dual-ifb).
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
 - Install manually by placing cake-autorate.sh and cake-autorate_config.primary.sh in /root/cake-autorate and setting executable bit on both. 
 - Or install using the installer script from this repo,
