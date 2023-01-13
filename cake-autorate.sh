@@ -384,8 +384,8 @@ kill_monitor_reflector_responses_fping()
 	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<${no_reflectors}; reflector++ ))
 	do
-		[[ ! -z ${rtt_baselines_us[${reflectors[${reflector}]}]} ]] && printf '%s' ${rtt_baselines_us[${reflectors[${reflector}]}]} > ${run_path}/reflector_${reflectors[${reflector}]//./-}_baseline_us
-		[[ ! -z ${rtt_delta_ewmas_us[${reflectors[${reflector}]}]} ]] && printf '%s' ${rtt_delta_ewmas_us[${reflectors[${reflector}]}]} > ${run_path}/reflector_${reflectors[${reflector}]//./-}_delta_ewma_us
+		[[ ! -z ${rtt_baselines_us[${reflectors[reflector]}]} ]] && printf '%s' ${rtt_baselines_us[${reflectors[reflector]}]} > ${run_path}/reflector_${reflectors[reflector]//./-}_baseline_us
+		[[ ! -z ${rtt_delta_ewmas_us[${reflectors[reflector]}]} ]] && printf '%s' ${rtt_delta_ewmas_us[${reflectors[reflector]}]} > ${run_path}/reflector_${reflectors[reflector]//./-}_delta_ewma_us
 	done
 
 	exit
@@ -406,15 +406,15 @@ monitor_reflector_responses_fping()
 	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new RTTs)
 	for (( reflector=0; reflector<${no_reflectors}; reflector++ ))
 	do
-		if [[ -f ${run_path}/reflector_${reflectors[${reflector}]//./-}_baseline_us ]]; then
-			read rtt_baselines_us[${reflectors[${reflector}]}] < ${run_path}/reflector_${reflectors[${reflector}]//./-}_baseline_us
+		if [[ -f ${run_path}/reflector_${reflectors[reflector]//./-}_baseline_us ]]; then
+			read rtt_baselines_us[${reflectors[reflector]}] < ${run_path}/reflector_${reflectors[reflector]//./-}_baseline_us
 		else
-			rtt_baselines_us[${reflectors[${reflector}]}]=100000
+			rtt_baselines_us[${reflectors[reflector]}]=100000
 		fi
-		if [[ -f ${run_path}/reflector_${reflectors[${reflector}]//./-}_delta_ewma_us ]]; then
-			read rtt_delta_ewmas_us[${reflectors[${reflector}]}] < ${run_path}/reflector_${reflectors[${reflector}]//./-}_delta_ewma_us
+		if [[ -f ${run_path}/reflector_${reflectors[reflector]//./-}_delta_ewma_us ]]; then
+			read rtt_delta_ewmas_us[${reflectors[reflector]}] < ${run_path}/reflector_${reflectors[reflector]//./-}_delta_ewma_us
 		else
-			rtt_delta_ewmas_us[${reflectors[${reflector}]}]=0
+			rtt_delta_ewmas_us[${reflectors[reflector]}]=0
 		fi
 	done
 
@@ -496,14 +496,14 @@ monitor_reflector_responses_ping()
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if [[ -f ${run_path}/reflector_${reflectors[${pinger}]//./-}_baseline_us ]]; then
-			read rtt_baseline_us < ${run_path}/reflector_${reflectors[${pinger}]//./-}_baseline_us
+	if [[ -f ${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us ]]; then
+			read rtt_baseline_us < ${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us
 	else
 			rtt_baseline_us=100000
 	fi
 
-	if [[ -f ${run_path}/reflector_${reflectors[${pinger}]//./-}_delta_ewma_us ]]; then
-			read rtt_delta_ewma_us < ${run_path}/reflector_${reflectors[${pinger}]//./-}_delta_ewma_us
+	if [[ -f ${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us ]]; then
+			read rtt_delta_ewma_us < ${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us
 	else
 			rtt_delta_ewma_us=0
 	fi
@@ -577,24 +577,24 @@ start_pinger()
 		fping)
 			pinger=0
 			mkfifo ${run_path}/pinger_${pinger}_fifo
-			exec {pinger_fds[${pinger}]}<> ${run_path}/pinger_${pinger}_fifo
+			exec {pinger_fds[pinger]}<> ${run_path}/pinger_${pinger}_fifo
 			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period ${reflector_ping_interval_ms} --interval ${ping_response_interval_ms} --timeout 10000 ${reflectors[@]:0:${no_pingers}} 2> /dev/null > ${run_path}/pinger_${pinger}_fifo&
 		;;
 		ping)
 			mkfifo ${run_path}/pinger_${pinger}_fifo
-			exec {pinger_fds[${pinger}]}<> ${run_path}/pinger_${pinger}_fifo
+			exec {pinger_fds[pinger]}<> ${run_path}/pinger_${pinger}_fifo
 			sleep_until_next_pinger_time_slot ${pinger}
-			${ping_prefix_string} ping ${ping_extra_args} -D -i ${reflector_ping_interval_s} ${reflectors[${pinger}]} 2> /dev/null > ${run_path}/pinger_${pinger}_fifo &
+			${ping_prefix_string} ping ${ping_extra_args} -D -i ${reflector_ping_interval_s} ${reflectors[pinger]} 2> /dev/null > ${run_path}/pinger_${pinger}_fifo &
 		;;
 	esac
 	
-	pinger_pids[${pinger}]=${!}
-	log_msg "DEBUG" "Started pinger ${pinger} with pid=${pinger_pids[${pinger}]}"
-	log_process_cmdline pinger_pids[${pinger}]
+	pinger_pids[pinger]=${!}
+	log_msg "DEBUG" "Started pinger ${pinger} with pid=${pinger_pids[pinger]}"
+	log_process_cmdline pinger_pids[pinger]
 
 	monitor_reflector_responses_${pinger_binary} ${pinger} &
-	monitor_pids[${pinger}]=${!}
-	log_process_cmdline monitor_pids[${pinger}]
+	monitor_pids[pinger]=${!}
+	log_process_cmdline monitor_pids[pinger]
 }
 
 sleep_until_next_pinger_time_slot()
@@ -654,20 +654,20 @@ kill_pinger()
 		;;
 	esac
 
-	kill_and_wait_by_pid_name pinger_pids[${pinger}] ${err_silence}
+	kill_and_wait_by_pid_name pinger_pids[pinger] ${err_silence}
 
-	kill_and_wait_by_pid_name monitor_pids[${pinger}] 0
+	kill_and_wait_by_pid_name monitor_pids[pinger] 0
 
-	exec {pinger_fds[${pinger}]}<&-
+	exec {pinger_fds[pinger]}<&-
 	[[ -p ${run_path}/pinger_${pinger}_fifo ]] && rm ${run_path}/pinger_${pinger}_fifo
 }
 
 replace_pinger_reflector()
 {
-	# pingers always use reflectors[0]..[${no_pingers}-1] as the initial set
+	# pingers always use reflectors[0]..[no_pingers-1] as the initial set
 	# and the additional reflectors are spare reflectors should any from initial set go stale
-	# a bad reflector in the initial set is replaced with ${reflectors[${no_pingers}]}
-	# ${reflectors[${no_pingers}]} is then unset
+	# a bad reflector in the initial set is replaced with ${reflectors[no_pingers]}
+	# ${reflectors[no_pingers]} is then unset
 	# and the the bad reflector moved to the back of the queue (last element in ${reflectors[]})
 	# and finally the indices for ${reflectors} are updated to reflect the new order
 	
@@ -677,13 +677,13 @@ replace_pinger_reflector()
 	log_msg "DEBUG" "Acquired replace_pinger_lock."
 
 	if((${no_reflectors} > ${no_pingers})); then
-		log_msg "DEBUG" "replacing reflector: ${reflectors[${pinger}]} with ${reflectors[${no_pingers}]}."
+		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
 		kill_pinger ${pinger}
-		bad_reflector=${reflectors[${pinger}]}
+		bad_reflector=${reflectors[pinger]}
 		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..${no_pingers}-1)
-		reflectors[${pinger}]=${reflectors[${no_pingers}]}
-		# remove the new reflector from the list of additional reflectors beginning from ${reflectors[${no_pingers}]}
-		unset reflectors[${no_pingers}]
+		reflectors[pinger]=${reflectors[no_pingers]}
+		# remove the new reflector from the list of additional reflectors beginning from ${reflectors[no_pingers]}
+		unset reflectors[no_pingers]
 		# bad reflector goes to the back of the queue
 		reflectors+=(${bad_reflector})
 		# reset array indices
@@ -691,8 +691,8 @@ replace_pinger_reflector()
 		# set up the new pinger with the new reflector and retain pid	
 		start_pinger ${pinger}
 	else
-		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[${pinger}]}."
-		reflector_offences[${pinger}]=0
+		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[pinger]}."
+		reflector_offences[pinger]=0
 	fi
 
 	flock -u ${replace_pinger_lock}
@@ -761,7 +761,7 @@ maintain_pingers()
 
 	for ((reflector=0; reflector<${no_reflectors}; reflector++))
 	do
-		printf '%s' "${pingers_t_start_us}" > ${run_path}/reflector_${reflectors[${reflector}]//./-}_last_timestamp_us
+		printf '%s' "${pingers_t_start_us}" > ${run_path}/reflector_${reflectors[reflector]//./-}_last_timestamp_us
 	done
 	
 	printf '%s' "${pingers_t_start_us}" > ${run_path}/reflectors_last_timestamp_us
@@ -771,7 +771,7 @@ maintain_pingers()
 	do
 		declare -n reflector_offences="reflector_${pinger}_offences"                                                                                                               
 		for ((i=0; i<${reflector_misbehaving_detection_window}; i++)) do reflector_offences[i]=0; done
-                sum_reflector_offences[${pinger}]=0
+                sum_reflector_offences[pinger]=0
         done
 
 	# Initiate pingers
@@ -797,7 +797,7 @@ maintain_pingers()
 
 		if(( ${EPOCHREALTIME/./}>(t_last_reflector_comparison_us+reflector_replacement_interval_mins*60*1000000))); then
 	
-			log_msg "DEBUG" "reflector: ${reflectors[${pinger}]} randomly selected for replacement."
+			log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
 			replace_pinger_reflector $((RANDOM%no_pingers))
 			t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 			continue
@@ -821,19 +821,19 @@ maintain_pingers()
 
 			for ((pinger=0; pinger<${no_pingers}; pinger++))
 			do
-				concurrent_read_integer dl_owd_baselines_us[${reflectors[${pinger}]}] ${run_path}/reflector_${reflectors[${pinger}]//./-}_dl_owd_baseline_us
+				concurrent_read_integer dl_owd_baselines_us[${reflectors[pinger]}] ${run_path}/reflector_${reflectors[pinger]//./-}_dl_owd_baseline_us
 				(( ${?} != 0 )) && continue 2
-				concurrent_read_integer dl_owd_delta_ewmas_us[${reflectors[${pinger}]}] ${run_path}/reflector_${reflectors[${pinger}]//./-}_dl_owd_delta_ewma_us
+				concurrent_read_integer dl_owd_delta_ewmas_us[${reflectors[pinger]}] ${run_path}/reflector_${reflectors[pinger]//./-}_dl_owd_delta_ewma_us
 				(( ${?} != 0 )) && continue 2
-				concurrent_read_integer ul_owd_baselines_us[${reflectors[${pinger}]}] ${run_path}/reflector_${reflectors[${pinger}]//./-}_ul_owd_baseline_us
+				concurrent_read_integer ul_owd_baselines_us[${reflectors[pinger]}] ${run_path}/reflector_${reflectors[pinger]//./-}_ul_owd_baseline_us
 				(( ${?} != 0 )) && continue 2
-				concurrent_read_integer ul_owd_delta_ewmas_us[${reflectors[${pinger}]}] ${run_path}/reflector_${reflectors[${pinger}]//./-}_ul_owd_delta_ewma_us
+				concurrent_read_integer ul_owd_delta_ewmas_us[${reflectors[pinger]}] ${run_path}/reflector_${reflectors[pinger]//./-}_ul_owd_delta_ewma_us
 				(( ${?} != 0 )) && continue 2
 				
-				((   dl_owd_baselines_us[${reflectors[pinger]}] < dl_min_owd_baseline_us   )) && dl_min_owd_baseline_us=${dl_owd_baselines_us[${reflectors[${pinger}]}]}
-				(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < dl_min_owd_delta_ewma_us )) && dl_min_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]}
-				((   ul_owd_baselines_us[${reflectors[pinger]}] < ul_min_owd_baseline_us   )) && ul_min_owd_baseline_us=${ul_owd_baselines_us[${reflectors[${pinger}]}]}
-				(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < ul_min_owd_delta_ewma_us )) && ul_min_owd_delta_ewma_us=${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]}
+				((   dl_owd_baselines_us[${reflectors[pinger]}] < dl_min_owd_baseline_us   )) && dl_min_owd_baseline_us=${dl_owd_baselines_us[${reflectors[pinger]}]}
+				(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < dl_min_owd_delta_ewma_us )) && dl_min_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}
+				((   ul_owd_baselines_us[${reflectors[pinger]}] < ul_min_owd_baseline_us   )) && ul_min_owd_baseline_us=${ul_owd_baselines_us[${reflectors[pinger]}]}
+				(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < ul_min_owd_delta_ewma_us )) && ul_min_owd_delta_ewma_us=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}
 			done
 
 			for ((pinger=0; pinger<${no_pingers}; pinger++))
@@ -845,30 +845,30 @@ maintain_pingers()
 				ul_owd_delta_ewma_delta_us=$(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] - ul_min_owd_delta_ewma_us ))
 
 				if ((${output_reflector_stats})); then
-					printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' ${EPOCHREALTIME} ${reflectors[${pinger}]} ${dl_min_owd_baseline_us} ${dl_owd_baselines_us[${reflectors[${pinger}]}]} ${dl_owd_baseline_delta_us} ${reflector_owd_baseline_delta_thr_us} ${dl_min_owd_delta_ewma_us} ${dl_owd_delta_ewmas_us[${reflectors[${pinger}]}]} ${dl_owd_delta_ewma_delta_us} ${reflector_owd_delta_ewma_delta_thr_us} ${ul_min_owd_baseline_us} ${ul_owd_baselines_us[${reflectors[${pinger}]}]} ${ul_owd_baseline_delta_us} ${reflector_owd_baseline_delta_thr_us} ${ul_min_owd_delta_ewma_us} ${ul_owd_delta_ewmas_us[${reflectors[${pinger}]}]} ${ul_owd_delta_ewma_delta_us} ${reflector_owd_delta_ewma_delta_thr_us}
+					printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' ${EPOCHREALTIME} ${reflectors[pinger]} ${dl_min_owd_baseline_us} ${dl_owd_baselines_us[${reflectors[pinger]}]} ${dl_owd_baseline_delta_us} ${reflector_owd_baseline_delta_thr_us} ${dl_min_owd_delta_ewma_us} ${dl_owd_delta_ewmas_us[${reflectors[pinger]}]} ${dl_owd_delta_ewma_delta_us} ${reflector_owd_delta_ewma_delta_thr_us} ${ul_min_owd_baseline_us} ${ul_owd_baselines_us[${reflectors[pinger]}]} ${ul_owd_baseline_delta_us} ${reflector_owd_baseline_delta_thr_us} ${ul_min_owd_delta_ewma_us} ${ul_owd_delta_ewmas_us[${reflectors[pinger]}]} ${ul_owd_delta_ewma_delta_us} ${reflector_owd_delta_ewma_delta_thr_us}
 					log_msg "REFLECTOR" "${reflector_stats}"
 				fi
 
 				if (( dl_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
-					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} dl_owd_baseline_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
 
 				if (( dl_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
-					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
 				
 				if (( ul_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
-					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} ul_owd_baseline_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
 
 				if (( ul_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
-					log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
+					log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
 					replace_pinger_reflector ${pinger}
 					continue 2
 				fi
@@ -879,25 +879,25 @@ maintain_pingers()
 		for ((pinger=0; pinger<${no_pingers}; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
-			concurrent_read_integer reflector_last_timestamp_us ${run_path}/reflector_${reflectors[${pinger}]//./-}_last_timestamp_us
+			concurrent_read_integer reflector_last_timestamp_us ${run_path}/reflector_${reflectors[pinger]//./-}_last_timestamp_us
 			declare -n reflector_offences="reflector_${pinger}_offences"
 
 			(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
-			reflector_offences[${reflector_offences_idx}]=$(( (((${EPOCHREALTIME/./}-reflector_last_timestamp_us) > reflector_response_deadline_us)) ? 1 : 0 ))
+			reflector_offences[reflector_offences_idx]=$(( (((${EPOCHREALTIME/./}-reflector_last_timestamp_us) > reflector_response_deadline_us)) ? 1 : 0 ))
 			
 			if (( reflector_offences[reflector_offences_idx] )); then 
 				((sum_reflector_offences[pinger]++))
-				log_msg "DEBUG" "no ping response from reflector: ${reflectors[${pinger}]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
-				log_msg "DEBUG" "reflector=${reflectors[${pinger}]}, sum_reflector_offences=${sum_reflector_offences} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
+				log_msg "DEBUG" "no ping response from reflector: ${reflectors[pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
+				log_msg "DEBUG" "reflector=${reflectors[pinger]}, sum_reflector_offences=${sum_reflector_offences} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
 			fi
 
 			if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
 
-				log_msg "DEBUG" "Warning: reflector: ${reflectors[${pinger}]} seems to be misbehaving."
+				log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
 				replace_pinger_reflector ${pinger}
 
 				for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
-				sum_reflector_offences[${pinger}]=0
+				sum_reflector_offences[pinger]=0
 			fi		
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
@@ -913,7 +913,7 @@ set_cake_rate()
 	
 	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 
-	if ((${!adjust_shaper_rate})); then
+	if ((adjust_shaper_rate)); then
 
 		if ((debug)); then
 			tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit
@@ -1077,8 +1077,8 @@ randomize_array()
 	for ((set=${#subset[@]}; set>0; set--))
 	do
 		idx=$((RANDOM%set))
-		array+=("${subset[${idx}]}")
-		unset subset[${idx}]
+		array+=("${subset[idx]}")
+		unset subset[idx]
         	subset=(${subset[@]})
 	done
 }
@@ -1380,11 +1380,11 @@ do
 		# Keep track of number of dl delays across detection window
 		# .. for download:
 		(( dl_delays[delays_idx] )) && ((sum_dl_delays--))
-		dl_delays[${delays_idx}]=$(( dl_owd_delta_us > compensated_dl_delay_thr_us ? 1 : 0 ))
+		dl_delays[delays_idx]=$(( dl_owd_delta_us > compensated_dl_delay_thr_us ? 1 : 0 ))
 		((dl_delays[delays_idx])) && ((sum_dl_delays++))
 		# .. for upload
 		(( ul_delays[delays_idx] )) && ((sum_ul_delays--))
-		ul_delays[${delays_idx}]=$(( ul_owd_delta_us > compensated_ul_delay_thr_us ? 1 : 0 ))
+		ul_delays[delays_idx]=$(( ul_owd_delta_us > compensated_ul_delay_thr_us ? 1 : 0 ))
 		((ul_delays[delays_idx])) && ((sum_ul_delays++))
 	 	# .. and move index on	
 		(( delays_idx=(delays_idx+1)%bufferbloat_detection_window ))
