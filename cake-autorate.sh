@@ -155,14 +155,20 @@ export_log_file()
 	fi
 }
 
+flush_log_fifo()
+{
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+	while read -t 0.01 log_line
+	do
+		printf '%s\n' "${log_line}" >> ${log_file_path}		
+	done<${run_path}/log_fifo
+}
+
 kill_maintain_log_file()
 {
 	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -t 0.1 log_line
-	do
-		printf '%s\n' "${log_line}" >> ${log_file_path}		
-	done<${run_path}/log_fifo
+	flush_log_fifo
 	exit
 }
 
@@ -210,8 +216,7 @@ maintain_log_file()
 
 		done<${run_path}/log_fifo
 		
-		read log_line < ${run_path}/log_fifo
-		printf '%s\n' "${log_line}" >> ${log_file_path}		
+		flush_log_fifo
 		rotate_log_file
 		t_log_file_start_us=${EPOCHREALTIME/./}
 		log_file_size_bytes=0
