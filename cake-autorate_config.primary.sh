@@ -16,14 +16,16 @@ output_load_stats=1       	# enable (1) or disable (0) output monitoring lines s
 output_reflector_stats=1  	# enable (1) or disable (0) output monitoring lines showing reflector stats
 output_cake_changes=0     	# enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
 debug=1 		  	# enable (1) or disable (0) out of debug lines
-log_DEBUG_messages_to_syslog=1	# enable (1) or disable (0) logging of all DEBUG records into the system log, Please note this can be a LOT of records so be careful
+
+# This can generate a LOT of records so be careful:
+log_DEBUG_messages_to_syslog=0	# enable (1) or disable (0) logging of all DEBUG records into the system log. 
 
 # ** Take care with these settings to ensure you won't run into OOM issues on your router ***
 # every write the cumulative write time and bytes associated with each log line are checked
 # and if either exceeds the configured values below, the log log file is rotated
-log_to_file=1             # enable (1) or disable (0) output logging to file (/tmp/cake-autorate.log)
-log_file_max_time_mins=10 # maximum time between log file rotations
-log_file_max_size_KB=2000 # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
+log_to_file=1              # enable (1) or disable (0) output logging to file (/tmp/cake-autorate.log)
+log_file_max_time_mins=10  # maximum time between log file rotations
+log_file_max_size_KB=2000  # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
 
 # log file path defaults to /var/log/cake-autorate or /var/log/cake-autorate/X
 # where X is set from the config file name as in: cake-autorate_config.X.sh
@@ -73,8 +75,8 @@ reflector_ping_interval_s=0.3 # (seconds, e.g. 0.2s or 2s)
 # delay threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)  
-dl_delay_thr_ms=20 # (milliseconds)
-ul_delay_thr_ms=20 # (milliseconds)
+dl_delay_thr_ms=30 # (milliseconds)
+ul_delay_thr_ms=30 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only 
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -82,20 +84,20 @@ adjust_dl_shaper_rate=1 # enable (1) or disable (0) actually changing the dl sha
 adjust_ul_shaper_rate=1 # enable (1) or disable (0) actually changing the ul shaper rate
 
 min_dl_shaper_rate_kbps=5000  # minimum bandwidth for download (Kbit/s)
-base_dl_shaper_rate_kbps=10000 # steady state bandwidth for download (Kbit/s)
+base_dl_shaper_rate_kbps=20000 # steady state bandwidth for download (Kbit/s)
 max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
 
 min_ul_shaper_rate_kbps=5000  # minimum bandwidth for upload (Kbit/s)
-base_ul_shaper_rate_kbps=10000 # steady state bandwidth for upload (KBit/s)
+base_ul_shaper_rate_kbps=20000 # steady state bandwidth for upload (KBit/s)
 max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 
 # sleep functionality saves unecessary pings and CPU cycles by
 # pausing all active pingers when connection is not in active use
 enable_sleep_function=1 # enable (1) or disable (0) sleep functonality 
-connection_active_thr_kbps=500   # threshold in Kbit/s below which dl/ul is considered idle
+connection_active_thr_kbps=1000  # threshold in Kbit/s below which dl/ul is considered idle
 sustained_idle_sleep_thr_s=60.0  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
-min_shaper_rates_enforcement=1 # enable (1) or disable (0) dropping down to minimum shaper rates on connection idle or stall
+min_shaper_rates_enforcement=0 # enable (1) or disable (0) dropping down to minimum shaper rates on connection idle or stall
 
 startup_wait_s=0.0 # number of seconds to wait on startup (e.g. to wait for things to settle on router reboot)
 
