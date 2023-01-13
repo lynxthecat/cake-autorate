@@ -34,13 +34,11 @@ cleanup_and_killall()
 
 	if ! [[ -z ${monitor_achieved_rates_pid} ]]; then
 		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
-		[ -d "/proc/${monitor_achieved_rates_pid}/" ] && log_process_cmdline monitor_achieved_rates_pid
 		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
 	fi
 
 	if ! [[ -z ${maintain_log_file_pid} ]]; then
 		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
-		[ -d "/proc/${maintain_log_file_pid}/" ] && log_process_cmdline maintain_log_file_pid
 		kill_and_wait_by_pid_name maintain_log_file_pid 0
 	fi
 
@@ -182,36 +180,44 @@ maintain_log_file()
 
 	log_file_size_bytes=0
 
-	while read log_line
+	while true
 	do
+		while read log_line
+		do
 
+			printf '%s\n' "${log_line}" >> ${log_file_path}		
+
+			# Verify log file size < configured maximum
+			# The following two lines with costly call to 'du':
+			# 	read log_file_size_bytes< <(du -b ${log_file_path}/cake-autorate.log)
+			# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
+			# can be more efficiently handled with this line:
+			((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
+
+			# Verify log file time < configured maximum
+			if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us )); then
+			
+				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so rotating log file"
+				break
+			fi
+
+			if (( log_file_size_bytes > log_file_max_size_bytes )); then
+
+				log_file_size_KB=$((log_file_size_bytes/1024))
+				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so rotating log file"
+				break
+			fi
+
+		done<${run_path}/log_fifo
+		
+		read log_line < ${run_path}/log_fifo
 		printf '%s\n' "${log_line}" >> ${log_file_path}		
+		rotate_log_file
+		t_log_file_start_us=${EPOCHREALTIME/./}
+		log_file_size_bytes=0
+	
+	done
 
-		# Verify log file size < configured maximum
-		# The following two lines with costly call to 'du':
-		# 	read log_file_size_bytes< <(du -b ${log_file_path}/cake-autorate.log)
-		# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
-		# can be more efficiently handled with this line:
-		((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
-
-		# Verify log file time < configured maximum
-		if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us )); then
-
-			log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so rotating log file"
-			rotate_log_file
-			t_log_file_start_us=${EPOCHREALTIME/./}
-			log_file_size_bytes=0
-		fi
-
-		if (( log_file_size_bytes > log_file_max_size_bytes )); then
-			log_file_size_KB=$((log_file_size_bytes/1024))
-			log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so rotating log file"
-			rotate_log_file
-			t_log_file_start_us=${EPOCHREALTIME/./}
-			log_file_size_bytes=0
-		fi
-
-	done<${run_path}/log_fifo
 }
 
 get_next_shaper_rate() 
@@ -614,7 +620,12 @@ log_process_cmdline()
 {
 	local -n process_pid=${1}
 
-	read process_cmdline < /proc/${process_pid}/cmdline
+	for ((read_try=0; read_try<10; read_try++))
+	do
+		read process_cmdline < /proc/${process_pid}/cmdline
+		[[ -z ${process_cmdline} ]] || break
+		sleep_s 0.01
+	done
 	log_msg "DEBUG" "${!process_pid}=${process_pid} cmdline: ${process_cmdline}"
 }
 
