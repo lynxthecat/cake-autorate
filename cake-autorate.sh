@@ -811,7 +811,7 @@ maintain_pingers()
 
 		((${pause_reflector_maintenance})) && continue
 
-		if(( ${EPOCHREALTIME/./}>(t_last_reflector_comparison_us+reflector_replacement_interval_mins*60*1000000))); then
+		if(( ${EPOCHREALTIME/./}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000))); then
 	
 			log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
 			replace_pinger_reflector $((RANDOM%no_pingers))
