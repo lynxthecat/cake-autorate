@@ -429,59 +429,62 @@ monitor_reflector_responses_fping()
 
 	output=0
 
-	while read timestamp reflector _ seq_rtt 2>/dev/null
-	do 
-		t_start_us=${EPOCHREALTIME/./}
+	while true
+	do
+		while read -t 1 timestamp reflector _ seq_rtt 2>/dev/null
+		do 
+			t_start_us=${EPOCHREALTIME/./}
 
-		[[ ${seq_rtt} =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
+			[[ ${seq_rtt} =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
-		seq=${BASH_REMATCH[1]}
+			seq=${BASH_REMATCH[1]}
 
-		rtt_us=${BASH_REMATCH[3]}000
-		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
+			rtt_us=${BASH_REMATCH[3]}000
+			rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
 
-		alpha=$(( (( rtt_us >= rtt_baselines_us[${reflector}] )) ? alpha_baseline_increase : alpha_baseline_decrease ))
+			alpha=$(( (( rtt_us >= rtt_baselines_us[${reflector}] )) ? alpha_baseline_increase : alpha_baseline_decrease ))
 
-		ewma_iteration ${rtt_us} ${alpha} rtt_baselines_us[${reflector}]
+			ewma_iteration ${rtt_us} ${alpha} rtt_baselines_us[${reflector}]
 
-		rtt_delta_us=$(( rtt_us-rtt_baselines_us[${reflector}] ))
+			rtt_delta_us=$(( rtt_us-rtt_baselines_us[${reflector}] ))
 	
-		concurrent_read_integer dl_load_percent ${run_path}/dl_load_percent 
-		concurrent_read_integer ul_load_percent ${run_path}/ul_load_percent 
+			concurrent_read_integer dl_load_percent ${run_path}/dl_load_percent 
+			concurrent_read_integer ul_load_percent ${run_path}/ul_load_percent 
 
-		if(( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent)); then
-			ewma_iteration ${rtt_delta_us} ${alpha_delta_ewma} rtt_delta_ewmas_us[${reflector}]
-		fi
+			if(( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent)); then
+				ewma_iteration ${rtt_delta_us} ${alpha_delta_ewma} rtt_delta_ewmas_us[${reflector}]
+			fi
 
-		dl_owd_baseline_us=$((rtt_baselines_us[${reflector}]/2))
-		ul_owd_baseline_us=${dl_owd_baseline_us}
+			dl_owd_baseline_us=$((rtt_baselines_us[${reflector}]/2))
+			ul_owd_baseline_us=${dl_owd_baseline_us}
 
-		dl_owd_delta_ewma_us=$((rtt_delta_ewmas_us[${reflector}]/2))
-		ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
+			dl_owd_delta_ewma_us=$((rtt_delta_ewmas_us[${reflector}]/2))
+			ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
 
-		dl_owd_us=$((rtt_us/2))
-		ul_owd_us=${dl_owd_us}
+			dl_owd_us=$((rtt_us/2))
+			ul_owd_us=${dl_owd_us}
 
-		dl_owd_delta_us=$((rtt_delta_us/2))
-		ul_owd_delta_us=${dl_owd_delta_us}
+			dl_owd_delta_us=$((rtt_delta_us/2))
+			ul_owd_delta_us=${dl_owd_delta_us}
 		
-		timestamp=${timestamp//[\[\]]}0
+			timestamp=${timestamp//[\[\]]}0
 
-		printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" > ${run_path}/ping_fifo
+			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" > ${run_path}/ping_fifo
 
-		timestamp_us=${timestamp//[.]}
+			timestamp_us=${timestamp//[.]}
 
-		printf '%s' "${timestamp_us}" > ${run_path}/reflector_${reflector//./-}_last_timestamp_us
+			printf '%s' "${timestamp_us}" > ${run_path}/reflector_${reflector//./-}_last_timestamp_us
 		
-		printf '%s' "${dl_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_baseline_us
-		printf '%s' "${ul_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_baseline_us
+			printf '%s' "${dl_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_baseline_us
+			printf '%s' "${ul_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_baseline_us
 		
-		printf '%s' "${dl_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_delta_ewma_us
-		printf '%s' "${ul_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_delta_ewma_us
+			printf '%s' "${dl_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_delta_ewma_us
+			printf '%s' "${ul_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_delta_ewma_us
 
-		printf '%s' "${timestamp_us}" > ${run_path}/reflectors_last_timestamp_us
+			printf '%s' "${timestamp_us}" > ${run_path}/reflectors_last_timestamp_us
 
-	done 2>/dev/null <${run_path}/pinger_${pinger}_fifo
+		done 2>/dev/null <${run_path}/pinger_${pinger}_fifo
+	done
 }
 
 # IPUTILS-PING FUNCTIONS
@@ -517,60 +520,63 @@ monitor_reflector_responses_ping()
 			rtt_delta_ewma_us=0
 	fi
 
-	while read -r  timestamp _ _ _ reflector seq_rtt 2>/dev/null
+	while true
 	do
-		# If no match then skip onto the next one
-		[[ ${seq_rtt} =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
+		while read -t 1 -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
+		do
+			# If no match then skip onto the next one
+			[[ ${seq_rtt} =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
-		seq=${BASH_REMATCH[1]}
+			seq=${BASH_REMATCH[1]}
 
-		rtt_us=${BASH_REMATCH[3]}000
-		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
+			rtt_us=${BASH_REMATCH[3]}000
+			rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
 
-		reflector=${reflector//:/}
+			reflector=${reflector//:/}
 
-		alpha=$(( (( rtt_us >= rtt_baseline_us )) ? alpha_baseline_increase : alpha_baseline_decrease ))
+			alpha=$(( (( rtt_us >= rtt_baseline_us )) ? alpha_baseline_increase : alpha_baseline_decrease ))
 
-		ewma_iteration ${rtt_us} ${alpha} rtt_baseline_us
+			ewma_iteration ${rtt_us} ${alpha} rtt_baseline_us
 		
-		rtt_delta_us=$(( rtt_us-rtt_baseline_us ))
+			rtt_delta_us=$(( rtt_us-rtt_baseline_us ))
 	
-		concurrent_read_integer dl_load_percent ${run_path}/dl_load_percent
-                concurrent_read_integer ul_load_percent ${run_path}/ul_load_percent
+			concurrent_read_integer dl_load_percent ${run_path}/dl_load_percent
+                	concurrent_read_integer ul_load_percent ${run_path}/ul_load_percent
 
-                if(( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent )); then
-			ewma_iteration ${rtt_delta_us} ${alpha_delta_ewma} rtt_delta_ewma_us
-		fi
+                	if(( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent )); then
+				ewma_iteration ${rtt_delta_us} ${alpha_delta_ewma} rtt_delta_ewma_us
+			fi
 
-		dl_owd_baseline_us=$((rtt_baseline_us/2))
-		ul_owd_baseline_us=${dl_owd_baseline_us}
+			dl_owd_baseline_us=$((rtt_baseline_us/2))
+			ul_owd_baseline_us=${dl_owd_baseline_us}
 		
-		dl_owd_delta_ewma_us=$((rtt_delta_ewma_us/2))
-		ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
+			dl_owd_delta_ewma_us=$((rtt_delta_ewma_us/2))
+			ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
 
-		dl_owd_us=$((rtt_us/2))
-		ul_owd_us=${dl_owd_us}
+			dl_owd_us=$((rtt_us/2))
+			ul_owd_us=${dl_owd_us}
 
-		dl_owd_delta_us=$((rtt_delta_us/2))
-		ul_owd_delta_us=${dl_owd_delta_us}	
+			dl_owd_delta_us=$((rtt_delta_us/2))
+			ul_owd_delta_us=${dl_owd_delta_us}	
 
-		timestamp=${timestamp//[\[\]]}
+			timestamp=${timestamp//[\[\]]}
 	
-		printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" > ${run_path}/ping_fifo
+			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" > ${run_path}/ping_fifo
 		
-		timestamp_us=${timestamp//[.]}
+			timestamp_us=${timestamp//[.]}
 
-		printf '%s' "${timestamp_us}" > ${run_path}/reflector_${reflector//./-}_last_timestamp_us
+			printf '%s' "${timestamp_us}" > ${run_path}/reflector_${reflector//./-}_last_timestamp_us
 		
-		printf '%s' "${dl_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_baseline_us
-		printf '%s' "${ul_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_baseline_us
+			printf '%s' "${dl_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_baseline_us
+			printf '%s' "${ul_owd_baseline_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_baseline_us
 		
-		printf '%s' "${dl_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_delta_ewma_us
-		printf '%s' "${ul_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_delta_ewma_us
+			printf '%s' "${dl_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_dl_owd_delta_ewma_us
+			printf '%s' "${ul_owd_delta_ewma_us}" > ${run_path}/reflector_${reflector//./-}_ul_owd_delta_ewma_us
 
-		printf '%s' "${timestamp_us}" > ${run_path}/reflectors_last_timestamp_us
+			printf '%s' "${timestamp_us}" > ${run_path}/reflectors_last_timestamp_us
 
-	done 2>/dev/null <${run_path}/pinger_${pinger}_fifo
+		done 2>/dev/null <${run_path}/pinger_${pinger}_fifo
+	done
 }
 
 # END OF IPUTILS-PING FUNCTIONS
