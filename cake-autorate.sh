@@ -27,9 +27,7 @@ cleanup_and_killall()
 
 	if ! [[ -z ${maintain_pingers_pid} ]]; then
 		log_msg "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
-		[ -d "/proc/${maintain_pingers_pid}/" ] && log_process_cmdline maintain_pingers_pid
-		kill -USR1 ${maintain_pingers_pid} 
-		wait ${maintain_pingers_pid}
+		kill_and_wait_by_pid_name maintain_pingers_pid 0
 	fi
 
 	if ! [[ -z ${monitor_achieved_rates_pid} ]]; then
@@ -689,9 +687,6 @@ replace_pinger_reflector()
 	
 	local pinger=${1}
 
-	flock ${replace_pinger_lock}
-	log_msg "DEBUG" "Acquired replace_pinger_lock."
-
 	if((${no_reflectors} > ${no_pingers})); then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
 		kill_pinger ${pinger}
@@ -711,8 +706,6 @@ replace_pinger_reflector()
 		reflector_offences[pinger]=0
 	fi
 
-	flock -u ${replace_pinger_lock}
-	log_msg "DEBUG" "Released replace_pinger_lock."
 }
 
 # END OF GENERIC PINGER START AND STOP FUNCTIONS
@@ -723,9 +716,6 @@ kill_maintain_pingers()
 
 	log_msg "DEBUG" "Terminating maintain_pingers."
 
-	flock ${replace_pinger_lock}
-	log_msg "DEBUG" "Acquired replace_pinger_lock."
-	
 	case ${pinger_binary} in
 
 		fping)
@@ -741,9 +731,6 @@ kill_maintain_pingers()
 		;;
 	esac
 
-	flock -u ${replace_pinger_lock}
-	log_msg "DEBUG" "Released replace_pinger_lock."
-
 	exit
 }
 
@@ -752,10 +739,9 @@ maintain_pingers()
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap '' INT
-	trap 'kill_maintain_pingers' TERM EXIT
+	trap 'terminate_reflector_maintenance=1' TERM EXIT
 
-	trap 'err_silence=1; kill_maintain_pingers' USR1
-	trap '((pause_reflector_maintenance^=1))' USR2
+	trap '((pause_reflector_maintenance^=1))' USR1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -767,6 +753,7 @@ maintain_pingers()
 	err_silence=0
 
 	pause_reflector_maintenance=0
+	terminate_reflector_maintenance=0
 
 	reflector_offences_idx=0
 
@@ -805,7 +792,7 @@ maintain_pingers()
 	esac
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
-	while true
+	while ((terminate_reflector_maintenance == 0))
 	do
 		sleep_s ${reflector_health_check_interval_s}
 
@@ -918,6 +905,8 @@ maintain_pingers()
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
 	done
+
+	kill_maintain_pingers
 }
 
 set_cake_rate()
@@ -1375,10 +1364,6 @@ printf '%s' "0" > ${run_path}/ul_load_percent
 mkfifo ${run_path}/ping_fifo
 exec {fd}<> ${run_path}/ping_fifo
 
-# flock ${replace_pinger_lock} and flock -u ${replace_pinger_lock}
-# to provide exclusive access and free up again
-exec {replace_pinger_lock}>${run_path}/replace_pinger_lock
-
 maintain_pingers&
 maintain_pingers_pid=${!}
 log_msg "DEBUG" "main pre-loop: maintain_pingers_pid: $[maintain_pingers_pid]"
@@ -1467,9 +1452,9 @@ do
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_integer initial_reflectors_last_timestamp_us ${run_path}/reflectors_last_timestamp_us
 
-		# send signal USR2 to pause reflector maintenance
+		# send signal USR1 to pause reflector maintenance
 		log_msg "DEBUG" "Pausing reflector health check (SIGUSR2)."
-		kill -USR2 ${maintain_pingers_pid}
+		kill -USR1 ${maintain_pingers_pid}
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1485,9 +1470,9 @@ do
 
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
-				# send signal USR2 to resume reflector health monitoring to resume reflector rotation
+				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
 				log_msg "DEBUG" "Resuming reflector health check (SIGUSR2)."
-				kill -USR2 ${maintain_pingers_pid}
+				kill -USR1 ${maintain_pingers_pid}
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
