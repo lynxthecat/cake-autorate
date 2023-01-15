@@ -1000,8 +1000,8 @@ concurrent_read_integer()
 	for ((read_try=1; read_try<11; read_try++))
 	do
 		read -r value < ${path}; 
-		if [[ ${value} =~ ^([-])?([0]+)?([0-9])+$ ]]; then
-			value=${BASH_REMATCH[1]}${BASH_REMATCH[3]}
+		if [[ ${value} =~ ^([-])?([0]+)?([0-9]+)$ ]]; then
+			value=$((${BASH_REMATCH[1]}${BASH_REMATCH[3]}))
 			true
 			return
 		else
