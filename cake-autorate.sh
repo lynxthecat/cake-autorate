@@ -996,15 +996,59 @@ concurrent_read_integer()
 
 	local -n value=${1}
  	local path=${2}
+	local sign=
+	local cur_value
 
 	for ((read_try=1; read_try<11; read_try++))
 	do
 		read -r value < ${path}; 
-		if [[ ${value} =~ ^([-])?([0]+)?([0-9])+$ ]]; then
-			value=${BASH_REMATCH[1]}${BASH_REMATCH[3]}
+		#log_msg "DEBUG" "value: ${value}"
+		cur_value=${value}
+		if [ "${cur_value:0:1}" == "-" ] ; then
+		    sign="-" 
+		    # chop of the leading sign
+		    cur_value=${cur_value:1:${#scur_value}}
+		fi
+		#log_msg "DEBUG" "cur_value: de-signed ${cur_value}"
+		
+		while (( ${cur_value:0:1} == 0 ))
+		do
+    		    cur_value=${cur_value:1:${#cur_value}}
+		done
+		#value=${cur_value}
+		#log_msg "DEBUG" "cur_value: de-zeroed ${cur_value}"
+		if [ "${#cur_value}" == "0" ] ; then
+		    cur_value=0
+		fi
+		
+		case ${cur_value:0:1} in
+		    "0")
+			;&
+		    "1")
+			;&
+		    "2")
+			;&
+		    "3")
+			;&
+		    "4")
+			;&
+		    "5")
+			;&
+		    "6")
+			;&
+		    "7")
+			;&
+		    "8")
+			;&
+		    "9")
+			#log_msg "DEBUG" "numeric cur_value: ${cur_value}"
+			#{ printf '%d' "9"  2>/dev/null||:; }
+			value=${sign}${cur_value}
 			true
 			return
-		else
+			;;
+		    *)
+			log_msg "DEBUG" "not numeric"
 			if ((${debug})); then
 				read -r caller_output< <(caller)
 				log_msg "DEBUG" "concurrent_read_integer() misfire: ${read_try} of 10, with the following particulars:"
@@ -1012,7 +1056,27 @@ concurrent_read_integer()
 			fi 
 			sleep_us ${concurrent_read_integer_interval_us}
 			continue
-		fi
+		    ;;
+		
+		esac
+		
+		#cur_value=${sign}${cur_value}
+		#log_msg "DEBUG" "cur_value: signed and de-zeroed: ${cur_value}"
+		
+		
+#		if [[ ${cur_value} =~ ^([-])?([0]+)?([0-9])+$ ]]; then
+#			value=${BASH_REMATCH[1]}${BASH_REMATCH[3]}
+#			true
+#			return
+#		else
+#			if ((${debug})); then
+#				read -r caller_output< <(caller)
+#				log_msg "DEBUG" "concurrent_read_integer() misfire: ${read_try} of 10, with the following particulars:"
+#				log_msg "DEBUG" "caller=${caller_output}, value=${value} and path=${path}"
+#			fi 
+#			sleep_us ${concurrent_read_integer_interval_us}
+#			continue
+#		fi
 	done
 	
 	if ((${debug})); then
