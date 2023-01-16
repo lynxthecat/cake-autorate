@@ -631,7 +631,8 @@ log_process_cmdline()
 
 	for ((read_try=0; read_try<10; read_try++))
 	do
-		read process_cmdline < /proc/${process_pid}/cmdline
+		read -r process_cmdline < <( tr '\0' ' ' < /proc/${process_pid}/cmdline )
+		#read process_cmdline < /proc/${process_pid}/cmdline
 		[[ -z ${process_cmdline} ]] || break
 		sleep_s 0.01
 	done
