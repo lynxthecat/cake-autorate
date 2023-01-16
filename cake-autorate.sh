@@ -999,11 +999,19 @@ concurrent_read_integer()
 
 	for ((read_try=1; read_try<11; read_try++))
 	do
-		read -r value < ${path}; 
+		read -r value < ${path};
+
+		# Verify value is a positive or negative integer 
+		# 1st capture group (optional): any negative sign
+		# 2nd capture group (optional): any leading zeros
+		# 3rd capture group (not optional): numeric sequence 
 		if [[ ${value} =~ ^([-])?([0]+)?([0-9]+)$ ]]; then
-			value=$((${BASH_REMATCH[1]}${BASH_REMATCH[3]}))
+
+			# Strip out any leading zeros and adopt arithmetic context
+			value=$(( ${BASH_REMATCH[1]}BASH_REMATCH[3] ))
 			true
 			return
+
 		else
 			if ((${debug})); then
 				read -r caller_output< <(caller)
