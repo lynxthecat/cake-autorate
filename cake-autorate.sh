@@ -1,6 +1,9 @@
 #!/bin/bash
 
-# CAKE-autorate automatically adjusts bandwidth for CAKE in dependence on detected load and OWD/RTT
+# CAKE-autorate automatically adjusts CAKE bandwidth(s)
+# in dependence on: a) receive and transmit transfer rates; and b) latency
+# (or can just be used to monitor and log transfer rates and latency)
+
 # requires packages: bash; and one of the supported ping binaries
 
 # each cake-autorate instance must be configured using a corresponding config file 
@@ -49,6 +52,8 @@ cleanup_and_killall()
 
 log_msg()
 {
+	# send logging message to terminal, log file fifo, log file and/or system logger
+
 	local type=${1}
 	local msg=${2}
 
@@ -69,7 +74,7 @@ log_msg()
 			;;
 	esac
 			
-	# Output to the log fifo if available (for rotation handling)
+	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
 	if [[ -p ${run_path}/log_fifo ]]; then
 		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" > ${run_path}/log_fifo
@@ -93,15 +98,6 @@ print_headers()
 	header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; DL_MIN_BASELINE_US; DL_BASELINE_US; DL_BASELINE_DELTA_US; DL_BASELINE_DELTA_THR_US; DL_MIN_DELTA_EWMA_US; DL_DELTA_EWMA_US; DL_DELTA_EWMA_DELTA_US; DL_DELTA_EWMA_DELTA_THR; UL_MIN_BASELINE_US; UL_BASELINE_US; UL_BASELINE_DELTA_US; UL_BASELINE_DELTA_THR_US; UL_MIN_DELTA_EWMA_US; UL_DELTA_EWMA_US; UL_DELTA_EWMA_DELTA_US; UL_DELTA_EWMA_DELTA_THR"
  	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
  	((terminal)) && printf '%s\n' "${header}"
-}
-
-ewma_iteration()
-{
-	local value=${1}
-	local alpha=${2} # alpha must be scaled by factor of 1000000
-	local -n ewma=${3}
-
-	ewma=$(( (alpha*value+(1000000-alpha)*ewma)/1000000 ))
 }
 
 # MAINTAIN_LOG_FILE + HELPER FUNCTIONS
@@ -631,7 +627,7 @@ log_process_cmdline()
 
 	for ((read_try=0; read_try<10; read_try++))
 	do
-		read process_cmdline < /proc/${process_pid}/cmdline
+		read -r process_cmdline < <( tr '\0' ' ' < /proc/${process_pid}/cmdline )
 		[[ -z ${process_cmdline} ]] || break
 		sleep_s 0.01
 	done
@@ -989,10 +985,11 @@ update_max_wire_packet_compensation()
 
 concurrent_read_integer()
 {
-	# in the context of separate processes writing using > and reading form file
-        # it seems costly calls to the external flock binary can be avoided
-	# read either succeeds as expected or occassionally reads in bank value
-	# so just test for blank value and re-read until not blank
+	# in the context of a single process that writes to a file and
+	# a separate process that reads from the file, costly calls to 
+	# the external flock binary can be avoided for the reason that
+	# the read either reads in a blank value or the last true value
+	# and so it is possible to just read, test and reread if necessary
 
 	local -n value=${1}
  	local path=${2}
@@ -1002,12 +999,12 @@ concurrent_read_integer()
 		read -r value < ${path};
 
 		# Verify value is a positive or negative integer 
-		# 1st capture group (optional): any negative sign
-		# 2nd capture group (optional): any leading zeros
+		# 1st capture group (optional): negative sign
+		# 2nd capture group (optional): leading zeros
 		# 3rd capture group (not optional): numeric sequence 
 		if [[ ${value} =~ ^([-])?([0]+)?([0-9]+)$ ]]; then
 
-			# Strip out any leading zeros and adopt arithmetic context
+			# Strip out any leading zeros and employ arithmetic context
 			value=$(( ${BASH_REMATCH[1]}BASH_REMATCH[3] ))
 			true
 			return
@@ -1101,6 +1098,15 @@ randomize_array()
 	done
 }
 
+ewma_iteration()
+{
+	local value=${1}
+	local alpha=${2} # alpha must be scaled by factor of 1000000
+	local -n ewma=${3}
+
+	ewma=$(( (alpha*value+(1000000-alpha)*ewma)/1000000 ))
+}
+
 # DEBUG COMMAND WRAPPER
 # INSPIRED BY cmd_wrapper of sqm-script
 
@@ -1164,8 +1170,8 @@ $( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test on
 
 log_file_path=/var/log/cake-autorate.log
 
-# WARNING: take great care if attempting to alter the run_path!
-# cake-autorate issues mkdir -p ${run_path} and rm -r ${run_path} on exit.
+# *** WARNING: take great care if attempting to alter the run_path! ***
+# *** cake-autorate issues mkdir -p ${run_path} and rm -r ${run_path} on exit. ***
 run_path=/var/run/cake-autorate/
 
 # cake-autorate first argument is config file path
