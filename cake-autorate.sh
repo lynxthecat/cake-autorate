@@ -23,7 +23,7 @@ cleanup_and_killall()
 {	
 	trap - INT TERM EXIT
 	
-	((use_logger)) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopping cake-autorate with config: ${config_path}"
+	log_msg "INFO" "Stopping cake-autorate with config: ${config_path}"
 	
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
@@ -1166,7 +1166,7 @@ debug_cmd()
 
 [[ -t 1 ]] && terminal=1
 
-$( type logger 2>&1 ) && use_logger=1 || use_logger=0	# only perform the test once.
+type logger &> /dev/null && use_logger=1 || use_logger=0 # only perform the test once.
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1180,6 +1180,8 @@ if [[ ! -z ${1} ]]; then
 else
 	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
 fi
+
+log_msg "INFO" "Starting cake-autorate with config: ${config_path}"
 
 if [[ ! -f "${config_path}" ]]; then
 	log_msg "ERROR" "No config file found. Exiting now."
@@ -1200,8 +1202,6 @@ else
 	log_msg "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
 	exit
 fi
-
-(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Starting cake-autorate with config: ${config_path}"
 
 if [[ ! -z "${log_file_path_override}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
@@ -1263,7 +1263,7 @@ if ! ((terminal)); then
 fi
 
 if (( ${debug} )) ; then
-	log_msg "DEBUG" "Starting CAKE-autorate ${cake_autorate_version}"
+	log_msg "DEBUG" "CAKE-autorate version: ${cake_autorate_version}"
 	log_msg "DEBUG" "config_path: ${config_path}"
 	log_msg "DEBUG" "run_path: ${run_path}"
 	log_msg "DEBUG" "log_file_path: ${log_file_path}"
@@ -1386,6 +1386,8 @@ exec {fd}<> ${run_path}/ping_fifo
 maintain_pingers&
 maintain_pingers_pid=${!}
 log_msg "DEBUG" "main pre-loop: maintain_pingers_pid: $[maintain_pingers_pid]"
+
+(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Started cake-autorate with config: ${config_path}"
 
 while true
 do
