@@ -23,6 +23,8 @@ cleanup_and_killall()
 {	
 	trap - INT TERM EXIT
 	
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+	
 	log_msg "INFO" "Stopping cake-autorate with config: ${config_path}"
 	
 	log_msg "INFO" ""
@@ -87,6 +89,8 @@ log_msg()
 
 print_headers()
 {
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
  	((terminal)) && printf '%s\n' "${header}"
@@ -104,6 +108,8 @@ print_headers()
 
 rotate_log_file()
 {
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	[[ -f ${log_file_path} ]] && mv ${log_file_path} ${log_file_path}.old
 	((output_processing_stats)) && print_headers
 }
@@ -111,6 +117,8 @@ rotate_log_file()
 export_log_file()
 {
 	local export_type=${1}
+	
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case ${export_type} in
 
@@ -386,6 +394,8 @@ kill_monitor_reflector_responses_fping()
 {
 	trap - TERM EXIT
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
 	for (( reflector=0; reflector<${no_reflectors}; reflector++ ))
 	do
@@ -488,6 +498,7 @@ monitor_reflector_responses_fping()
 kill_monitor_reflector_responses_ping()
 {
 	trap - TERM EXIT
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	[[ ! -z ${rtt_baseline_us} ]] && printf '%s' ${rtt_baseline_us} > ${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us
 	[[ ! -z ${rtt_delta_ewma_us} ]] && printf '%s' ${rtt_delta_ewma_us} > ${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us
 	exit
@@ -583,6 +594,8 @@ start_pinger()
 {
 	local pinger=${1}
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	case ${pinger_binary} in
 
 		fping)
@@ -600,7 +613,7 @@ start_pinger()
 	esac
 	
 	pinger_pids[pinger]=${!}
-	log_msg "DEBUG" "Started pinger ${pinger} with pid=${pinger_pids[pinger]}"
+	log_msg "DEBUG" "Started pinger ${pinger} with PID: ${pinger_pids[pinger]}"
 	log_process_cmdline pinger_pids[pinger]
 
 	monitor_reflector_responses_${pinger_binary} ${pinger} &
@@ -638,6 +651,8 @@ kill_and_wait_by_pid_name()
 {
 	local -n pid=${1}
 	local err_silence=${2}
+	
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	if ! [[ -z ${pid} ]]; then
 		if [[ -d "/proc/${pid}" ]]; then
@@ -659,6 +674,8 @@ kill_and_wait_by_pid_name()
 kill_pinger()
 {
 	local pinger=${1}
+	
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case ${pinger_binary} in
 
@@ -688,6 +705,8 @@ replace_pinger_reflector()
 	# and finally the indices for ${reflectors} are updated to reflect the new order
 	
 	local pinger=${1}
+	
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	if((${no_reflectors} > ${no_pingers})); then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
@@ -715,6 +734,8 @@ replace_pinger_reflector()
 kill_maintain_pingers()
 {
 	trap - TERM EXIT
+
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	log_msg "DEBUG" "Terminating maintain_pingers."
 
@@ -1087,6 +1108,9 @@ sleep_remaining_tick_time()
 randomize_array()
 {
 	local -n array=${1}
+
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	subset=(${array[@]})
 	array=()
 	for ((set=${#subset[@]}; set>0; set--))
@@ -1120,6 +1144,8 @@ debug_cmd()
 	local debug_msg=${1}
 	local err_silence=${2}
         local cmd=${3}
+
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	shift 3
 
@@ -1251,7 +1277,7 @@ if ((${log_to_file})); then
 	exec {fd}<> ${run_path}/log_fifo
 	maintain_log_file&
 	maintain_log_file_pid=${!}
-	log_msg "DEBUG" "Started maintain log file process with pid=${maintain_log_file_pid}"
+	log_msg "DEBUG" "Started maintain log file process with PID: ${maintain_log_file_pid}"
 	rotate_log_file # rotate here to force header prints at top of log file
 	echo ${maintain_log_file_pid} > ${run_path}/maintain_log_file_pid
 fi
