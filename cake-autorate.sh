@@ -1196,6 +1196,10 @@ type logger &> /dev/null && use_logger=1 || use_logger=0 # only perform the test
 
 log_file_path=/var/log/cake-autorate.log
 
+# redirect stderr to log_msg
+coproc log_stderr { exec >/proc/$PPID/fd/1; while read error; do log_msg "ERROR" "$error"; done; }
+exec 2>&${log_stderr[1]}
+
 # *** WARNING: take great care if attempting to alter the run_path! ***
 # *** cake-autorate issues mkdir -p ${run_path} and rm -r ${run_path} on exit. ***
 run_path=/var/run/cake-autorate/
