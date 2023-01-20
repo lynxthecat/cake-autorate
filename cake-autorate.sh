@@ -1211,7 +1211,6 @@ else
 	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
 fi
 
-log_msg "SYSLOG" "Starting cake-autorate with config: ${config_path}"
 
 if [[ ! -f "${config_path}" ]]; then
 	log_msg "ERROR" "No config file found. Exiting now."
@@ -1232,6 +1231,8 @@ else
 	log_msg "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
 	exit
 fi
+
+log_msg "SYSLOG" "Starting cake-autorate with config: ${config_path}"
 
 if [[ ! -z "${log_file_path_override}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
