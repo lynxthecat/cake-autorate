@@ -67,9 +67,14 @@ log_msg()
 			((log_DEBUG_messages_to_syslog)) && ((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 	
-        	ERROR|SYSLOG)
+        	ERROR)
 			log_timestamp=${EPOCHREALTIME}
 			((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
+			;;
+
+        	SYSLOG)
+			log_timestamp=${EPOCHREALTIME}
+			((use_logger)) && logger -t "cake-autorate.${instance_id}" "INFO: ${log_timestamp} ${msg}"
 			;;
 		*)
 			log_timestamp=${EPOCHREALTIME}
