@@ -48,7 +48,7 @@ cleanup_and_killall()
 	[[ -d ${run_path} ]] && rm -r ${run_path}
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 
-	((use_logger)) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Stopped cake-autorate with config: ${config_path}"
+	log_msg "SYSLOG" "Stopped cake-autorate with config: ${config_path}"
 	exit
 }
 
@@ -67,7 +67,7 @@ log_msg()
 			((log_DEBUG_messages_to_syslog)) && ((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 	
-        	ERROR)
+        	ERROR|SYSLOG)
 			log_timestamp=${EPOCHREALTIME}
 			((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
@@ -1211,7 +1211,7 @@ else
 	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
 fi
 
-log_msg "INFO" "Starting cake-autorate with config: ${config_path}"
+log_msg "SYSLOG" "Starting cake-autorate with config: ${config_path}"
 
 if [[ ! -f "${config_path}" ]]; then
 	log_msg "ERROR" "No config file found. Exiting now."
@@ -1405,8 +1405,6 @@ fi
 monitor_achieved_rates ${rx_bytes_path} ${tx_bytes_path} ${monitor_achieved_rates_interval_us}&
 monitor_achieved_rates_pid=${!}
 	
-log_msg "DEBUG" "Started monitor achieved rates process with pid=${monitor_achieved_rates_pid}"
-
 printf '%s' "0" > ${run_path}/dl_load_percent
 printf '%s' "0" > ${run_path}/ul_load_percent
 
@@ -1415,9 +1413,8 @@ exec {fd}<> ${run_path}/ping_fifo
 
 maintain_pingers&
 maintain_pingers_pid=${!}
-log_msg "DEBUG" "main pre-loop: maintain_pingers_pid: $[maintain_pingers_pid]"
 
-(( ${use_logger} )) && logger -t "cake-autorate.${instance_id}" "INFO: ${EPOCHREALTIME} Started cake-autorate with config: ${config_path}"
+log_msg "INFO" "Started cake-autorate with config: ${config_path}"
 
 while true
 do
