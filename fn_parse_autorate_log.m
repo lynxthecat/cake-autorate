@@ -49,12 +49,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
 	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
 	CDF.calc_range_ms = [0, 1000];	% what range to calculate the CDFs over? We can always reduce the plotted range later, see cumulative_range_percent
-	CDF.step_size_ms = 0.001;	% we will this as quantization in the plots...
+	CDF.step_size_ms = 0.005;	% we will see this as quantization in the plots...
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
 	% PDFs are mostly like CDFs except for the step_size
 	PDF = CDF;
-	PDF.step_size_ms = 0.2;	% these histograms need to be coarser than the CDFs by the nature
-	PDF.cumulative_range_percent = [0.001, 90.0];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
+	PDF.step_size_ms = 0.2;	% these histograms need to be coarser than the PDFs or we see odd PDFs
+	PDF.cumulative_range_percent = [0.001, 90.0];	% which range to show for PDFs (taken from the fastest/slowest reflector respectively)
 
 	% add all defined plots that should be created and saved
 	plot_list = {'rawCDFs', 'deltaCDFs', 'timecourse'}; % 'rawCDFs', 'deltaCDFs', 'rawPDFs', 'deltaPDFs', 'timecourse' % PDFs are currently broken
@@ -210,17 +210,50 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 		% based on LOAD records replace the older 'DL_ACHIEVED_RATE_KBPS', 'UL_ACHIEVED_RATE_KBPS' fields from DATA
 		% this will allow to plot data from sleep epochs, at the cost of some x_value trickery.
+		rates.LOAD.scale_factor = 1/1000;		% conversion factor from µs to ms
+		rates.LOAD.fields_to_plot_list = {};
+		rates.LOAD.color_list = {};
+		rates.LOAD.linestyle_list = {};
+		rates.LOAD.sign_list = {};
 		if (n_LOAD_samples > 0)
-			rates.LOAD.fields_to_plot_list = rates.DATA.fields_to_plot_list(end-1:end);
-			rates.LOAD.color_list = rates.DATA.color_list(end-1:end);
-			rates.LOAD.linestyle_list = rates.DATA.linestyle_list(end-1:end);
-			rates.LOAD.sign_list = rates.DATA.sign_list(end-1:end);
-			rates.LOAD.scale_factor = rates.DATA.scale_factor;		% conversion factor from Kbps to Mbps
+%			% these two should only be shown during sleep periods?
+%			% otherwise LOAD and higher resolution DATA plots will "overlap'
+%			if isfield(autorate_log.DATA.LISTS, 'CAKE_DL_RATE_KBPS')
+%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_DL_RATE_KBPS';
+%				rates.LOAD.color_list{end+1} = [241,182,218]/254;
+%				rates.LOAD.linestyle_list{end+1} = '-';
+%				rates.LOAD.sign_list{end+1} = 1;
+%			end
+%			if isfield(autorate_log.DATA.LISTS, 'CAKE_UL_RATE_KBPS')
+%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_UL_RATE_KBPS';
+%				rates.LOAD.color_list{end+1} = [184,225,134]/254;
+%				rates.LOAD.linestyle_list{end+1} = '-';
+%				rates.LOAD.sign_list{end+1} = -1;
+%			end
 
-			rates.DATA.fields_to_plot_list(end-1:end) = [];
-			rates.DATA.color_list(end-1:end) = [];
-			rates.DATA.linestyle_list(end-1:end) = [];
-			rates.DATA.sign_list(end-1:end) = [];
+			% these can be replaced...
+			if isfield(autorate_log.DATA.LISTS, 'DL_ACHIEVED_RATE_KBPS')
+				rates.LOAD.fields_to_plot_list{end+1} = 'DL_ACHIEVED_RATE_KBPS';
+				rates.LOAD.color_list{end+1} = [208,28,139]/254;
+				rates.LOAD.linestyle_list{end+1} = '-';
+				rates.LOAD.sign_list{end+1} = 1;
+				rate_DATA_idx = find(ismember(rates.DATA.fields_to_plot_list, {'DL_ACHIEVED_RATE_KBPS'}));
+				rates.DATA.fields_to_plot_list(rate_DATA_idx) = [];
+				rates.DATA.color_list(rate_DATA_idx) = [];
+				rates.DATA.linestyle_list(rate_DATA_idx) = [];
+				rates.DATA.sign_list(rate_DATA_idx) = [];
+			end
+			if isfield(autorate_log.DATA.LISTS, 'UL_ACHIEVED_RATE_KBPS')
+				rates.LOAD.fields_to_plot_list{end+1} = 'UL_ACHIEVED_RATE_KBPS';
+				rates.LOAD.color_list{end+1} = [77,172,38]/254;
+				rates.LOAD.linestyle_list{end+1} = '-';
+				rates.LOAD.sign_list{end+1} = -1;
+				rate_DATA_idx = find(ismember(rates.DATA.fields_to_plot_list, {'UL_ACHIEVED_RATE_KBPS'}));
+				rates.DATA.fields_to_plot_list(rate_DATA_idx) = [];
+				rates.DATA.color_list(rate_DATA_idx) = [];
+				rates.DATA.linestyle_list(rate_DATA_idx) = [];
+				rates.DATA.sign_list(rate_DATA_idx) = [];
+			end
 		endif
 
 		% create the latency data ollection and configuration
@@ -454,6 +487,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('CDF', figure_opts, raw_CDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'cumulative density [%]', cur_plot_FQN);
+				% these can be pretty large, so make this somewhat lighter
+				clear raw_CDF;
+				clear CDF_x_vec;
 			endif
 
 			if ismember('rawPDFs', plot_list);
@@ -466,6 +502,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, PDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
+				% these can be pretty large, so make this somewhat lighter
+				clear raw_PDF;
+				clear PDF_x_vec;
 			endif
 
 
@@ -480,6 +519,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				endif
 				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('CDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'cumulative density [%]', cur_plot_FQN);
 				fn_propose_delay_thresholds(delta_CDF, CDF.calc_range_ms);
+				% these can be pretty large, so make this somewhat lighter
+				clear delta_CDF;
+				clear CDF_x_vec;
 			endif
 
 			if ismember('deltaPDFs', plot_list);
@@ -492,6 +534,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_PDF, PDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
+				% these can be pretty large, so make this somewhat lighter
+				clear delta_PDF;
+				clear PDF_x_vec;
 			endif
 		endif
 
