@@ -907,6 +907,8 @@ maintain_pingers()
 
 		fi
 
+		enable_replace_pinger_reflector=1
+
 		for ((pinger=0; pinger<${no_pingers}; pinger++))
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
@@ -925,10 +927,15 @@ maintain_pingers()
 			if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
 
 				log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
-				replace_pinger_reflector ${pinger}
-
-				for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
-				sum_reflector_offences[pinger]=0
+				log_msg "DEBUG" "reflector: ${reflectors[pinger]}; offences: sum_reflector_offences[pinger]; threshold: reflector_misbehaving_detection_thr"
+				if ((enable_replace_pinger_reflector)); then
+					replace_pinger_reflector ${pinger}
+					for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+					sum_reflector_offences[pinger]=0
+					enable_replace_pinger_reflector=0
+				else
+					log_msg "DEBUG" "Warning: skipping replacement of: reflector: ${reflectors[pinger]} given previous replacement."
+				fi
 			fi		
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
