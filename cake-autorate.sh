@@ -921,20 +921,19 @@ maintain_pingers()
 			if (( reflector_offences[reflector_offences_idx] )); then 
 				((sum_reflector_offences[pinger]++))
 				log_msg "DEBUG" "no ping response from reflector: ${reflectors[pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
-				log_msg "DEBUG" "reflector=${reflectors[pinger]}, sum_reflector_offences=${sum_reflector_offences} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
+				log_msg "DEBUG" "reflector=${reflectors[pinger]}, sum_reflector_offences=${sum_reflector_offences[pinger]} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
 			fi
 
 			if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
 
 				log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
-				log_msg "DEBUG" "reflector: ${reflectors[pinger]}; offences: sum_reflector_offences[pinger]; threshold: reflector_misbehaving_detection_thr"
 				if ((enable_replace_pinger_reflector)); then
 					replace_pinger_reflector ${pinger}
 					for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 					sum_reflector_offences[pinger]=0
 					enable_replace_pinger_reflector=0
 				else
-					log_msg "DEBUG" "Warning: skipping replacement of: reflector: ${reflectors[pinger]} given previous replacement."
+					log_msg "DEBUG" "Warning: skipping replacement of reflector: ${reflectors[pinger]} given prior replacement within this reflector health check cycle."
 				fi
 			fi		
 		done
@@ -1514,7 +1513,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us ${run_path}/reflectors_last_timestamp_us
 
 		# send signal USR1 to pause reflector maintenance
-		log_msg "DEBUG" "Pausing reflector health check (SIGUSR2)."
+		log_msg "DEBUG" "Pausing reflector health check (SIGUSR1)."
 		kill -USR1 ${maintain_pingers_pid}
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1532,7 +1531,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
-				log_msg "DEBUG" "Resuming reflector health check (SIGUSR2)."
+				log_msg "DEBUG" "Resuming reflector health check (SIGUSR1)."
 				kill -USR1 ${maintain_pingers_pid}
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
