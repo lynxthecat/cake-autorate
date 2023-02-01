@@ -1139,7 +1139,8 @@ ewma_iteration()
 	local alpha=${2} # alpha must be scaled by factor of 1000000
 	local -n ewma=${3}
 
-	ewma=$(( (alpha*value+(1000000-alpha)*ewma)/1000000 ))
+	prev_ewma=${ewma}
+	ewma=$(( (alpha*value+(1000000-alpha)*prev_ewma)/1000000 ))
 }
 
 # DEBUG COMMAND WRAPPER
