@@ -1569,9 +1569,6 @@ do
 	# reset idle timer
 	t_sustained_connection_idle_us=0
 
- 	# verify interfaces are up	
-	verify_ifs_up
-
 	# wait until load increases again
 	while true
 	do
