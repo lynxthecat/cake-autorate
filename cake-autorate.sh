@@ -987,6 +987,14 @@ set_shaper_rates()
 	fi
 }
 
+set_min_shaper_rates()
+{
+	log_msg "DEBUG" "Enforcing minimum shaper rates."
+	dl_shaper_rate_kbps=${min_dl_shaper_rate_kbps}
+	ul_shaper_rate_kbps=${min_ul_shaper_rate_kbps}
+	set_shaper_rates
+}
+
 get_max_wire_packet_size_bits()
 {
 	local interface=${1}
@@ -1519,6 +1527,8 @@ do
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
+		global_ping_response_timeout=0
+
 	        # wait until load resumes or ping response received (or global reflector response timeout)
 	        while true
 	        do
@@ -1541,30 +1551,16 @@ do
 
         	        sleep_remaining_tick_time ${t_start_us} ${reflector_ping_interval_us}
 
-			if (( ${t_start_us} > (${t_connection_stall_time_us} + ${global_ping_response_timeout_us} - ${stall_detection_timeout_us}) )); then 
-		
-				if ((${min_shaper_rates_enforcement})); then
-					log_msg "DEBUG" "Warning: Global ping response timeout. Enforcing minimum shaper rate and waiting for minimum load." 
-				else
-					log_msg "DEBUG" "Warning: Global ping response timeout. Waiting for minimum load." 
-				fi
-				break
+			if (( global_ping_response_timeout==0 && t_start_us > (t_connection_stall_time_us + global_ping_response_timeout_us - stall_detection_timeout_us) )); then 
+				log_msg "DEBUG" "Warning: Global ping response timeout." 
+				((min_shaper_rates_enforcement)) && set_min_shaper_rates
+				global_ping_response_timeout=1
 			fi
 	        done	
 
 	else
-		if ((min_shaper_rates_enforcement)); then
-			log_msg "DEBUG" "Connection idle. Enforcing minimum shaper rates and waiting for minimum load."
-		else
-			log_msg "DEBUG" "Connection idle. Waiting for minimum load."
-		fi
-	fi
-	
-	if ((min_shaper_rates_enforcement)); then
-		# conservatively set hard minimums and wait until there is a load increase again
-		dl_shaper_rate_kbps=${min_dl_shaper_rate_kbps}
-		ul_shaper_rate_kbps=${min_ul_shaper_rate_kbps}
-		set_shaper_rates
+		log_msg "DEBUG" "Connection idle. Waiting for minimum load."
+		((min_shaper_rates_enforcement)) && set_min_shaper_rates
 	fi
 
 	# Initiate termination of ping processes and wait until complete
@@ -1573,7 +1569,7 @@ do
 	# reset idle timer
 	t_sustained_connection_idle_us=0
 
-	# verify interfaces are up (e.g. following ping response timeout from interfaces going down)
+ 	# verify interfaces are up	
 	verify_ifs_up
 
 	# wait until load increases again
