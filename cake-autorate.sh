@@ -1588,7 +1588,7 @@ do
         	        sleep_remaining_tick_time ${t_start_us} ${reflector_ping_interval_us}
 
 			if (( global_ping_response_timeout==0 && t_start_us > (t_connection_stall_time_us + global_ping_response_timeout_us - stall_detection_timeout_us) )); then 
-				log_msg "DEBUG" "Warning: Global ping response timeout." 
+				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded." 
 				((min_shaper_rates_enforcement)) && set_min_shaper_rates
 				global_ping_response_timeout=1
 			fi
