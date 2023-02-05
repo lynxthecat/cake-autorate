@@ -626,6 +626,24 @@ start_pinger()
 	log_process_cmdline monitor_pids[pinger]
 }
 
+start_pingers()
+{
+	# Initiate pingers
+	log_msg "DEBUG" "Starting pingers."
+	case ${pinger_binary} in
+
+		fping)
+			start_pinger 0
+		;;
+		ping)
+			for ((pinger=0; pinger<${no_pingers}; pinger++))
+			do
+				start_pinger ${pinger}
+			done
+		;;
+	esac
+}
+
 sleep_until_next_pinger_time_slot()
 {
 	# wait until next pinger time slot and start pinger in its slot
@@ -700,6 +718,24 @@ kill_pinger()
 	[[ -p ${run_path}/pinger_${pinger}_fifo ]] && rm ${run_path}/pinger_${pinger}_fifo
 }
 
+kill_pingers()
+{
+	case ${pinger_binary} in
+
+		fping)
+			log_msg "DEBUG" "Killing fping instance."
+			kill_pinger 0
+		;;
+		ping)
+			for (( pinger=0; pinger<${no_pingers}; pinger++))
+			do
+				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
+				kill_pinger ${pinger}
+			done
+		;;
+	esac
+}
+
 replace_pinger_reflector()
 {
 	# pingers always use reflectors[0]..[no_pingers-1] as the initial set
@@ -744,22 +780,33 @@ kill_maintain_pingers()
 
 	log_msg "DEBUG" "Terminating maintain_pingers."
 
-	case ${pinger_binary} in
-
-		fping)
-			log_msg "DEBUG" "Killing fping instance."
-			kill_pinger 0
-		;;
-		ping)
-			for (( pinger=0; pinger<${no_pingers}; pinger++))
-			do
-				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
-				kill_pinger ${pinger}
-			done
-		;;
-	esac
+	kill_pingers
 
 	exit
+}
+
+pause_reflector_maintenance()
+{
+	if ((reflector_maintenance_paused==0)); then
+		log_msg "DEBUG" "Pausing reflector health check (SIGUSR1)."
+		reflector_maintenance_paused=1
+	else
+		log_msg "DEBUG" "Resuming reflector health check (SIGUSR1)."
+		reflector_maintenance_paused=0
+	fi
+}
+
+pause_maintain_pingers()
+{
+	if ((maintain_pingers_paused==0)); then
+		log_msg "DEBUG" "Pausing maintain pingers (SIGUSR2)."
+		kill_pingers		
+		maintain_pingers_paused=1
+	else
+		log_msg "DEBUG" "Resuming maintain pingers (SIGUSR2)."
+		start_pingers
+		maintain_pingers_paused=0
+	fi
 }
 
 maintain_pingers()
@@ -768,8 +815,9 @@ maintain_pingers()
 
  	trap '' INT
 	trap 'terminate_reflector_maintenance=1' TERM EXIT
-
-	trap '((pause_reflector_maintenance^=1))' USR1
+	
+	trap 'pause_reflector_maintenance' USR1
+	trap 'pause_maintain_pingers' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -779,9 +827,11 @@ maintain_pingers()
 	declare -A ul_owd_delta_ewmas_us
 
 	err_silence=0
-
-	pause_reflector_maintenance=0
+	
 	terminate_reflector_maintenance=0
+
+	reflector_maintenance_paused=0
+	maintain_pingers_paused=0
 
 	reflector_offences_idx=0
 
@@ -805,26 +855,14 @@ maintain_pingers()
                 sum_reflector_offences[pinger]=0
         done
 
-	# Initiate pingers
-	case ${pinger_binary} in
-
-		fping)
-			start_pinger 0
-		;;
-		ping)
-			for ((pinger=0; pinger<${no_pingers}; pinger++))
-			do
-				start_pinger ${pinger}
-			done
-		;;
-	esac
+	start_pingers
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while ((terminate_reflector_maintenance == 0))
 	do
 		sleep_s ${reflector_health_check_interval_s}
 
-		((${pause_reflector_maintenance})) && continue
+		((reflector_maintenance_paused || maintain_pingers_paused)) && continue
 
 		if(( ${EPOCHREALTIME/./}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000))); then
 	
@@ -1522,7 +1560,6 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us ${run_path}/reflectors_last_timestamp_us
 
 		# send signal USR1 to pause reflector maintenance
-		log_msg "DEBUG" "Pausing reflector health check (SIGUSR1)."
 		kill -USR1 ${maintain_pingers_pid}
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1542,7 +1579,6 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
-				log_msg "DEBUG" "Resuming reflector health check (SIGUSR1)."
 				kill -USR1 ${maintain_pingers_pid}
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
@@ -1563,8 +1599,8 @@ do
 		((min_shaper_rates_enforcement)) && set_min_shaper_rates
 	fi
 
-	# Initiate termination of ping processes and wait until complete
-	kill_and_wait_by_pid_name maintain_pingers_pid 0
+	# send signal USR2 to pause maintain_reflectors
+	kill -USR2 ${maintain_pingers_pid}
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1582,8 +1618,6 @@ do
 		sleep_remaining_tick_time ${t_start_us} ${reflector_ping_interval_us}
 	done
 
-	# Start up ping processes
-	maintain_pingers&
-	maintain_pingers_pid=${!}
-	log_msg "DEBUG" "main loop: maintain_pingers_pid: $[maintain_pingers_pid]"
+	# send signal USR2 to resume maintain_reflectors
+	kill -USR2 ${maintain_pingers_pid}
 done
