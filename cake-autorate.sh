@@ -25,7 +25,7 @@ cleanup_and_killall()
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	
-	log_msg "INFO" "Stopping cake-autorate with config: ${config_path}"
+	log_msg "INFO" "Stopping cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 	
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
@@ -48,7 +48,7 @@ cleanup_and_killall()
 	[[ -d ${run_path} ]] && rm -r ${run_path}
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 
-	log_msg "SYSLOG" "Stopped cake-autorate with config: ${config_path}"
+	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 	exit
 }
 
@@ -97,15 +97,15 @@ print_headers()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
- 	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
+ 	((log_to_file)) && printf '%s\n' "${header}" >> ${log_file_path}
  	((terminal)) && printf '%s\n' "${header}"
 
 	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
- 	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
+ 	((log_to_file)) && printf '%s\n' "${header}" >> ${log_file_path}
  	((terminal)) && printf '%s\n' "${header}"
 
 	header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; DL_MIN_BASELINE_US; DL_BASELINE_US; DL_BASELINE_DELTA_US; DL_BASELINE_DELTA_THR_US; DL_MIN_DELTA_EWMA_US; DL_DELTA_EWMA_US; DL_DELTA_EWMA_DELTA_US; DL_DELTA_EWMA_DELTA_THR; UL_MIN_BASELINE_US; UL_BASELINE_US; UL_BASELINE_DELTA_US; UL_BASELINE_DELTA_THR_US; UL_MIN_DELTA_EWMA_US; UL_DELTA_EWMA_US; UL_DELTA_EWMA_DELTA_US; UL_DELTA_EWMA_DELTA_THR"
- 	((log_to_file)) && printf '%s\n' "${header}" > ${run_path}/log_fifo
+ 	((log_to_file)) && printf '%s\n' "${header}" >> ${log_file_path}
  	((terminal)) && printf '%s\n' "${header}"
 }
 
@@ -162,6 +162,8 @@ export_log_file()
 	fi
 }
 
+
+
 flush_log_fifo()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
@@ -169,6 +171,13 @@ flush_log_fifo()
 	do
 		printf '%s\n' "${log_line}" >> ${log_file_path}		
 	done<${run_path}/log_fifo
+}
+
+get_log_file_size_bytes()
+{
+	read log_file_size_bytes< <(du -b ${log_file_path})
+	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
+	! [[ ${log_file_size_bytes} =~ ^[0-9]+$ ]] && log_file_size_bytes=0
 }
 
 kill_maintain_log_file()
@@ -191,7 +200,7 @@ maintain_log_file()
 
 	t_log_file_start_us=${EPOCHREALTIME/./}
 
-	log_file_size_bytes=0
+	get_log_file_size_bytes
 
 	while true
 	do
@@ -226,10 +235,9 @@ maintain_log_file()
 		flush_log_fifo
 		rotate_log_file
 		t_log_file_start_us=${EPOCHREALTIME/./}
-		log_file_size_bytes=0
-	
-	done
+		get_log_file_size_bytes
 
+	done
 }
 
 get_next_shaper_rate() 
@@ -1269,7 +1277,6 @@ else
 	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
 fi
 
-
 if [[ ! -f "${config_path}" ]]; then
 	log_msg "ERROR" "No config file found. Exiting now."
 	exit
@@ -1290,8 +1297,6 @@ else
 	exit
 fi
 
-log_msg "SYSLOG" "Starting cake-autorate with config: ${config_path}"
-
 if [[ ! -z "${log_file_path_override}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
 		broken_log_file_path_override=${log_file_path_override}
@@ -1303,6 +1308,10 @@ if [[ ! -z "${log_file_path_override}" ]]; then
 else
 	log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 fi
+
+rotate_log_file # rotate here to force header prints at top of log file
+
+log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
 # ${run_path}/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
@@ -1341,7 +1350,6 @@ if ((${log_to_file})); then
 	maintain_log_file&
 	maintain_log_file_pid=${!}
 	log_msg "DEBUG" "Started maintain log file process with PID: ${maintain_log_file_pid}"
-	rotate_log_file # rotate here to force header prints at top of log file
 	echo ${maintain_log_file_pid} > ${run_path}/maintain_log_file_pid
 fi
 
@@ -1357,8 +1365,8 @@ if (( ${debug} )) ; then
 	log_msg "DEBUG" "run_path: ${run_path}"
 	log_msg "DEBUG" "log_file_path: ${log_file_path}"
 	log_msg "DEBUG" "pinger_binary:${pinger_binary}"
-	log_msg "DEBUG" "Down interface: ${dl_if} (${min_dl_shaper_rate_kbps} / ${base_dl_shaper_rate_kbps} / ${max_dl_shaper_rate_kbps})"
-	log_msg "DEBUG" "Up interface: ${ul_if} (${min_ul_shaper_rate_kbps} / ${base_ul_shaper_rate_kbps} / ${max_ul_shaper_rate_kbps})"
+	log_msg "DEBUG" "download interface: ${dl_if} (${min_dl_shaper_rate_kbps} / ${base_dl_shaper_rate_kbps} / ${max_dl_shaper_rate_kbps})"
+	log_msg "DEBUG" "upload interface: ${ul_if} (${min_ul_shaper_rate_kbps} / ${base_ul_shaper_rate_kbps} / ${max_ul_shaper_rate_kbps})"
 	log_msg "DEBUG" "rx_bytes_path: ${rx_bytes_path}"
 	log_msg "DEBUG" "tx_bytes_path: ${tx_bytes_path}"
 fi
@@ -1473,7 +1481,7 @@ exec {fd}<> ${run_path}/ping_fifo
 maintain_pingers&
 maintain_pingers_pid=${!}
 
-log_msg "INFO" "Started cake-autorate with config: ${config_path}"
+log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
 while true
 do
