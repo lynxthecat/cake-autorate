@@ -17,8 +17,6 @@
 # Possible performance improvement
 export LC_ALL=C
 
-exec {sleep_fd}<> <(true)
-
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -49,9 +47,6 @@ cleanup_and_killall()
 
 	[[ -d ${run_path} ]] && rm -r ${run_path}
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
-
-	# close sleep file descriptor
-	exec {sleep_fd}>&-
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -1147,7 +1142,7 @@ sleep_s()
 
 	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
 
-	read -t ${sleep_duration_s} -u ${sleep_fd}
+	read -t ${sleep_duration_s} < ${run_path}/sleep_fifo
 }
 
 sleep_us()
@@ -1160,7 +1155,7 @@ sleep_us()
 	
 	sleep_duration_s=000000${sleep_duration_us}
 	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-	read -t ${sleep_duration_s} -u ${sleep_fd}
+	read -t ${sleep_duration_s} < ${run_path}/sleep_fifo
 }
 
 sleep_remaining_tick_time()
@@ -1329,6 +1324,9 @@ if [[ -d ${run_path} ]]; then
 else
         mkdir -p ${run_path}
 fi
+
+mkfifo ${run_path}/sleep_fifo
+exec {fd}<> ${run_path}/sleep_fifo
 
 no_reflectors=${#reflectors[@]} 
 
