@@ -21,7 +21,7 @@ trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
 {	
-	trap - INT TERM EXIT
+	trap true INT TERM EXIT
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	
@@ -49,6 +49,8 @@ cleanup_and_killall()
 	[[ -d /var/run/cake-autorate ]] && compgen -G /var/run/cake-autorate/* > /dev/null || rm -r /var/run/cake-autorate
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
+
+	trap - INT TERM EXIT
 	exit
 }
 
