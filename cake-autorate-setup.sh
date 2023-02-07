@@ -53,6 +53,7 @@ printf "$editmsg \n"
 
 # Also copy over the service file but DO NOT ACTIVATE IT
 # cd into the directory and remove the previous file
+[[ -f cake-autorate_launcher.sh ]] && rm cake-autorate_launcher.sh
 wget -q "$SRC_DIR"cake-autorate_launcher.sh
 chmod +x cake-autorate_launcher.sh
 cd /etc/init.d || exit
