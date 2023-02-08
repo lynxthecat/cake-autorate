@@ -1126,25 +1126,21 @@ verify_ifs_up()
 sleep_s()
 {
 	# calling external sleep binary is slow
-	# bash does have a loadable sleep 
+	# bash does have a loadable sleep
 	# but read's timeout can more portably be exploited and this is apparently even faster anyway
 
 	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
 
-	read -t ${sleep_duration_s} < ${run_path}/sleep_fifo
+	read -t ${sleep_duration_s} <><(:) || :
 }
 
 sleep_us()
 {
-	# calling external sleep binary is slow
-	# bash does have a loadable sleep 
-	# but read's timeout can more portably be exploited and this is apparently even faster anyway
-
 	local sleep_duration_us=${1} # (microseconds)
-	
+
 	sleep_duration_s=000000${sleep_duration_us}
 	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-	read -t ${sleep_duration_s} < ${run_path}/sleep_fifo
+	sleep_s ${sleep_duration_s}
 }
 
 sleep_remaining_tick_time()
@@ -1314,9 +1310,6 @@ if [[ -d ${run_path} ]]; then
 else
 	mkdir -p ${run_path}
 fi
-
-mkfifo ${run_path}/sleep_fifo
-exec {fd}<> ${run_path}/sleep_fifo
 
 no_reflectors=${#reflectors[@]} 
 
