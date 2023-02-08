@@ -46,7 +46,7 @@ cleanup_and_killall()
 	fi
 
 	[[ -d ${run_path} ]] && rm -r ${run_path}
-	[[ -d /var/run/cake-autorate ]] && rm -r /var/run/cake-autorate
+	rmdir /var/run/cake-autorate 2>/dev/null
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
