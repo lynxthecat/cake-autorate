@@ -32,7 +32,7 @@ printf "Installing cake-autorate in /root/cake-autorate...\n"
 # Download the files to a temporary directory, so we can move them to the cake-autorate directory
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT INT TERM
-wget -qO- "${SRC_DIR}/${BRANCH}.tar.gz" | zcat | tar -xf - -C "${tmp}"
+wget -qO- "${SRC_DIR}/${BRANCH}.tar.gz" | tar -xzf - -C "${tmp}"
 mv "${tmp}/cake-autorate-${BRANCH}"/* "${tmp}"
 rmdir "${tmp}/cake-autorate-${BRANCH}"
 
