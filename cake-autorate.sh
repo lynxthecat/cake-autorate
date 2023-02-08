@@ -118,7 +118,11 @@ rotate_log_file()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	[[ -f ${log_file_path} ]] && mv ${log_file_path} ${log_file_path}.old
+	if [[ -f ${log_file_path} ]]
+	then
+		cat ${log_file_path} > ${log_file_path}.old
+		> ${log_file_path}
+	fi
 	((output_processing_stats)) && print_headers
 }
 
