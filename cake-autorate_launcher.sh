@@ -1,5 +1,6 @@
 #!/bin/bash
 
+source /root/cake-autorate/lib.sh
 cake_instances=(/root/cake-autorate/cake-autorate_config*sh)
 
 trap kill_cake_instances INT TERM EXIT
@@ -25,6 +26,6 @@ do
 	cake_instance_list+=(${cake_instance})
 done
 
-sleep inf&
+sleep_inf&
 sleep_pid+=($!)
 wait

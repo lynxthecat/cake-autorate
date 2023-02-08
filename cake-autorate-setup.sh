@@ -27,6 +27,9 @@ cd cake-autorate/ || exit
 # rm the main script and fetch a fresh copy
 [[ -f cake-autorate.sh ]] && rm cake-autorate.sh
 wget -q "$SRC_DIR"cake-autorate.sh
+[[ -f lib.sh ]] && rm lib.sh
+wget -q "$SRC_DIR"lib.sh
+chmod +x lib.sh
 
 # Check if a configuration file exists, and ask whether to keep it
 
