@@ -14,6 +14,14 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
+# Initialize file descriptors
+## -1 signifies that the log file fd will not be used and
+## that the log file will be written to directly
+log_fd=-1
+## ping_fd should be open for the duration of the script
+## as it's integral to the operation of the script
+exec {ping_fd}<> <(:)
+
 # Possible performance improvement
 export LC_ALL=C
 
@@ -87,8 +95,8 @@ log_msg()
 			
 	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
-	if [[ -p ${run_path}/log_fifo ]]; then
-		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" > ${run_path}/log_fifo
+	if (( ${log_fd} >= 0 )); then
+		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >&${log_fd}
 	else
 		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> ${log_file_path}
 	fi
@@ -172,13 +180,13 @@ export_log_file()
 
 
 
-flush_log_fifo()
+flush_log_fd()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -t 0.01 log_line
+	while read -t 0.01 -u ${log_fd} log_line
 	do
 		printf '%s\n' "${log_line}" >> ${log_file_path}		
-	done<${run_path}/log_fifo
+	done
 }
 
 get_log_file_size_bytes()
@@ -192,7 +200,7 @@ kill_maintain_log_file()
 {
 	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	flush_log_fifo
+	flush_log_fd
 	exit
 }
 
@@ -212,7 +220,7 @@ maintain_log_file()
 
 	while true
 	do
-		while read log_line
+		while read -u ${log_fd} log_line
 		do
 
 			printf '%s\n' "${log_line}" >> ${log_file_path}		
@@ -238,9 +246,9 @@ maintain_log_file()
 				break
 			fi
 
-		done<${run_path}/log_fifo
-		
-		flush_log_fifo
+		done
+
+		flush_log_fd
 		rotate_log_file
 		t_log_file_start_us=${EPOCHREALTIME/./}
 		get_log_file_size_bytes
@@ -458,7 +466,7 @@ monitor_reflector_responses_fping()
 
 	while true
 	do
-		while read -t 1 timestamp reflector _ seq_rtt 2>/dev/null
+		while read -t 1 -u "${pinger_fds[pinger]}" timestamp reflector _ seq_rtt 2>/dev/null
 		do 
 			t_start_us=${EPOCHREALTIME/./}
 
@@ -496,7 +504,7 @@ monitor_reflector_responses_fping()
 		
 			timestamp=${timestamp//[\[\]]}0
 
-			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" > ${run_path}/ping_fifo
+			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" >&${ping_fd}
 
 			timestamp_us=${timestamp//[.]}
 
@@ -510,7 +518,7 @@ monitor_reflector_responses_fping()
 
 			printf '%s' "${timestamp_us}" > ${run_path}/reflectors_last_timestamp_us
 
-		done 2>/dev/null <${run_path}/pinger_${pinger}_fifo
+		done 2>/dev/null
 	done
 }
 
@@ -550,7 +558,7 @@ monitor_reflector_responses_ping()
 
 	while true
 	do
-		while read -t 1 -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
+		while read -t 1 -u "${pinger_fds[pinger]}" -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
 		do
 			# If no match then skip onto the next one
 			[[ ${seq_rtt} =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
@@ -589,7 +597,7 @@ monitor_reflector_responses_ping()
 
 			timestamp=${timestamp//[\[\]]}
 	
-			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" > ${run_path}/ping_fifo
+			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" >&${ping_fd}
 		
 			timestamp_us=${timestamp//[.]}
 
@@ -603,7 +611,7 @@ monitor_reflector_responses_ping()
 
 			printf '%s' "${timestamp_us}" > ${run_path}/reflectors_last_timestamp_us
 
-		done 2>/dev/null <${run_path}/pinger_${pinger}_fifo
+		done 2>/dev/null
 	done
 }
 
@@ -621,15 +629,13 @@ start_pinger()
 
 		fping)
 			pinger=0
-			mkfifo ${run_path}/pinger_${pinger}_fifo
-			exec {pinger_fds[pinger]}<> ${run_path}/pinger_${pinger}_fifo
-			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period ${reflector_ping_interval_ms} --interval ${ping_response_interval_ms} --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null > ${run_path}/pinger_${pinger}_fifo&
+			exec {pinger_fds[pinger]}<> <(:)
+			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period ${reflector_ping_interval_ms} --interval ${ping_response_interval_ms} --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&${pinger_fds[pinger]} &
 		;;
 		ping)
-			mkfifo ${run_path}/pinger_${pinger}_fifo
-			exec {pinger_fds[pinger]}<> ${run_path}/pinger_${pinger}_fifo
+			exec {pinger_fds[pinger]}<> <(:)
 			sleep_until_next_pinger_time_slot ${pinger}
-			${ping_prefix_string} ping ${ping_extra_args} -D -i ${reflector_ping_interval_s} ${reflectors[pinger]} 2> /dev/null > ${run_path}/pinger_${pinger}_fifo &
+			${ping_prefix_string} ping ${ping_extra_args} -D -i ${reflector_ping_interval_s} ${reflectors[pinger]} 2> /dev/null >&${pinger_fds[pinger]} &
 		;;
 	esac
 	
@@ -731,7 +737,6 @@ kill_pinger()
 	kill_and_wait_by_pid_name monitor_pids[pinger] 0
 
 	exec {pinger_fds[pinger]}<&-
-	[[ -p ${run_path}/pinger_${pinger}_fifo ]] && rm ${run_path}/pinger_${pinger}_fifo
 }
 
 kill_pingers()
@@ -1288,18 +1293,17 @@ command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${p
 if ((log_to_file)); then
 	log_file_max_time_us=$((${log_file_max_time_mins}*60000000))
 	log_file_max_size_bytes=$((${log_file_max_size_KB}*1024))
-	mkfifo ${run_path}/log_fifo
-	exec {fd}<> ${run_path}/log_fifo
+	exec {log_fd}<> <(:)
 	maintain_log_file&
 	maintain_log_file_pid=${!}
 	log_msg "DEBUG" "Started maintain log file process with PID: ${maintain_log_file_pid}"
-	echo ${maintain_log_file_pid} > ${run_path}/maintain_log_file_pid
+	printf '%s' "${maintain_log_file_pid}" > "${run_path}/maintain_log_file_pid"
 fi
 
 # test if stdout is a tty (terminal)
 if ! ((terminal)); then
 	echo "stdout not a terminal so redirecting output to: ${log_file_path}"
-	((log_to_file)) && exec 1> ${run_path}/log_fifo
+	((log_to_file)) && exec 1>&${log_fd}
 fi
 
 if (( ${debug} )) ; then
@@ -1418,9 +1422,6 @@ monitor_achieved_rates_pid=${!}
 printf '%s' "0" > ${run_path}/dl_load_percent
 printf '%s' "0" > ${run_path}/ul_load_percent
 
-mkfifo ${run_path}/ping_fifo
-exec {fd}<> ${run_path}/ping_fifo
-
 maintain_pingers&
 maintain_pingers_pid=${!}
 
@@ -1428,7 +1429,7 @@ log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_
 
 while true
 do
-	while read -t ${stall_detection_timeout_s} timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
+	while read -t ${stall_detection_timeout_s} -u ${ping_fd} timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if (( (t_start_us - 10#"${timestamp//[.]}")>500000 )); then
@@ -1482,7 +1483,7 @@ do
 		
 		t_end_us=${EPOCHREALTIME/./}
 
-	done <${run_path}/ping_fifo
+	done
 
 	# stall handling procedure
 	# PIPESTATUS[0] == 142 corresponds with while loop timeout
