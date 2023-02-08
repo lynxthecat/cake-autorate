@@ -17,6 +17,7 @@
 # Possible performance improvement
 export LC_ALL=C
 
+source /root/cake-autorate/lib.sh
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -1128,57 +1129,6 @@ verify_ifs_up()
 		[[ ! -f ${rx_bytes_path} ]] && log_msg "DEBUG" "Warning: The configured download interface: '${dl_if}' does not appear to be present. Waiting ${if_up_check_interval_s} seconds for the interface to come up." 
 		[[ ! -f ${tx_bytes_path} ]] && log_msg "DEBUG" "Warning: The configured upload interface: '${ul_if}' does not appear to be present. Waiting ${if_up_check_interval_s} seconds for the interface to come up." 
 		sleep_s ${if_up_check_interval_s}
-	done
-}
-
-sleep_s()
-{
-	# calling external sleep binary is slow
-	# bash does have a loadable sleep
-	# but read's timeout can more portably be exploited and this is apparently even faster anyway
-
-	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
-
-	read -t ${sleep_duration_s} <><(:) || :
-}
-
-sleep_us()
-{
-	local sleep_duration_us=${1} # (microseconds)
-
-	sleep_duration_s=000000${sleep_duration_us}
-	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-	sleep_s ${sleep_duration_s}
-}
-
-sleep_remaining_tick_time()
-{
-	# sleeps until the end of the tick duration
-
-	local t_start_us=${1} # (microseconds)
-	local tick_duration_us=${2} # (microseconds)
-
-	sleep_duration_us=$(( ${t_start_us} + ${tick_duration_us} - ${EPOCHREALTIME/./} ))
-	
-	if (( ${sleep_duration_us} > 0 )); then
-		sleep_us ${sleep_duration_us}
-	fi
-}
-
-randomize_array()
-{
-	local -n array=${1}
-
-	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-
-	subset=(${array[@]})
-	array=()
-	for ((set=${#subset[@]}; set>0; set--))
-	do
-		idx=$((RANDOM%set))
-		array+=("${subset[idx]}")
-		unset subset[idx]
-		subset=(${subset[@]})
 	done
 }
 
