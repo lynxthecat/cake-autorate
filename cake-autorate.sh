@@ -622,7 +622,7 @@ start_pinger()
 			pinger=0
 			mkfifo ${run_path}/pinger_${pinger}_fifo
 			exec {pinger_fds[pinger]}<> ${run_path}/pinger_${pinger}_fifo
-			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period ${reflector_ping_interval_ms} --interval ${ping_response_interval_ms} --timeout 10000 ${reflectors[@]:0:${no_pingers}} 2> /dev/null > ${run_path}/pinger_${pinger}_fifo&
+			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period ${reflector_ping_interval_ms} --interval ${ping_response_interval_ms} --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null > ${run_path}/pinger_${pinger}_fifo&
 		;;
 		ping)
 			mkfifo ${run_path}/pinger_${pinger}_fifo
@@ -1433,8 +1433,8 @@ t_dl_last_decay_us=${t_start_us}
 
 t_sustained_connection_idle_us=0
 
-declare -a dl_delays=( $(for i in {1..${bufferbloat_detection_window}}; do echo 0; done) )
-declare -a ul_delays=( $(for i in {1..${bufferbloat_detection_window}}; do echo 0; done) )
+mapfile -t dl_delays < <(for ((i=1; i <= bufferbloat_detection_window; i++)); do echo 0; done)
+mapfile -t ul_delays < <(for ((i=1; i <= bufferbloat_detection_window; i++)); do echo 0; done)
 
 delays_idx=0
 sum_dl_delays=0
