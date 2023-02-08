@@ -825,7 +825,7 @@ maintain_pingers()
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap '' INT
-	trap 'kill_maintain_pingers' TERM EXIT
+	trap 'terminate_reflector_maintenance=1' TERM EXIT
 	
 	trap 'pause_reflector_maintenance' USR1
 	trap 'pause_maintain_pingers' USR2
@@ -838,6 +838,8 @@ maintain_pingers()
 	declare -A ul_owd_delta_ewmas_us
 
 	err_silence=0
+
+	terminate_reflector_maintenance=0
 
 	reflector_maintenance_paused=0
 	maintain_pingers_paused=0
@@ -867,7 +869,7 @@ maintain_pingers()
 	start_pingers
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
-	while true
+	while ((terminate_reflector_maintenance == 0))
 	do
 		sleep_s ${reflector_health_check_interval_s}
 
@@ -978,6 +980,8 @@ maintain_pingers()
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
 	done
+
+	kill_maintain_pingers
 }
 
 set_cake_rate()
