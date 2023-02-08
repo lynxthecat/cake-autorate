@@ -1,10 +1,15 @@
-#! /bin/sh
+#!/bin/sh
 # Basic installation script for cake-autorate.sh
 # See https://github.com/lynxthecat/sqm-autorate for details
 # https://www.shellcheck.net/ is your friend
 
-SRC_DIR="https://raw.githubusercontent.com/lynxthecat/cake-autorate/main/"
+# Set correctness options
+set -eu
+
+# Set up remote locations and branch
+SRC_DIR="https://github.com/lynxthecat/cake-autorate/archive/refs/heads/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
+BRANCH="testing"
 
 # Retrieve required packages
 printf "Running opkg update to update package lists:\n"
@@ -17,55 +22,50 @@ opkg install bash iputils-ping fping
 cd /root/ || exit
 
 # create the cake-autorate directory if it's not present
-[[ -d cake-autorate ]] || mkdir cake-autorate
-
-printf "Installing cake-autorate in /root/cake-autorate...\n"
+[ -d cake-autorate ] || mkdir cake-autorate
 
 # cd into it
 cd cake-autorate/ || exit
 
-# rm the main script and fetch a fresh copy
-[[ -f cake-autorate.sh ]] && rm cake-autorate.sh
-wget -q "$SRC_DIR"cake-autorate.sh
-[[ -f lib.sh ]] && rm lib.sh
-wget -q "$SRC_DIR"lib.sh
-chmod +x lib.sh
+printf "Installing cake-autorate in /root/cake-autorate...\n"
+
+# Download the files to a temporary directory, so we can move them to the cake-autorate directory
+tmp=$(mktemp -d)
+trap 'rm -rf "${tmp}"' EXIT INT TERM
+wget -qO- "${SRC_DIR}/${BRANCH}.tar.gz" | zcat | tar -xf - -C "${tmp}"
+mv "${tmp}/cake-autorate-${BRANCH}"/* "${tmp}"
+rmdir "${tmp}/cake-autorate-${BRANCH}"
 
 # Check if a configuration file exists, and ask whether to keep it
-
 editmsg="\nNow edit the cake-autorate_config.primary.sh file as described in:\n   $DOC_URL"
 
 if [ -f cake-autorate_config.primary.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
-	read keepIt
-	if [ "$keepIt" == "N" ] || [ "$keepIt" == "n" ]; then
-		rm ./cake-autorate_config.primary.sh
-		wget -q "$SRC_DIR"cake-autorate_config.primary.sh
+	read -r keepIt
+	if [ "$keepIt" = "N" ] || [ "$keepIt" = "n" ]; then
+		mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
 	else
 		editmsg="Using prior configuration"
+		mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh.new
 	fi
 else 
-	wget -q "$SRC_DIR"cake-autorate_config.primary.sh 
+	mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
 fi
 
+# move the program files to the cake-autorate directory
+files="cake-autorate.sh cake-autorate_launcher.sh lib.sh"
+for file in $files; do
+	mv "${tmp}/${file}" "${file}"
+done
+
 # make both .sh files executable
-chmod +x *.sh
+chmod +x ./*.sh
 
 # Tell how to handle the config file - use old, or edit the new one
-printf "$editmsg \n"
+printf '%s\n' "$editmsg"
 
-# Also copy over the service file but DO NOT ACTIVATE IT
-# cd into the directory and remove the previous file
-[[ -f cake-autorate_launcher.sh ]] && rm cake-autorate_launcher.sh
-wget -q "$SRC_DIR"cake-autorate_launcher.sh
-chmod +x cake-autorate_launcher.sh
-cd /etc/init.d || exit
-[[ -f cake-autorate ]] && rm cake-autorate
-wget -q "$SRC_DIR"cake-autorate
-chmod +x cake-autorate
-
-printf "\n`grep cake_autorate_version /root/cake-autorate/cake-autorate_config.primary.sh` successfully installed, but not yet running\n\n"
-printf "Start the software manually with:\n"
-printf "   cd /root/cake-autorate; ./cake-autorate.sh\n"
-printf "Run as a service with:\n"
-printf "   service cake-autorate enable; service cake-autorate start\n\n"
+printf '\n%s\n\n' "$(grep cake_autorate_version /root/cake-autorate/cake-autorate_config.primary.sh) successfully installed, but not yet running"
+printf '%s\n' "Start the software manually with:"
+printf '%s\n' "   cd /root/cake-autorate; ./cake-autorate.sh"
+printf '%s\n' "Run as a service with:"
+printf '%s\n\n' "   service cake-autorate enable; service cake-autorate start"
