@@ -52,17 +52,17 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
-	if [[ -n ${maintain_pingers_pid} ]]; then
+	if [[ -n ${maintain_pingers_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
 		kill_and_wait_by_pid_name maintain_pingers_pid 0
 	fi
 
-	if [[ -n ${monitor_achieved_rates_pid} ]]; then
+	if [[ -n ${monitor_achieved_rates_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
 	fi
 
-	if [[ -n ${maintain_log_file_pid} ]]; then
+	if [[ -n ${maintain_log_file_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		kill_and_wait_by_pid_name maintain_log_file_pid 0
 	fi
@@ -197,10 +197,10 @@ export_log_file()
 flush_log_fd()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -r -t 0.01 -u ${log_fd} log_line
+	while read -r -t 0.01 log_line
 	do
 		printf '%s\n' "${log_line}" >> "${log_file_path}"
-	done
+	done <&"${log_fd}"
 }
 
 get_log_file_size_bytes()
@@ -234,7 +234,7 @@ maintain_log_file()
 
 	while true
 	do
-		while read -r -u ${log_fd} log_line
+		while read -r log_line
 		do
 
 			printf '%s\n' "${log_line}" >> "${log_file_path}"
@@ -260,7 +260,7 @@ maintain_log_file()
 				break
 			fi
 
-		done
+		done <&"${log_fd}"
 
 		flush_log_fd
 		rotate_log_file
@@ -406,7 +406,7 @@ classify_load()
 	local achieved_rate_kbps=${2}
 	local bufferbloat_detected=${3}
 	local -n load_condition=${4}
-	
+
 	if (( load_percent > high_load_thr_percent )); then
 		load_condition="high"  
 	elif (( achieved_rate_kbps > connection_active_thr_kbps )); then
@@ -416,7 +416,7 @@ classify_load()
 	fi
 	
 	((bufferbloat_detected)) && load_condition=${load_condition}"_bb"
-		
+
 	if ((sss_compensation)); then
 		for sss_time_us in "${sss_times_us[@]}"
 		do
@@ -480,7 +480,7 @@ monitor_reflector_responses_fping()
 
 	while true
 	do
-		while read -r -t 1 -u "${pinger_fds[pinger]}" timestamp reflector _ seq_rtt 2>/dev/null
+		while read -r -t 1 timestamp reflector _ seq_rtt 2>/dev/null
 		do 
 			t_start_us=${EPOCHREALTIME/./}
 
@@ -532,7 +532,7 @@ monitor_reflector_responses_fping()
 
 			printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-		done 2>/dev/null
+		done 2>/dev/null <&"${pinger_fds[pinger]}" 
 	done
 }
 
@@ -542,8 +542,8 @@ kill_monitor_reflector_responses_ping()
 {
 	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	[[ -n "${rtt_baseline_us}" ]] && printf '%s' "${rtt_baseline_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us"
-	[[ -n "${rtt_delta_ewma_us}" ]] && printf '%s' "${rtt_delta_ewma_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us"
+	[[ -n "${rtt_baseline_us:-}" ]] && printf '%s' "${rtt_baseline_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us"
+	[[ -n "${rtt_delta_ewma_us:-}" ]] && printf '%s' "${rtt_delta_ewma_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us"
 	exit
 }
 
@@ -572,7 +572,7 @@ monitor_reflector_responses_ping()
 
 	while true
 	do
-		while read -t 1 -u "${pinger_fds[pinger]}" -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
+		while read -t 1 -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
 		do
 			# If no match then skip onto the next one
 			[[ ${seq_rtt} =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
@@ -625,7 +625,7 @@ monitor_reflector_responses_ping()
 
 			printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-		done 2>/dev/null
+		done 2>/dev/null <&"${pinger_fds[pinger]}"
 	done
 }
 
@@ -786,7 +786,7 @@ replace_pinger_reflector()
 
 	lock "${run_path}/replace_pinger_reflector_lock"
 
-	if((no_reflectors > no_pingers)); then
+	if ((no_reflectors > no_pingers)); then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
 		kill_pinger "${pinger}"
 		bad_reflector=${reflectors[pinger]}
@@ -1074,9 +1074,9 @@ get_max_wire_packet_size_bits()
  
 	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu" 
 	[[ $(tc qdisc show dev "${interface}") =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
-	[[ -n "${BASH_REMATCH[2]}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
+	[[ -n "${BASH_REMATCH[2]:-}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
-	[[ "${BASH_REMATCH[1]}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
+	[[ "${BASH_REMATCH[1]:-}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
 }
 
 update_max_wire_packet_compensation()
@@ -1270,7 +1270,7 @@ else
 	exit
 fi
 
-if [[ -n "${log_file_path_override}" ]]; then 
+if [[ -n "${log_file_path_override:-}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
 		broken_log_file_path_override=${log_file_path_override}
 		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
@@ -1487,7 +1487,7 @@ log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_
 
 while true
 do
-	while read -r -t "${stall_detection_timeout_s}" -u "${ping_fd}" timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
+	while read -r -t "${stall_detection_timeout_s}" timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if (( (t_start_us - 10#"${timestamp//[.]}")>500000 )); then
@@ -1541,7 +1541,7 @@ do
 		
 		t_end_us=${EPOCHREALTIME/./}
 
-	done
+	done <&"${ping_fd}"
 
 	# stall handling procedure
 	# PIPESTATUS[0] == 142 corresponds with while loop timeout
