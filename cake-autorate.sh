@@ -22,6 +22,10 @@ log_fd=-1
 ## as it's integral to the operation of the script
 exec {ping_fd}<> <(:)
 
+# Bash correctness options
+## Disable globbing (expansion of *).
+set -f
+
 # Possible performance improvement
 export LC_ALL=C
 
