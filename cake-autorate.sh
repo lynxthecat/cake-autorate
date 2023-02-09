@@ -1530,7 +1530,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
 		# send signal USR1 to pause reflector maintenance
-		kill -USR1 ${maintain_pingers_pid}
+		kill -USR1 "${maintain_pingers_pid}"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1570,8 +1570,8 @@ do
 	fi
 
 	# send signal USR2 to pause maintain_reflectors
-	echo >&${pause_maintain_pingers_handler[1]}
-	read -r -u ${pause_maintain_pingers_handler[0]}
+	echo >&"${pause_maintain_pingers_handler[1]}"
+	read -r -u "${pause_maintain_pingers_handler[0]}"
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1590,6 +1590,6 @@ do
 	done
 
 	# send signal USR2 to resume maintain_reflectors
-	echo >&${pause_maintain_pingers_handler[1]}
-	read -r -u ${pause_maintain_pingers_handler[0]}
+	echo >&"${pause_maintain_pingers_handler[1]}"
+	read -r -u "${pause_maintain_pingers_handler[0]}"
 done
