@@ -53,11 +53,7 @@ cleanup_and_killall()
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
 	proc_man maintain_pingers "stop"
-
-	if [[ -n ${monitor_achieved_rates_pid:-} ]]; then
-		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
-		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
-	fi
+	proc_man monitor_achieved_rates "stop"
 
 	if [[ -n ${maintain_log_file_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
@@ -1471,8 +1467,7 @@ if ((startup_wait_us>0)); then
 fi
 
 # Initiate achived rate monitor
-monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"&
-monitor_achieved_rates_pid=${!}
+proc_man monitor_achieved_rates start monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"
 	
 printf '%s' "0" > "${run_path}/dl_load_percent"
 printf '%s' "0" > "${run_path}/ul_load_percent"
