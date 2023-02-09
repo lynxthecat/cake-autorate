@@ -85,11 +85,6 @@ proc_man_set_key()
 {
 	local key=${1}
 	local value=${2}
-	local proc_state_file=${3}
-	local proc_state_file_lock="${proc_state_file}.lock"
-
-	lock "${proc_state_file_lock:?}"
-	trap 'unlock "${proc_state_file_lock:?}"' RETURN
 
 	local entered=0
 	while read -r line; do
@@ -110,11 +105,6 @@ proc_man_set_key()
 proc_man_get_key_value()
 {
 	local key=${1}
-	local proc_state_file=${2}
-	local proc_state_file_lock="${proc_state_file}.lock"
-
-	lock "${proc_state_file_lock:?}"
-	trap 'unlock "${proc_state_file_lock:?}"' RETURN
 
 	while read -r line; do
 		if [[ ${line} =~ ^${key}= ]]; then
@@ -127,10 +117,14 @@ proc_man_get_key_value()
 
 proc_man()
 {
-	local proc_state_file=${proc_state_file:-${run_path}/proc_state}
+	local proc_state_file="${proc_state_file:-${run_path}/proc_state}"
+	local proc_state_file_lock="${proc_state_file_lock:-${run_path}/proc_state.lock}"
 	local name=${1}
 	local action=${2}
 	shift 2
+
+	lock "${proc_state_file_lock:?}"
+	trap 'unlock "${proc_state_file_lock:?}"' RETURN
 
 	if [[ ! -f "${proc_state_file:?}" ]]; then
 		true > "${proc_state_file:?}"
