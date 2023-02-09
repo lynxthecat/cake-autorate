@@ -4,7 +4,7 @@
 
 __set_e=0
 if [[ ! ${-} =~ e ]]; then
-    set -e
+    #set -e
     __set_e=1
 fi
 
@@ -62,6 +62,28 @@ randomize_array()
 		unset "subset[idx]"
 		subset=("${subset[@]}")
 	done
+}
+
+lock()
+{
+	if eval "[[ -z \"\${__lock_${1}}\" ]]"; then
+		eval declare -gi "__lock_${1}"
+	elif eval "[[ \"\${__lock_${1}}\" -ne -1 ]]"; then
+		eval "wait \"\${__lock_${1}}\""
+	fi
+	sleep_inf &
+	sleep_inf_pid=${!}
+	eval "__lock_${1}=${sleep_inf_pid}"
+}
+
+unlock()
+{
+	if eval "[[ -z \"\${__lock_${1}}\" ]]"; then
+		return
+	elif eval "[[ \"\${__lock_${1}}\" -ne -1 ]]"; then
+		kill -9 "${__lock_${1}}"
+	fi
+	eval "__lock_${1}=-1"
 }
 
 if (( __set_e == 1 )); then
