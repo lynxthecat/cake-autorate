@@ -25,12 +25,20 @@ exec {ping_fd}<> <(:)
 # Bash correctness options
 ## Disable globbing (expansion of *).
 set -f
+## Forbid using unset variables.
+set -u
+## The exit status of a pipeline is the status of the last
+## command to exit with a non-zero status, or zero if no
+## command exited with a non-zero status.
+set -o pipefail
 
 # Possible performance improvement
 export LC_ALL=C
 
 # shellcheck source=cake-autorate_lib.sh
 . /root/cake-autorate/cake-autorate_lib.sh
+# shellcheck source=cake-autorate_defaults.sh
+. /root/cake-autorate/cake-autorate_defaults.sh
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -74,6 +82,7 @@ log_msg()
 
 	local type=${1}
 	local msg=${2}
+	local instance_id=${instance_id:-"unknown"}
 
 	case ${type} in
 
@@ -1219,7 +1228,7 @@ debug_cmd()
 
 # ======= Start of the Main Routine ========
 
-[[ -t 1 ]] && terminal=1
+[[ -t 1 ]] && terminal=1 || terminal=0
 
 type logger &> /dev/null && use_logger=1 || use_logger=0 # only perform the test once.
 
@@ -1234,7 +1243,7 @@ exec 2>&"${log_stderr[1]}"
 run_path=/var/run/cake-autorate/
 
 # cake-autorate first argument is config file path
-if [[ -n ${1} ]]; then
+if [[ -n ${1:-} ]]; then
 	config_path=${1}
 else
 	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
@@ -1326,6 +1335,34 @@ if ! ((terminal)); then
 	((log_to_file)) && exec 1>&${log_fd}
 fi
 
+# Initialize rx_bytes_path and tx_bytes_path if not set
+if [[ -z "${rx_bytes_path:-}" ]]; then
+	case "${dl_if}" in
+		\veth*)
+			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+			;;
+		\ifb*)
+			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+			;;
+		*)
+			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+			;;
+	esac
+fi
+if [[ -z "${tx_bytes_path:-}" ]]; then
+	case "${ul_if}" in
+		\veth*)
+			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
+			;;
+		\ifb*)
+			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
+			;;
+		*)
+			tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
+			;;
+	esac
+fi
+
 if ((debug)) ; then
 	log_msg "DEBUG" "CAKE-autorate version: ${cake_autorate_version}"
 	log_msg "DEBUG" "config_path: ${config_path}"
@@ -1340,6 +1377,7 @@ fi
 
 # Check interfaces are up and wait if necessary for them to come up
 verify_ifs_up
+
 # Initialize variables
 
 # Convert human readable parameters to values that work with integer arithmetic
