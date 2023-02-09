@@ -843,7 +843,12 @@ maintain_pingers()
 	trap 'terminate_reflector_maintenance=1' TERM EXIT
 	
 	trap 'pause_reflector_maintenance' USR1
-	trap 'pause_maintain_pingers' USR2
+	coproc pause_maintain_pingers_handler {
+		while read -r; do
+			pause_maintain_pingers
+			echo "OK"
+		done
+	}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -1565,7 +1570,8 @@ do
 	fi
 
 	# send signal USR2 to pause maintain_reflectors
-	kill -USR2 ${maintain_pingers_pid}
+	echo >&${pause_maintain_pingers_handler[1]}
+	read -r -u ${pause_maintain_pingers_handler[0]}
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1584,5 +1590,6 @@ do
 	done
 
 	# send signal USR2 to resume maintain_reflectors
-	kill -USR2 ${maintain_pingers_pid}
+	echo >&${pause_maintain_pingers_handler[1]}
+	read -r -u ${pause_maintain_pingers_handler[0]}
 done
