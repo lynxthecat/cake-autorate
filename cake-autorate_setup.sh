@@ -53,7 +53,7 @@ else
 fi
 
 # move the program files to the cake-autorate directory
-files="cake-autorate.sh cake-autorate_launcher.sh lib.sh"
+files="cake-autorate.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
 for file in $files; do
 	mv "${tmp}/${file}" "${file}"
 done

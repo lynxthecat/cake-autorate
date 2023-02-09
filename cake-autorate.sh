@@ -25,7 +25,7 @@ exec {ping_fd}<> <(:)
 # Possible performance improvement
 export LC_ALL=C
 
-source /root/cake-autorate/lib.sh
+source /root/cake-autorate/cake-autorate_lib.sh
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
