@@ -1,7 +1,8 @@
 #!/bin/sh
-# Basic installation script for cake-autorate.sh
-# See https://github.com/lynxthecat/sqm-autorate for details
-# https://www.shellcheck.net/ is your friend
+
+# Installation script for cake-autorate.sh
+#
+# See https://github.com/lynxthecat/cake-autorate for more details
 
 # Set correctness options
 set -eu
@@ -32,13 +33,11 @@ printf "Installing cake-autorate in /root/cake-autorate...\n"
 # Download the files to a temporary directory, so we can move them to the cake-autorate directory
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT INT TERM
-wget -qO- "${SRC_DIR}/${BRANCH}.tar.gz" | tar -xzf - -C "${tmp}"
+wget -qO- "${SRC_DIR}/${BRANCH}.tar.gz" | tar -xozf - -C "${tmp}"
 mv "${tmp}/cake-autorate-${BRANCH}"/* "${tmp}"
-rmdir "${tmp}/cake-autorate-${BRANCH}"
 
 # Check if a configuration file exists, and ask whether to keep it
 editmsg="\nNow edit the cake-autorate_config.primary.sh file as described in:\n   $DOC_URL"
-
 if [ -f cake-autorate_config.primary.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
 	read -r keepIt
@@ -53,13 +52,15 @@ else
 fi
 
 # move the program files to the cake-autorate directory
+# scripts that need to be executable are already marked as such in the tarball
 files="cake-autorate.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
 for file in $files; do
 	mv "${tmp}/${file}" "${file}"
 done
 
-# make both .sh files executable
-chmod +x ./*.sh
+# Also copy over the service file but DO NOT ACTIVATE IT
+mv "${tmp}/cake-autorate" /etc/init.d/
+chmod +x /etc/init.d/cake-autorate
 
 # Tell how to handle the config file - use old, or edit the new one
 printf '%s\n' "$editmsg"
