@@ -635,7 +635,7 @@ start_pinger()
 		fping)
 			pinger=0
 			exec {pinger_fds[pinger]}<> <(:)
-			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:"${no_pingers}"}" 2> /dev/null >&"${pinger_fds[pinger]}" &
+			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}" &
 		;;
 		ping)
 			exec {pinger_fds[pinger]}<> <(:)
