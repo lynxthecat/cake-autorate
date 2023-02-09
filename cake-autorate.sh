@@ -646,9 +646,7 @@ start_pinger()
 		;;
 	esac
 	
-	monitor_reflector_responses_${pinger_binary} "${pinger}" &
-	monitor_pids[pinger]=${!}
-	log_process_cmdline monitor_pids[pinger]
+	proc_man "monitor_${pinger}" start monitor_reflector_responses_${pinger_binary} "${pinger}"
 }
 
 start_pingers()
@@ -736,8 +734,7 @@ kill_pinger()
 	esac
 
 	proc_man "pinger_${pinger}" stop
-
-	kill_and_wait_by_pid_name monitor_pids[pinger] 0
+	proc_man "monitor_${pinger}" stop
 
 	exec {pinger_fds[pinger]}<&-
 }
