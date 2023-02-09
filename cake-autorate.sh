@@ -54,11 +54,7 @@ cleanup_and_killall()
 
 	proc_man maintain_pingers "stop"
 	proc_man monitor_achieved_rates "stop"
-
-	if [[ -n ${maintain_log_file_pid:-} ]]; then
-		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
-		kill_and_wait_by_pid_name maintain_log_file_pid 0
-	fi
+	proc_man maintain_log_file "stop"
 
 	[[ -d "${run_path}" ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -1309,10 +1305,7 @@ if ((log_to_file)); then
 	log_file_max_time_us=$((log_file_max_time_mins*60000000))
 	log_file_max_size_bytes=$((log_file_max_size_KB*1024))
 	exec {log_fd}<> <(:)
-	maintain_log_file&
-	maintain_log_file_pid=${!}
-	log_msg "DEBUG" "Started maintain log file process with PID: ${maintain_log_file_pid}"
-	printf '%s' "${maintain_log_file_pid}" > "${run_path}/maintain_log_file_pid"
+	proc_man "maintain_log_file" start maintain_log_file
 fi
 
 # test if stdout is a tty (terminal)
