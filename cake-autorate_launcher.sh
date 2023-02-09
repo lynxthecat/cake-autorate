@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source /root/cake-autorate/lib.sh
+source /root/cake-autorate/cake-autorate_lib.sh
 cake_instances=(/root/cake-autorate/cake-autorate_config*sh)
 
 trap kill_cake_instances INT TERM EXIT
