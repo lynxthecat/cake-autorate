@@ -181,8 +181,6 @@ export_log_file()
 	fi
 }
 
-
-
 flush_log_fd()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
@@ -196,7 +194,7 @@ get_log_file_size_bytes()
 {
 	read -r log_file_size_bytes< <(du -b "${log_file_path}")
 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
-	! [[ ${log_file_size_bytes} =~ ^[0-9]+$ ]] && log_file_size_bytes=0
+	[[ ${log_file_size_bytes} =~ ^[0-9]+$ ]] || log_file_size_bytes=0
 }
 
 kill_maintain_log_file()
@@ -300,13 +298,13 @@ get_next_shaper_rate()
 		*low*|*idle*)
 			if (( t_next_rate_us > (t_last_decay_us+decay_refractory_period_us) )); then
 
-	                	if ((shaper_rate_kbps > base_shaper_rate_kbps)); then
+				if ((shaper_rate_kbps > base_shaper_rate_kbps)); then
 					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_down_load_low)/1000 ))
 					shaper_rate_kbps=$(( decayed_shaper_rate_kbps > base_shaper_rate_kbps ? decayed_shaper_rate_kbps : base_shaper_rate_kbps))
 				elif ((shaper_rate_kbps < base_shaper_rate_kbps)); then
-        			        decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_up_load_low)/1000 ))
+					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_up_load_low)/1000 ))
 					shaper_rate_kbps=$(( decayed_shaper_rate_kbps < base_shaper_rate_kbps ? decayed_shaper_rate_kbps : base_shaper_rate_kbps))
-                		fi
+				fi
 
 				t_last_decay_us=${EPOCHREALTIME/./}
 			fi
@@ -676,43 +674,6 @@ sleep_until_next_pinger_time_slot()
 	sleep_remaining_tick_time "${t_start_us}" "${time_to_next_time_slot_us}"
 }
 
-log_process_cmdline()
-{
-	local -n process_pid=${1}
-
-	for ((read_try=0; read_try<10; read_try++))
-	do
-		read -r process_cmdline < <( tr '\0' ' ' < "/proc/${process_pid}/cmdline" )
-		[[ -z ${process_cmdline} ]] || break
-		sleep_s 0.01
-	done
-	log_msg "DEBUG" "${!process_pid}=${process_pid} cmdline: ${process_cmdline}"
-}
-
-kill_and_wait_by_pid_name()
-{
-	local -n pid=${1}
-	local err_silence=${2}
-	
-	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-
-	if [[ -n "${pid:-}" ]]; then
-		if [[ -d "/proc/${pid}" ]]; then
-			log_process_cmdline pid
-			debug_cmd "${!pid}" "${err_silence}" kill "${pid}"
-			wait "${pid}"
-		else
-			log_msg "DEBUG" "expected ${!pid} process: ${pid} does not exist - nothing to kill." 
-		fi
-	else
-		log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
-	fi
-
-	# Reset pid
-	pid=
-
-}
-
 kill_pinger()
 {
 	local pinger=${1}
@@ -720,13 +681,13 @@ kill_pinger()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case ${pinger_binary} in
-
 		fping)
 			pinger=0
-		;;
+			;;
+
 		*)
 			:
-		;;
+			;;
 	esac
 
 	proc_man "pinger_${pinger}" stop
@@ -742,14 +703,14 @@ kill_pingers()
 		fping)
 			log_msg "DEBUG" "Killing fping instance."
 			kill_pinger 0
-		;;
+			;;
 		ping)
 			for (( pinger=0; pinger < no_pingers; pinger++))
 			do
 				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
 				kill_pinger "${pinger}"
 			done
-		;;
+			;;
 	esac
 }
 
