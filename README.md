@@ -74,7 +74,7 @@ copying and pasting each of the commands below:
 
    ```bash
    wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/testing/cake-autorate_setup.sh
-   sh /tmp/cake-autorate-setup.sh
+   sh /tmp/cake-autorate_setup.sh
    ```
 
 - The installer script will detect a previous configuration file, and ask whether to preserve it. If you do not keep it...
