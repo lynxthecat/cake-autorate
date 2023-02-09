@@ -52,17 +52,17 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
-	if [[ -n ${maintain_pingers_pid} ]]; then
+	if [[ -n ${maintain_pingers_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
 		kill_and_wait_by_pid_name maintain_pingers_pid 0
 	fi
 
-	if [[ -n ${monitor_achieved_rates_pid} ]]; then
+	if [[ -n ${monitor_achieved_rates_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
 		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
 	fi
 
-	if [[ -n ${maintain_log_file_pid} ]]; then
+	if [[ -n ${maintain_log_file_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
 		kill_and_wait_by_pid_name maintain_log_file_pid 0
 	fi
@@ -406,7 +406,7 @@ classify_load()
 	local achieved_rate_kbps=${2}
 	local bufferbloat_detected=${3}
 	local -n load_condition=${4}
-	
+
 	if (( load_percent > high_load_thr_percent )); then
 		load_condition="high"  
 	elif (( achieved_rate_kbps > connection_active_thr_kbps )); then
@@ -416,7 +416,7 @@ classify_load()
 	fi
 	
 	((bufferbloat_detected)) && load_condition=${load_condition}"_bb"
-		
+
 	if ((sss_compensation)); then
 		for sss_time_us in "${sss_times_us[@]}"
 		do
@@ -542,8 +542,8 @@ kill_monitor_reflector_responses_ping()
 {
 	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	[[ -n "${rtt_baseline_us}" ]] && printf '%s' "${rtt_baseline_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us"
-	[[ -n "${rtt_delta_ewma_us}" ]] && printf '%s' "${rtt_delta_ewma_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us"
+	[[ -n "${rtt_baseline_us:-}" ]] && printf '%s' "${rtt_baseline_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_baseline_us"
+	[[ -n "${rtt_delta_ewma_us:-}" ]] && printf '%s' "${rtt_delta_ewma_us}" > "${run_path}/reflector_${reflectors[pinger]//./-}_delta_ewma_us"
 	exit
 }
 
@@ -786,7 +786,7 @@ replace_pinger_reflector()
 
 	lock "${run_path}/replace_pinger_reflector_lock"
 
-	if((no_reflectors > no_pingers)); then
+	if ((no_reflectors > no_pingers)); then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
 		kill_pinger "${pinger}"
 		bad_reflector=${reflectors[pinger]}
@@ -1074,9 +1074,9 @@ get_max_wire_packet_size_bits()
  
 	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu" 
 	[[ $(tc qdisc show dev "${interface}") =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
-	[[ -n "${BASH_REMATCH[2]}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
+	[[ -n "${BASH_REMATCH[2]:-}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
-	[[ "${BASH_REMATCH[1]}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
+	[[ "${BASH_REMATCH[1]:-}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
 }
 
 update_max_wire_packet_compensation()
@@ -1270,7 +1270,7 @@ else
 	exit
 fi
 
-if [[ -n "${log_file_path_override}" ]]; then 
+if [[ -n "${log_file_path_override:-}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
 		broken_log_file_path_override=${log_file_path_override}
 		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
