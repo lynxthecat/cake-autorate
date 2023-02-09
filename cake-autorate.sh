@@ -152,19 +152,19 @@ export_log_file()
 
 		default)
 			printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
-        		log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
-        		log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
-        		;;
+			log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
+			log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
+			;;
 
 		alternative)
 			log_msg "DEBUG" "Exporting log file with alternative path: ${log_file_export_alternative_path}"
-        		log_file_export_path=${log_file_export_alternative_path}
+			log_file_export_path=${log_file_export_alternative_path}
 			;;
 
 		*)
 			log_msg "DEBUG" "Unrecognised export type. Not exporting log file."
 			return
-		;;
+			;;
 	esac
 
 	# Now export with or without compression to the appropriate export path
@@ -637,19 +637,15 @@ start_pinger()
 		fping)
 			pinger=0
 			exec {pinger_fds[pinger]}<> <(:)
-			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}" &
+			proc_man "pinger_${pinger}" start ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 		ping)
 			exec {pinger_fds[pinger]}<> <(:)
 			sleep_until_next_pinger_time_slot ${pinger}
-			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}" &
+			proc_man "pinger_${pinger}" start ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 	esac
 	
-	pinger_pids[pinger]=${!}
-	log_msg "DEBUG" "Started pinger ${pinger} with PID: ${pinger_pids[pinger]}"
-	log_process_cmdline pinger_pids[pinger]
-
 	monitor_reflector_responses_${pinger_binary} "${pinger}" &
 	monitor_pids[pinger]=${!}
 	log_process_cmdline monitor_pids[pinger]
@@ -739,7 +735,7 @@ kill_pinger()
 		;;
 	esac
 
-	kill_and_wait_by_pid_name pinger_pids[pinger] "${err_silence}"
+	proc_man "pinger_${pinger}" stop
 
 	kill_and_wait_by_pid_name monitor_pids[pinger] 0
 
