@@ -52,10 +52,7 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
-	if [[ -n ${maintain_pingers_pid:-} ]]; then
-		log_msg "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
-		kill_and_wait_by_pid_name maintain_pingers_pid 0
-	fi
+	proc_man maintain_pingers "stop"
 
 	if [[ -n ${monitor_achieved_rates_pid:-} ]]; then
 		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
@@ -713,7 +710,7 @@ kill_and_wait_by_pid_name()
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if [[ -n "${pid}" ]]; then
+	if [[ -n "${pid:-}" ]]; then
 		if [[ -d "/proc/${pid}" ]]; then
 			log_process_cmdline pid
 			debug_cmd "${!pid}" "${err_silence}" kill "${pid}"
@@ -1480,8 +1477,7 @@ monitor_achieved_rates_pid=${!}
 printf '%s' "0" > "${run_path}/dl_load_percent"
 printf '%s' "0" > "${run_path}/ul_load_percent"
 
-maintain_pingers&
-maintain_pingers_pid=${!}
+proc_man maintain_pingers start maintain_pingers
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -1570,7 +1566,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
 		# send signal USR1 to pause reflector maintenance
-		kill -USR1 ${maintain_pingers_pid}
+		proc_man maintain_pingers "signal" "USR1"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1589,7 +1585,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
-				kill -USR1 ${maintain_pingers_pid}
+				proc_man maintain_pingers "signal" "USR1"
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
@@ -1610,7 +1606,7 @@ do
 	fi
 
 	# send signal USR2 to pause maintain_reflectors
-	kill -USR2 ${maintain_pingers_pid}
+	proc_man maintain_pingers "signal" "USR2"
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1629,5 +1625,5 @@ do
 	done
 
 	# send signal USR2 to resume maintain_reflectors
-	kill -USR2 ${maintain_pingers_pid}
+	proc_man maintain_pingers "signal" "USR2"
 done
