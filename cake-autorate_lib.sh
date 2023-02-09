@@ -64,6 +64,23 @@ randomize_array()
 	done
 }
 
+lock()
+{
+	local path=${1}
+
+	while true; do
+		( set -o noclobber; echo "$$" > "${path:?}" ) 2> /dev/null && return 0
+		sleep_us 100000
+	done
+}
+
+unlock()
+{
+	local path=${1}
+
+	rm -f "${path:?}"
+}
+
 if (( __set_e == 1 )); then
     set +e
 fi
