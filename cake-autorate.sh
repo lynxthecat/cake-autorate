@@ -822,19 +822,6 @@ pause_reflector_maintenance()
 	fi
 }
 
-pause_maintain_pingers()
-{
-	if ((maintain_pingers_paused==0)); then
-		log_msg "DEBUG" "Pausing maintain pingers (SIGUSR2)."
-		kill_pingers		
-		maintain_pingers_paused=1
-	else
-		log_msg "DEBUG" "Resuming maintain pingers (SIGUSR2)."
-		start_pingers
-		maintain_pingers_paused=0
-	fi
-}
-
 maintain_pingers()
 {
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
@@ -843,7 +830,21 @@ maintain_pingers()
 	trap 'terminate_reflector_maintenance=1' TERM EXIT
 	
 	trap 'pause_reflector_maintenance' USR1
-	trap 'pause_maintain_pingers' USR2
+	coproc pause_maintain_pingers_handler {
+		maintain_pingers_paused=0
+		while read -r; do
+			if ((maintain_pingers_paused==0)); then
+				log_msg "DEBUG" "Pausing maintain pingers (SIGUSR2)."
+				kill_pingers
+				maintain_pingers_paused=1
+			else
+				log_msg "DEBUG" "Resuming maintain pingers (SIGUSR2)."
+				start_pingers
+				maintain_pingers_paused=0
+			fi
+		done
+	}
+	trap 'echo toggle >&${pause_maintain_pingers_handler[1]}' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -857,7 +858,6 @@ maintain_pingers()
 	terminate_reflector_maintenance=0
 
 	reflector_maintenance_paused=0
-	maintain_pingers_paused=0
 
 	reflector_offences_idx=0
 
