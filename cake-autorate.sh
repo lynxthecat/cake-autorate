@@ -1273,12 +1273,19 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 # ${run_path}/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d "${run_path}" ]]; then
-	log_msg "ERROR" "${run_path} already exists. Is another instance running? Exiting script."
-	trap - INT TERM EXIT
-	exit
+	if [[ -f "${run_path}/pid" ]] && [[ -d "/proc/$(<"${run_path}/pid")" ]]; then
+		log_msg "ERROR" "${run_path} already exists and an instance is running. Exiting script."
+		trap - INT TERM EXIT
+		exit
+	else
+		log_msg "DEBUG" "${run_path} already exists but no instance is running. Removing and recreating."
+		rm -r "${run_path}"
+		mkdir -p "${run_path}"
+	fi
 else
 	mkdir -p "${run_path}"
 fi
+printf "%s" "${BASHPID}" > "${run_path}/pid"
 
 no_reflectors=${#reflectors[@]} 
 
