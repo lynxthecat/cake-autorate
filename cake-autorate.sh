@@ -775,6 +775,8 @@ replace_pinger_reflector()
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
+	lock "${run_path}/replace_pinger_reflector_lock"
+
 	if((no_reflectors > no_pingers)); then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
 		kill_pinger "${pinger}"
@@ -793,7 +795,8 @@ replace_pinger_reflector()
 		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[pinger]}."
 		reflector_offences[pinger]=0
 	fi
-
+	
+	unlock "${run_path}/replace_pinger_reflector_lock"
 }
 
 # END OF GENERIC PINGER START AND STOP FUNCTIONS
@@ -804,15 +807,20 @@ kill_maintain_pingers()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
+	lock "${run_path}/replace_pinger_reflector_lock"
+
 	log_msg "DEBUG" "Terminating maintain_pingers."
 
 	kill_pingers
+
+	unlock "${run_path}/replace_pinger_reflector_lock"
 
 	exit
 }
 
 pause_reflector_maintenance()
 {
+	lock "{run_path}/pause_reflector_maintenance_lock"
 	if ((reflector_maintenance_paused==0)); then
 		log_msg "DEBUG" "Pausing reflector health check (SIGUSR1)."
 		reflector_maintenance_paused=1
@@ -820,10 +828,12 @@ pause_reflector_maintenance()
 		log_msg "DEBUG" "Resuming reflector health check (SIGUSR1)."
 		reflector_maintenance_paused=0
 	fi
+	unlock "{run_path}/pause_reflector_maintenance_lock"
 }
 
 pause_maintain_pingers()
 {
+	lock "{run_path}/pause_maintain_pingers_lock"
 	if ((maintain_pingers_paused==0)); then
 		log_msg "DEBUG" "Pausing maintain pingers (SIGUSR2)."
 		kill_pingers		
@@ -833,6 +843,7 @@ pause_maintain_pingers()
 		start_pingers
 		maintain_pingers_paused=0
 	fi
+	unlock "{run_path}/pause_maintain_pingers_lock"
 }
 
 maintain_pingers()
@@ -840,7 +851,7 @@ maintain_pingers()
 	# this initiates the pingers and monitors reflector health, rotating reflectors as necessary
 
  	trap '' INT
-	trap 'terminate_reflector_maintenance=1' TERM EXIT
+	trap 'kill_maintain_pingers' TERM EXIT
 	
 	trap 'pause_reflector_maintenance' USR1
 	trap 'pause_maintain_pingers' USR2
@@ -853,8 +864,6 @@ maintain_pingers()
 	declare -A ul_owd_delta_ewmas_us
 
 	err_silence=0
-
-	terminate_reflector_maintenance=0
 
 	reflector_maintenance_paused=0
 	maintain_pingers_paused=0
@@ -884,7 +893,7 @@ maintain_pingers()
 	start_pingers
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
-	while ((terminate_reflector_maintenance == 0))
+	while true
 	do
 		sleep_s "${reflector_health_check_interval_s}"
 
@@ -995,8 +1004,6 @@ maintain_pingers()
 		done
 		((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
 	done
-
-	kill_maintain_pingers
 }
 
 set_cake_rate()
