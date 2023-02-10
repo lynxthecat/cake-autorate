@@ -63,9 +63,10 @@ mv "${tmp}/cake-autorate" /etc/init.d/
 chmod +x /etc/init.d/cake-autorate
 
 # Tell how to handle the config file - use old, or edit the new one
-printf '%s\n' "$editmsg"
+# shellcheck disable=SC2059
+printf "${editmsg}\n"
 
-printf '\n%s\n\n' "$(grep cake_autorate_version /root/cake-autorate/cake-autorate_config.primary.sh) successfully installed, but not yet running"
+printf '\n%s\n\n' "$(grep ^cake_autorate_version= /root/cake-autorate/cake-autorate_defaults.sh | cut -d= -f2 | cut -d'"' -f2) successfully installed, but not yet running"
 printf '%s\n' "Start the software manually with:"
 printf '%s\n' "   cd /root/cake-autorate; ./cake-autorate.sh"
 printf '%s\n' "Run as a service with:"
