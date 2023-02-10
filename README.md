@@ -4,7 +4,7 @@
 
 CAKE is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
-Present version is 1.1.0 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/9b19f8a7f9a47fe80ed1532e584647e6182b9c48/CHANGELOG.md) for details. 
+Present version is 1.2.0 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/9b19f8a7f9a47fe80ed1532e584647e6182b9c48/CHANGELOG.md) for details. 
 
 ## The Problem: CAKE on Variable Connections forces an Unpalatable Compromise
 
@@ -12,7 +12,7 @@ The CAKE algorithm always uses fixed upload and download bandwidth settings to m
 
 As CAKE works with a fixed set bandwidth this effectively forces the user to choose a compromise bandwidth setting, but typically this means lost bandwidth in exchange for latency control and/or bufferbloat during the worst conditions. This compromise is hardly ideal: whilst the actual usable line rate is above the set compromise bandwidth, the connection is unnecessarily throttled back to the compromise setting resulting in lost bandwidth (yellow); and whilst the actual usable line rate is below the compromise value, the connection is not throttled enough (green) resulting in bufferbloat.
 
-![image of Bandwidth Compromise](images/bandwidth-compromise.png)
+<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/bandwidth-compromise.png" width=70% height=70%>
 
 ## The Solution: Automatic Bandwidth Adjustment based on LOAD and RTT
 
@@ -26,7 +26,7 @@ The **cake-autorate.sh** script periodically measures the load and Round-Trip-Ti
 - with high load, increase rate subject to set maximum
 - on bufferbloat, decrease rate subject to set min (and subject to refractory period)
 
-![image of cake-autorate rate control](images/cake-bandwidth-autorate-rate-control.png)
+<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/cake-bandwidth-autorate-rate-control.png" width=70% height=70%>
 
 **Setting the minimum bandwidth:** 
 Set the minimum value to the worst possible observed bufferbloat free bandwidth. Ideally this CAKE bandwidth should never result in bufferbloat even under the worst conditions. This is a hard minimum - the script will never reduce the bandwidth below this level.
@@ -66,9 +66,10 @@ The pinger binary that cake-autorate uses is set using the $pinger_binary variab
 - Install SQM (`luci-app-sqm`) and enable CAKE on the interface(s)
 as described in the
 [OpenWrt SQM documentation](https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm)
-- Alternatively, set up your own script to initiate CAKE. For ubnusual setups such as those with WireGuard with PBR, then you may want to consider [cake-dual-ifb](https://github.com/lynxthecat/cake-dual-ifb).
+- Alternatively, and if you want to work with DSCPs, consider [cake-simple-qos](https://github.com/lynxthecat/cake-qos-simple) or for unusual setups such as those with WireGuard with PBR, then you may want to consider [cake-dual-ifb](https://github.com/lynxthecat/cake-dual-ifb).
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
-- Install with the installer script from this repo,
+- Install manually by placing cake-autorate.sh and cake-autorate_config.primary.sh in /root/cake-autorate and setting executable bit on both. 
+- Or install using the installer script from this repo,
 copying and pasting each of the commands below:
 
    ```bash
@@ -117,14 +118,21 @@ This will place a compressed log file in /var/log with the date and time in its 
 
 And a very helpful summary plot like this: 
 
-![image](https://user-images.githubusercontent.com/10721999/194724668-d8973bb6-5a37-4b05-a212-3514db8f56f1.png)
+<img src="https://user-images.githubusercontent.com/10721999/194724668-d8973bb6-5a37-4b05-a212-3514db8f56f1.png" width=80% height=80%>
 
 can be created therefrom using the excellent Octave/Matlab utility put together by @moeller0 of OpenWrt, using something like:
  
  ```bash
- octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./outpug.png")'
+ octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./output.pdf")'
 ```
-(see the introductory notes in 'fn_parse_autorate_log.m' for more details). 
+(see the introductory notes in 'fn_parse_autorate_log.m' for more details).
+
+Here is an example script to extract the log from the router and generate the pdfs for viewing from a client machine:
+
+```bash
+ssh root@192.168.1.1 'kill -USR1 $( cat /var/run/cake-autorate/*/maintain_log_file_pid )'  && sleep 5 && scp  root@192.168.1.1:/var/log/cake-autorate*.log.gz . && ssh root@192.168.1.1 'rm /var/log/cake-autorate*.log.gz'
+octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
+```
 
 ## Example Starlink Configuration
 

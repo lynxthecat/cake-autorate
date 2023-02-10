@@ -6,7 +6,7 @@ USE_PROCD=1
  
 start_service() {
         procd_open_instance
-        procd_set_param command /root/cake-autorate/cake-autorate.sh
+        procd_set_param command /root/cake-autorate/cake-autorate_launcher.sh
         # uncomment if you want procd to restart your script if it terminated for whatever reason
         #procd_set_param respawn   
         procd_close_instance
