@@ -12,11 +12,13 @@ SRC_DIR="https://github.com/lynxthecat/cake-autorate/archive/refs/heads/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 BRANCH="testing"
 
-# Retrieve required packages
-printf "Running opkg update to update package lists:\n"
-opkg update
-printf "Installing bash, iputils-ping and fping packages:\n"
-opkg install bash iputils-ping fping
+# Retrieve required packages if not present
+if [ $(opkg list-installed | grep -E '^(bash|iputils-ping|fping) ' | wc -l) -ne 3 ]; then
+	printf "Running opkg update to update package lists:\n"
+	opkg update
+	printf "Installing bash, iputils-ping and fping packages:\n"
+	opkg install bash iputils-ping fping
+fi
 
 # Set up CAKE-autorate files
 # cd to the /root directory
