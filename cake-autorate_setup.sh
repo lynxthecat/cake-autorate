@@ -10,7 +10,7 @@ set -eu
 # Set up remote locations and branch
 SRC_DIR="https://github.com/lynxthecat/cake-autorate/archive/refs/heads/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
-BRANCH="testing"
+BRANCH="master"
 
 # Retrieve required packages if not present
 if [ $(opkg list-installed | grep -E '^(bash|iputils-ping|fping) ' | wc -l) -ne 3 ]; then
