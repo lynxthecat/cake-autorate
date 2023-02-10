@@ -144,7 +144,7 @@ proc_man()
 				return 0;
 			fi
 
-			kill "${pid}"
+			kill "${pid}" 2> /dev/null || true
 
 			# wait for process to die
 			killed=0
@@ -160,7 +160,7 @@ proc_man()
 
 			# if process still alive, kill it with fire
 			if (( killed == 0 )); then
-				kill -9 "${pid}"
+				kill -9 "${pid}" 2> /dev/null || true
 			fi
 
 			_proc_man_set_key "${name}" "-1" "${PROC_STATE_FILE:?}"
