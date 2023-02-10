@@ -2,7 +2,6 @@
 
 cake_instances=(/root/cake-autorate/cake-autorate_config*sh)
 cake_instance_pids=()
-cake_instance_list=()
 
 trap kill_cake_instances INT TERM EXIT
 
@@ -22,7 +21,6 @@ for cake_instance in "${cake_instances[@]}"
 do
 	/root/cake-autorate/cake-autorate.sh "$cake_instance" &
 	cake_instance_pids+=(${!})
-	cake_instance_list+=("${cake_instance}")
 done
 
 wait
