@@ -15,6 +15,7 @@ kill_cake_instances()
 	do
 		kill "${cake_instance_pids[${cake_instance}]}" 2>/dev/null || true
 	done
+	wait
 }
 
 for cake_instance in "${cake_instances[@]}"
@@ -22,5 +23,4 @@ do
 	/root/cake-autorate/cake-autorate.sh "$cake_instance" &
 	cake_instance_pids+=(${!})
 done
-
 wait
