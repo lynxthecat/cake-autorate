@@ -83,10 +83,13 @@ unlock()
 	rm -f "${path:?}"
 }
 
-proc_man_set_key()
+_proc_man_set_key()
 {
 	local key=${1}
 	local value=${2}
+
+	lock "${PROC_STATE_FILE_LOCK:?}"
+	trap 'unlock "${PROC_STATE_FILE_LOCK:?}"' RETURN
 
 	local entered=0
 	while read -r line; do
@@ -96,56 +99,54 @@ proc_man_set_key()
 		else
 			printf '%s\n' "${line}"
 		fi
-	done < "${proc_state_file:?}" > "${proc_state_file:?}.tmp"
+	done < "${PROC_STATE_FILE:?}" > "${PROC_STATE_FILE:?}.tmp"
 	if (( entered == 0 )); then
-		printf '%s\n' "${key}=${value}" >> "${proc_state_file:?}.tmp"
+		printf '%s\n' "${key}=${value}" >> "${PROC_STATE_FILE:?}.tmp"
 	fi
-	mv "${proc_state_file:?}.tmp" "${proc_state_file:?}"
+	mv "${PROC_STATE_FILE:?}.tmp" "${PROC_STATE_FILE:?}"
 	return 0
 }
 
-proc_man_get_key_value()
+_proc_man_get_key_value()
 {
 	local key=${1}
+
+	lock "${PROC_STATE_FILE_LOCK:?}"
+	trap 'unlock "${PROC_STATE_FILE_LOCK:?}"' RETURN
 
 	while read -r line; do
 		if [[ ${line} =~ ^${key}= ]]; then
 			printf '%s\n' "${line#*=}"
 			return 0
 		fi
-	done < "${proc_state_file:?}"
+	done < "${PROC_STATE_FILE:?}"
 	return 1
 }
 
 proc_man()
 {
-	local proc_state_file="${proc_state_file:-${run_path}/proc_state}"
-	local proc_state_file_lock="${proc_state_file_lock:-${proc_state_file}.lock}"
-	local name=${1}
-	local action=${2}
+	local action=${1}
+	local name=${2}
 	shift 2
 
-	lock "${proc_state_file_lock:?}"
-	trap 'unlock "${proc_state_file_lock:?}"' RETURN
-
-	if [[ ! -f "${proc_state_file:?}" ]]; then
-		true > "${proc_state_file:?}"
+	if [[ ! -f "${PROC_STATE_FILE:?}" ]]; then
+		true > "${PROC_STATE_FILE:?}"
 	fi
 
 	case "${action}" in
 		"start")
-			pid=$(proc_man_get_key_value "${name}" "${proc_state_file:?}")
+			pid=$(_proc_man_get_key_value "${name}")
 			if (( pid && pid > 0 )) && kill -0 "${pid}" 2> /dev/null; then
 				return 1;
 			fi
 
 			"${@}" &
 			local pid=${!}
-			proc_man_set_key "${name}" "${pid}" "${proc_state_file:?}"
+			_proc_man_set_key "${name}" "${pid}"
 			;;
 		"stop")
 			local pid
-			pid=$(proc_man_get_key_value "${name}" "${proc_state_file:?}")
+			pid=$(_proc_man_get_key_value "${name}")
 			if ! (( pid && pid > 0 )); then
 				return 0;
 			fi
@@ -169,11 +170,11 @@ proc_man()
 				kill -9 "${pid}"
 			fi
 
-			proc_man_set_key "${name}" "-1" "${proc_state_file:?}"
+			_proc_man_set_key "${name}" "-1" "${PROC_STATE_FILE:?}"
 			;;
 		"status")
 			local pid
-			pid=$(proc_man_get_key_value "${name}" "${proc_state_file:?}")
+			pid=$(_proc_man_get_key_value "${name}")
 			if (( pid && pid > 0 )); then
 				if kill -0 "${pid}" 2> /dev/null; then
 					printf '%s\n' "running"
@@ -186,7 +187,7 @@ proc_man()
 			;;
 		"wait")
 			local pid
-			pid=$(proc_man_get_key_value "${name}" "${proc_state_file:?}")
+			pid=$(_proc_man_get_key_value "${name}")
 			if (( pid && pid > 0 )); then
 				wait "${pid}"
 			fi
@@ -195,7 +196,7 @@ proc_man()
 			shift 3
 
 			local pid
-			pid=$(proc_man_get_key_value "${name}" "${proc_state_file:?}")
+			pid=$(_proc_man_get_key_value "${name}")
 			if (( pid && pid > 0 )) && kill -0 "${pid}" 2> /dev/null; then
 				kill -s "${1}" "${pid}"
 			else
@@ -209,6 +210,31 @@ proc_man()
 	esac
 
 	return 0
+}
+
+proc_man_start()
+{
+	proc_man start "${@}"
+}
+
+proc_man_stop()
+{
+	proc_man stop "${@}"
+}
+
+proc_man_status()
+{
+	proc_man status "${@}"
+}
+
+proc_man_wait()
+{
+	proc_man wait "${@}"
+}
+
+proc_man_signal()
+{
+	proc_man signal "${@}"
 }
 
 if (( __set_e == 1 )); then

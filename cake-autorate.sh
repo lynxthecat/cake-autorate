@@ -52,9 +52,9 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
-	proc_man maintain_pingers "stop"
-	proc_man monitor_achieved_rates "stop"
-	proc_man maintain_log_file "stop"
+	proc_man_stop maintain_pingers
+	proc_man_stop monitor_achieved_rates
+	proc_man_stop maintain_log_file
 
 	[[ -d "${run_path}" ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -631,16 +631,16 @@ start_pinger()
 		fping)
 			pinger=0
 			exec {pinger_fds[pinger]}<> <(:)
-			proc_man "pinger_${pinger}" start ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
+			proc_man_start "pinger_${pinger}" ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 		ping)
 			exec {pinger_fds[pinger]}<> <(:)
 			sleep_until_next_pinger_time_slot ${pinger}
-			proc_man "pinger_${pinger}" start ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
+			proc_man_start "pinger_${pinger}" ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 	esac
 	
-	proc_man "monitor_${pinger}" start monitor_reflector_responses_${pinger_binary} "${pinger}"
+	proc_man_start "monitor_${pinger}" monitor_reflector_responses_${pinger_binary} "${pinger}"
 }
 
 start_pingers()
@@ -690,8 +690,8 @@ kill_pinger()
 			;;
 	esac
 
-	proc_man "pinger_${pinger}" stop
-	proc_man "monitor_${pinger}" stop
+	proc_man_stop "pinger_${pinger}"
+	proc_man_stop "monitor_${pinger}"
 
 	exec {pinger_fds[pinger]}<&-
 }
@@ -1213,6 +1213,9 @@ else
 	exit
 fi
 
+PROC_STATE_FILE="${run_path}/proc_state"
+PROC_STATE_FILE_LOCK="${run_path}/proc_state.lock"
+
 if [[ -n "${log_file_path_override:-}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
 		broken_log_file_path_override=${log_file_path_override}
@@ -1266,7 +1269,7 @@ if ((log_to_file)); then
 	log_file_max_time_us=$((log_file_max_time_mins*60000000))
 	log_file_max_size_bytes=$((log_file_max_size_KB*1024))
 	exec {log_fd}<> <(:)
-	proc_man "maintain_log_file" start maintain_log_file
+	proc_man_start "maintain_log_file" maintain_log_file
 fi
 
 # test if stdout is a tty (terminal)
@@ -1414,12 +1417,12 @@ if ((startup_wait_us>0)); then
 fi
 
 # Initiate achived rate monitor
-proc_man monitor_achieved_rates start monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"
+proc_man_start monitor_achieved_rates monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"
 	
 printf '%s' "0" > "${run_path}/dl_load_percent"
 printf '%s' "0" > "${run_path}/ul_load_percent"
 
-proc_man maintain_pingers start maintain_pingers
+proc_man_start maintain_pingers maintain_pingers
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -1508,7 +1511,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
 		# send signal USR1 to pause reflector maintenance
-		proc_man maintain_pingers "signal" "USR1"
+		proc_man_signal maintain_pingers "USR1"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1527,7 +1530,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
-				proc_man maintain_pingers "signal" "USR1"
+				proc_man_signal maintain_pingers "USR1"
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
@@ -1548,7 +1551,7 @@ do
 	fi
 
 	# send signal USR2 to pause maintain_reflectors
-	proc_man maintain_pingers "signal" "USR2"
+	proc_man_signal maintain_pingers "USR2"
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1567,5 +1570,5 @@ do
 	done
 
 	# send signal USR2 to resume maintain_reflectors
-	proc_man maintain_pingers "signal" "USR2"
+	proc_man_signal maintain_pingers "USR2"
 done
