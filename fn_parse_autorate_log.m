@@ -1,4 +1,4 @@
-function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
+function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_reflector_subset )
 	% This program is free software; you can redistribute it and/or modify
 	% it under the terms of the GNU General Public License version 2 as
 	% published by the Free Software Foundation.
@@ -11,10 +11,11 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	% run 'octave --gui' in a terminal and open the file and run it (recommended if you want/need to edit values)
 	% or run 'octave ./fn_parse_autorate_log.m' from the terminal
 	% the following will work on the console without requiring interaction
-	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.png", [10, 500])'
-	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format", [starttime endtime])'
-	%	supported formats for the opyinal second argument: pdf, png, tif.
+	% octave -qf --eval 'fn_parse_autorate_log("./SCRATCH/cake-autorate.log.20221001_1724_RRUL_fast.com.log", "./outpug.tif", [10, 500], {"1.1.1.1"})'
+	% symbolically: octave -qf --eval 'fn_parse_autorate_log("path/to/the/log.file", "path/to/the/output/plot.format", [starttime endtime], {selected_reflector_subset})'
+	%	supported formats for the optional second argument: pdf, png, tif.
 	% 	the optional third argument is the range to plot in seconds after log file start
+	%	the fourth argument is a list of reflector IDs, only samples from any of the listed reflectors will be plotted, use [] to select all reflectors
 	% by default the code will open a file selection dialog which should be used to select a CAKE-autorate log file.
 
 	% TODO:
@@ -48,7 +49,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	CDF.LowLoad_threshold_percent = 20;		% max load% for low load condition
 	CDF.HighLoad_threshold_percent = 80;	% min load% for high load condition
 	CDF.calc_range_ms = [0, 1000];	% what range to calculate the CDFs over? We can always reduce the plotted range later, see cumulative_range_percent
+	CDF.step_size_ms = 0.005;	% we will see this as quantization in the plots...
 	CDF.cumulative_range_percent = [0.001, 97.5];	% which range to show for CDFs (taken from the fastest/slowest reflector respectively)
+	% PDFs are mostly like CDFs except for the step_size
+	PDF = CDF;
+	PDF.step_size_ms = 0.2;	% these histograms need to be coarser than the PDFs or we see odd PDFs
+	PDF.cumulative_range_percent = [0.001, 90.0];	% which range to show for PDFs (taken from the fastest/slowest reflector respectively)
 
 	% add all defined plots that should be created and saved
 	plot_list = {'rawCDFs', 'deltaCDFs', 'timecourse'}; % 'rawCDFs', 'deltaCDFs', 'rawPDFs', 'deltaPDFs', 'timecourse' % PDFs are currently broken
@@ -78,32 +84,40 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		% dissect the fully qualified name
 		[log_dir, log_name, log_ext ] = fileparts(log_FQN);
 
-		% check whether we did successfully load some data, other wise bail out:
-		if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
-			disp('WARNING: No valid data found, nothing to plot? Exiting...');
-			return
-		endif
 
 		% find the relevant number of samples and whether we have LOAD records to begin with
-		n_DATA_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
 		if isfield(autorate_log, 'LOAD') && isfield(autorate_log.LOAD, 'LISTS') && isfield(autorate_log.LOAD.LISTS, 'RECORD_TYPE') && ~isempty(autorate_log.LOAD.LISTS.RECORD_TYPE)
 			n_LOAD_samples = length(autorate_log.LOAD.LISTS.RECORD_TYPE);
 		else
 			n_LOAD_samples = 0;
 		endif
 
+		% check whether we did successfully load some data, other wise bail out:
+		if ~isfield(autorate_log, 'DATA') || ~isfield(autorate_log.DATA, 'LISTS') || ~isfield(autorate_log.DATA.LISTS, 'RECORD_TYPE') || isempty(autorate_log.DATA.LISTS.RECORD_TYPE)
+			if (n_LOAD_samples == 0)
+				disp('WARNING: No valid data found, nothing to plot? Exiting...');
+				return
+			endif
+			n_DATA_samples = 0;
+			autorate_log.DATA.LISTS = [];
+		else
+			n_DATA_samples = length(autorate_log.DATA.LISTS.RECORD_TYPE);
+		endif
+
 
 		% find the smallest and largest (or first and last) DATA or LOAD timestamps
-		first_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(1);
+		if (n_DATA_samples > 0)
+			first_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(1);
+			last_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(end);
+		else
+			first_sample_timestamp = 60*60*24*365*1000; % make this larger than any realistic unix epoch in seconds is going to be...
+			last_sample_timestamp = 0; % we take the maximum, so will override this
+		endif
+
 		if (n_LOAD_samples > 0)
 			first_sample_timestamp = min([first_sample_timestamp, autorate_log.LOAD.LISTS.PROC_TIME_US(1)]);
+			last_sample_timestamp = max([last_sample_timestamp, autorate_log.LOAD.LISTS.PROC_TIME_US(end-1)]);
 		endif
-
-		last_sample_timestamp = autorate_log.DATA.LISTS.PROC_TIME_US(end);
-		if (n_LOAD_samples > 0)
-			last_sample_timestamp = max([last_sample_timestamp, autorate_log.LOAD.LISTS.PROC_TIME_US(end)]);
-		endif
-
 
 		% select the sample range to display:
 		% 0 denotes the start, the second value the maximum time to display
@@ -115,8 +129,12 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			% select the time range to display in seconds since first sample
 			% with different time axis for DATA and LOAD, simple indices are not appropriate anymore
 			x_range_sec = [];
+			%x_range_sec = [900 1000];
 		else
 			%x_range_sec = [];
+			if ~isempty(x_range_sec);
+				disp(['INFO: requested x_range_sec: ', num2str(x_range_sec)]);
+			endif
 		endif
 		% clean up the time range somewhat
 		[x_range_sec, do_return] = fn_sanitize_x_range_sec(x_range_sec, first_sample_timestamp, last_sample_timestamp);
@@ -125,16 +143,39 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		endif
 
 		% now, get the data range indices for the selected record types
-		x_range.DATA = fn_get_range_indices_from_range_timestamps((x_range_sec + first_sample_timestamp), autorate_log.DATA.LISTS.PROC_TIME_US);
-		[x_range.DATA, do_return] = fn_sanitize_x_range(x_range.DATA, n_DATA_samples);
+		if (n_DATA_samples > 0)
+			x_range.DATA = fn_get_range_indices_from_range_timestamps((x_range_sec + first_sample_timestamp), autorate_log.DATA.LISTS.PROC_TIME_US);
+			[x_range.DATA, do_return] = fn_sanitize_x_range(x_range.DATA, n_DATA_samples);
+		endif
 		if (n_LOAD_samples > 0)
 			x_range.LOAD = fn_get_range_indices_from_range_timestamps((x_range_sec + first_sample_timestamp), autorate_log.LOAD.LISTS.PROC_TIME_US);
 			[x_range.LOAD, do_return] = fn_sanitize_x_range(x_range.LOAD, n_LOAD_samples);
+			if (n_DATA_samples == 0)
+				x_range.DATA = x_range.LOAD; % needed for plot nameing...
+			endif
 		end
 		if (do_return)
 			return
 		endif
 
+		% allow to restrict the plot to a subset of the reflectors.
+		if ~exist('selected_reflector_subset', 'var') || isempty(selected_reflector_subset)
+			selected_reflector_subset = {}; % default to all
+			%selected_reflector_subset = {"1.1.1.1"};
+			%selected_reflector_subset = {"1.1.1.1", "1.0.0.1"};
+		else
+			% take from input argument
+			%selected_reflector_subset = [];
+			disp(['INFO: requested selected_reflector_subset: ', selected_reflector_subset]);
+		endif
+		reflector_string = '';
+		if ~isempty(selected_reflector_subset)
+			reflector_string = '.R';
+			for i_reflector = 1 : length(selected_reflector_subset)
+				reflector_string = [reflector_string, '_', selected_reflector_subset{i_reflector}];
+			endfor
+			reflector_string(end+1) = '.';
+		endif
 
 		% new reflectors get initialized with a very high beaseline prior (which quickly gets adjusted to a better estimate)
 		% resulting in very high baseline values that cause poor autoscaling of the delay y-axis
@@ -159,6 +200,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		OWD_DELTA_QUANTILE_pct = 99.0; % what upper quantile to use for scaling, 100 is max value
 
 
+
 		% set up the plots
 		rates.DATA.fields_to_plot_list = {'CAKE_DL_RATE_KBPS', 'CAKE_UL_RATE_KBPS', 'DL_ACHIEVED_RATE_KBPS', 'UL_ACHIEVED_RATE_KBPS'};
 		rates.DATA.color_list = {[241,182,218]/254, [184,225,134]/254, [208,28,139]/254, [77,172,38]/254};
@@ -168,57 +210,177 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 
 		% based on LOAD records replace the older 'DL_ACHIEVED_RATE_KBPS', 'UL_ACHIEVED_RATE_KBPS' fields from DATA
 		% this will allow to plot data from sleep epochs, at the cost of some x_value trickery.
+		rates.LOAD.scale_factor = 1/1000;		% conversion factor from µs to ms
+		rates.LOAD.fields_to_plot_list = {};
+		rates.LOAD.color_list = {};
+		rates.LOAD.linestyle_list = {};
+		rates.LOAD.sign_list = {};
 		if (n_LOAD_samples > 0)
-			rates.LOAD.fields_to_plot_list = rates.DATA.fields_to_plot_list(end-1:end);
-			rates.LOAD.color_list = rates.DATA.color_list(end-1:end);
-			rates.LOAD.linestyle_list = rates.DATA.linestyle_list(end-1:end);
-			rates.LOAD.sign_list = rates.DATA.sign_list(end-1:end);
-			rates.LOAD.scale_factor = rates.DATA.scale_factor;		% conversion factor from Kbps to Mbps
+%			% these two should only be shown during sleep periods?
+%			% otherwise LOAD and higher resolution DATA plots will "overlap'
+%			if isfield(autorate_log.DATA.LISTS, 'CAKE_DL_RATE_KBPS')
+%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_DL_RATE_KBPS';
+%				rates.LOAD.color_list{end+1} = [241,182,218]/254;
+%				rates.LOAD.linestyle_list{end+1} = '-';
+%				rates.LOAD.sign_list{end+1} = 1;
+%			end
+%			if isfield(autorate_log.DATA.LISTS, 'CAKE_UL_RATE_KBPS')
+%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_UL_RATE_KBPS';
+%				rates.LOAD.color_list{end+1} = [184,225,134]/254;
+%				rates.LOAD.linestyle_list{end+1} = '-';
+%				rates.LOAD.sign_list{end+1} = -1;
+%			end
 
-			rates.DATA.fields_to_plot_list(end-1:end) = [];
-			rates.DATA.color_list(end-1:end) = [];
-			rates.DATA.linestyle_list(end-1:end) = [];
-			rates.DATA.sign_list(end-1:end) = [];
+			% these can be replaced...
+			if isfield(autorate_log.DATA.LISTS, 'DL_ACHIEVED_RATE_KBPS')
+				rates.LOAD.fields_to_plot_list{end+1} = 'DL_ACHIEVED_RATE_KBPS';
+				rates.LOAD.color_list{end+1} = [208,28,139]/254;
+				rates.LOAD.linestyle_list{end+1} = '-';
+				rates.LOAD.sign_list{end+1} = 1;
+				rate_DATA_idx = find(ismember(rates.DATA.fields_to_plot_list, {'DL_ACHIEVED_RATE_KBPS'}));
+				rates.DATA.fields_to_plot_list(rate_DATA_idx) = [];
+				rates.DATA.color_list(rate_DATA_idx) = [];
+				rates.DATA.linestyle_list(rate_DATA_idx) = [];
+				rates.DATA.sign_list(rate_DATA_idx) = [];
+			end
+			if isfield(autorate_log.DATA.LISTS, 'UL_ACHIEVED_RATE_KBPS')
+				rates.LOAD.fields_to_plot_list{end+1} = 'UL_ACHIEVED_RATE_KBPS';
+				rates.LOAD.color_list{end+1} = [77,172,38]/254;
+				rates.LOAD.linestyle_list{end+1} = '-';
+				rates.LOAD.sign_list{end+1} = -1;
+				rate_DATA_idx = find(ismember(rates.DATA.fields_to_plot_list, {'UL_ACHIEVED_RATE_KBPS'}));
+				rates.DATA.fields_to_plot_list(rate_DATA_idx) = [];
+				rates.DATA.color_list(rate_DATA_idx) = [];
+				rates.DATA.linestyle_list(rate_DATA_idx) = [];
+				rates.DATA.sign_list(rate_DATA_idx) = [];
+			end
 		endif
 
-		delays.DATA.fields_to_plot_list = {'DL_OWD_BASELINE', 'UL_OWD_BASELINE', 'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US'};
-		%delays.DATA.fields_to_plot_list = {'DL_OWD_US', 'UL_OWD_US', 'DL_OWD_DELTA_US', 'UL_OWD_DELTA_US', 'DL_OWD_BASELINE', 'UL_OWD_BASELINE'};
+		% create the latency data ollection and configuration
+		delays.DATA.scale_factor = 1/1000;		% conversion factor from µs to ms
+		delays.DATA.fields_to_plot_list = {};
+		delays.DATA.color_list = {};
+		delays.DATA.linestyle_list = {};
+		delays.DATA.sign_list = {};
+
+		% colors from https://colorbrewer2.org/#type=diverging&scheme=BrBG&n=8
+		% re-order the following to assign depth order in plot...
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_BASELINE')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_BASELINE';
+			delays.DATA.color_list{end+1} = [246, 232, 195]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_BASELINE')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_BASELINE';
+			delays.DATA.color_list{end+1} = [199, 234, 229]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_US';
+			delays.DATA.color_list{end+1} = [223, 194, 125]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_US';
+			delays.DATA.color_list{end+1} = [128, 205, 193]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [191, 129, 45]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [53, 151, 143]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
 
 		% to allow old (single ADJ_DELAY_THR) and new log files
-		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
-			delays.DATA.fields_to_plot_list{end+1} = 'DL_ADJ_DELAY_THR';
-		else
-			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+		if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR') || isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+			if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end +1} = 'DL_ADJ_DELAY_THR';
+			elseif isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+			endif
+			delays.DATA.color_list{end+1} = [1.0, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
 		endif
-		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
-			delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
-		else
-			delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+
+
+		% to allow old (single ADJ_DELAY_THR) and new log files
+		if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR') || isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+			if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_DELAY_THR';
+			elseif isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
+				delays.DATA.fields_to_plot_list{end+1} = 'ADJ_DELAY_THR';
+			endif
+			delays.DATA.color_list{end+1} = [1.0, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
 		endif
-		delays.DATA.color_list = {[140, 81, 10]/254, [1, 102, 94]/254, [216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-		%delays.DATA.color_list = {[216, 179, 101]/254, [90, 180, 172]/254, [246, 232, 195]/254, [199, 234, 229]/254, [140, 81, 10]/254, [1, 102, 94]/254, [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]};
-		delays.DATA.linestyle_list = {'-', '-', '-', '-', '-', '-', '-', '-'};
-		delays.DATA.sign_list = {1, -1, 1, -1, 1, -1, 1, -1};	% define the sign of a given data series, allows flipping a set into the negative range
-		delays.DATA.scale_factor = 1/1000;		% conversion factor frm µs to ms
+
+		% if exist, plot the delta EWMA
+		if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_EWMA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_EWMA_US';
+			delays.DATA.color_list{end+1} = [140, 81, 10]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_EWMA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_EWMA_US';
+			delays.DATA.color_list{end+1} = [1, 102, 94]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
 
 		% get x_vector data and which indices to display for each record type
 		x_vec.DATA = (1:1:n_DATA_samples);
-		DATA_rates_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
+		if ~isempty(x_vec.DATA)
+			DATA_rates_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
 
-		DATA_delays_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
-		sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
-		if ~isempty(sequence_too_small_idx)
-			DATA_delays_x_idx = setdiff(DATA_delays_x_idx, sequence_too_small_idx);
+			DATA_delays_x_idx = (x_range.DATA(1):1:x_range.DATA(2));
+			sequence_too_small_idx = find(autorate_log.DATA.LISTS.SEQUENCE < min_sequence_number);
+			if ~isempty(sequence_too_small_idx)
+				DATA_delays_x_idx = setdiff(DATA_delays_x_idx, sequence_too_small_idx);
+			endif
+
+			% allow to only plot a given reflector subset
+			if ~isempty(selected_reflector_subset)
+				cur_reflector_sample_idx = find(ismember(autorate_log.DATA.LISTS.REFLECTOR, selected_reflector_subset));
+				DATA_delays_x_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+			endif
+			if isempty(DATA_delays_x_idx)
+				disp('No valid samples found (for the current reflector subset).');
+				%return # we can still plot the load/rate data, for long sleep periods there might be no valid delay samples at all
+			endif
+
+			% use real sample times, PROC_TIME_US is seconds.NNNNNN
+			% to make things less odd report times in seconds since the log start
+			x_vec.DATA = (autorate_log.DATA.LISTS.PROC_TIME_US .- first_sample_timestamp);
+			disp(['Selected DATA sample indices: ', num2str(x_range.DATA)]);
+
+			% use this later to set the XLim s for all time plots
+			x_vec_range = [x_vec.DATA(DATA_rates_x_idx(1)), x_vec.DATA(DATA_rates_x_idx(end))];
+		else
+			DATA_delays_x_idx = [];
+			x_vec_range = [(60*60*24*365*1000) 0]; % make sure the following MIN/MAX operation will update the fields
 		endif
-
-		% use real sample times, PROC_TIME_US is seconds.NNNNNN
-		% to make things less odd report times in seconds since the log start
-		x_vec.DATA = (autorate_log.DATA.LISTS.PROC_TIME_US .- first_sample_timestamp);
-		x_label_string = 'time from log file start [sec]'; % or 'autorate samples'
-		disp(['Selected DATA sample indices: ', num2str(x_range.DATA)]);
-
-		% use this later to set the XLim s for all time plots
-		x_vec_range = [x_vec.DATA(DATA_rates_x_idx(1)), x_vec.DATA(DATA_rates_x_idx(end))];
 
 		if (n_LOAD_samples > 0)
 			LOAD_rates_x_idx = (x_range.LOAD(1):1:x_range.LOAD(2));
@@ -228,10 +390,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			x_vec_range(1) = min(x_vec_range(1), x_vec.LOAD(LOAD_rates_x_idx(1)));
 			x_vec_range(2) = max(x_vec_range(2), x_vec.LOAD(LOAD_rates_x_idx(end)));
 		endif
+		x_label_string = 'time from log file start [sec]'; % or 'autorate samples'
+
+
 		%TODO detect sleep periods and mark in graphs
 
 		% for plot naming
-		if ((x_range.DATA(1) ~= 1) || (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE)))
+		if ((x_range.DATA(1) ~= 1) ...
+			|| ((n_DATA_samples > 0) && (x_range.DATA(2) ~= length(autorate_log.DATA.LISTS.RECORD_TYPE))) ...
+			|| ((n_DATA_samples == 0) && (x_range.DATA(2) ~= length(autorate_log.LOAD.LISTS.RECORD_TYPE))))
 			n_range_digits = ceil(max(log10(x_range.DATA)));
 			range_string = ['.', 'sample_', num2str(x_range.DATA(1), ['%0', num2str(n_range_digits), 'd']), '_to_', num2str(x_range.DATA(2), ['%0', num2str(n_range_digits), 'd'])];
 		else
@@ -240,7 +407,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 
 
 		adjusted_ylim_delay = [];
-		if ~isempty(scale_delay_axis_by_ADJ_DELAY_THR_factor)
+		if ~isempty(scale_delay_axis_by_ADJ_DELAY_THR_factor) && (n_DATA_samples > 0)
 			%ylim_delays = get(AX(2), 'YLim');
 			if isfield(autorate_log.DATA.LISTS, 'ADJ_DELAY_THR')
 				ul_max_adj_delay_thr = max(autorate_log.DATA.LISTS.ADJ_DELAY_THR(DATA_delays_x_idx));
@@ -261,7 +428,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 
 		% find the 99%ile for the actual relevant delay data
 
-		if ~isempty(scale_delay_axis_by_OWD_DELTA_QUANTILE_factor)
+		if ~isempty(scale_delay_axis_by_OWD_DELTA_QUANTILE_factor) && (n_DATA_samples > 0)
 			sorted_UL_OWD_DELTA_US = sort(autorate_log.DATA.LISTS.UL_OWD_DELTA_US(DATA_delays_x_idx));
 			n_UL_OWD_DELTA_US_samples = length(sorted_UL_OWD_DELTA_US);
 			UL_OWD_DELTA_US_upper_quantile = sorted_UL_OWD_DELTA_US(round(n_UL_OWD_DELTA_US_samples * (OWD_DELTA_QUANTILE_pct / 100)));
@@ -299,9 +466,10 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 		%	autorate_log.DATA.LISTS.UL_OWD_US = 10*autorate_log.DATA.LISTS.UL_OWD_US;
 
 
-		% create CDFs for each reflector, for both DL_OWD_US and UL_OWD_US
-		% for low congestion state (low achieved rate with shaper at baseline rate)
-		% and for high congestion state (high achieved rate close ot shaper rate)?
+		if (n_DATA_samples > 0)
+			% create CDFs for each reflector, for both DL_OWD_US and UL_OWD_US
+			% for low congestion state (low achieved rate with shaper at baseline rate)
+			% and for high congestion state (high achieved rate close ot shaper rate)?
 
 			% load conditions, ideally we want congestion condition, but the best estimate we have
 			% are load conditions, since we want to look at differences in delay we should not
@@ -312,53 +480,65 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			if ismember('rawCDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawCDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCDFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('CDF', figure_opts, raw_CDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'cumulative density [%]', cur_plot_FQN);
+				% these can be pretty large, so make this somewhat lighter
+				clear raw_CDF;
+				clear CDF_x_vec;
 			endif
 
 			if ismember('rawPDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				PDF.calc_range_ms, PDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, reflector_string, plot_ext]);
 				endif
-				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, CDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
+				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, PDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
+				% these can be pretty large, so make this somewhat lighter
+				clear raw_PDF;
+				clear PDF_x_vec;
 			endif
 
 
 			if ismember('deltaCDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				CDF.calc_range_ms, CDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaCDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaCDFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaCDFs', range_string, reflector_string, plot_ext]);
 				endif
 				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('CDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'cumulative density [%]', cur_plot_FQN);
 				fn_propose_delay_thresholds(delta_CDF, CDF.calc_range_ms);
+				% these can be pretty large, so make this somewhat lighter
+				clear delta_CDF;
+				clear CDF_x_vec;
 			endif
 
 			if ismember('deltaPDFs', plot_list);
 				% measures for base-loine corrected delta(RTT)/delta(OWD) data
 				[delta_PDF, PDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('PDF', 'DELTA', autorate_log.DATA.LISTS.UL_OWD_DELTA_US, autorate_log.DATA.LISTS.DL_OWD_DELTA_US, delays.DATA.scale_factor, ...
-				CDF.calc_range_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
+				PDF.calc_range_ms, PDF.step_size_ms, autorate_log.DATA.LISTS.REFLECTOR, sample_idx_by_load, DATA_delays_x_idx);
 				if isempty(plot_FQN)
-					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, figure_opts.output_format_extension]);
+					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.deltaPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.deltaPDFs', range_string, reflector_string, plot_ext]);
 				endif
-				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_CDF, CDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
+				autorate_deltaCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, delta_PDF, PDF.cumulative_range_percent, 'delta delay [ms]', 'probability density [%]', cur_plot_FQN);
+				% these can be pretty large, so make this somewhat lighter
+				clear delta_PDF;
+				clear PDF_x_vec;
 			endif
-
+		endif
 
 
 		if ismember('timecourse', plot_list);
@@ -366,87 +546,86 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 
 			autorate_fh = figure('Name', 'CAKE-autorate log: rate & delay timecourses', 'visible', figure_visibility_string);
 			[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_fh, 1, 1, 27, 19, 1, 'landscape', 'centimeters' );
+			if (n_DATA_samples > 0)
+				cur_sph = subplot(2, 2, [1 2]);
+				%plot data on both axes
+				% use this as dummy to create the axis:
+				cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+				cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{1})(DATA_delays_x_idx) * delays.DATA.scale_factor;
 
-			cur_sph = subplot(2, 2, [1 2]);
-			%plot data on both axes
-			% use this as dummy to create the axis:
-			cur_scaled_data_rates = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{1})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-			cur_scaled_data_delays = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{1})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-
-			if isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays)
-				disp('WARNING: We somehow ended up without data to plot, should not happen');
-				return
-			endif
-
-			% this is a dummy plot so we get the dual axis handles...
-			[AX H1 H2] = plotyy(x_vec.DATA(DATA_delays_x_idx), (delays.DATA.sign_list{1} * cur_scaled_data_delays)', x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{1} * cur_scaled_data_rates)', 'plot');
-			%hold both axes
-			legend_list = {};
-			hold(AX(1));
-			for i_field = 1 : length(delays.DATA.fields_to_plot_list)
-				legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-				plot(AX(1), x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
-			%legend(legend_list, 'Interpreter', 'none');
-			hold off
-			xlabel(x_label_string);
-			ylabel('Delay [milliseconds]');
-			set(AX(1), 'XLim', x_vec_range);
-
-			if ~isempty(adjusted_ylim_delay)
-				set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
-			end
-
-			hold(AX(2));
-			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
-				legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-				plot(AX(2), x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
-
-			if (n_LOAD_samples > 0)
-				for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
-					legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
-					cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
-					plot(AX(2), x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
-				endfor
-			endif
-			%legend(legend_list, 'Interpreter', 'none');
-			hold off
-			xlabel(AX(2), x_label_string);
-			ylabel(AX(2), 'Rate [Mbps]');
-			set(AX(2), 'XLim', x_vec_range);
-
-
-
-			% make sure the zeros of both axes align
-			if (align_rate_and_delay_zeros)
-				ylim_rates = get(AX(2), 'YLim');
-				ylim_delays = get(AX(1), 'YLim');
-
-				rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
-				rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
-
-				delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
-				delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
-
-				if (delay_up_ratio >= rate_up_ratio)
-					% we need to adjust the upper limit
-					new_lower_y_delay = ylim_delays(1);
-					new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
-
-				else
-					% we need to adjust the lower limit
-					new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
-					new_upper_y_delay = ylim_delays(2);
+				if (isempty(cur_scaled_data_rates) || isempty(cur_scaled_data_delays))
+					disp('WARNING: We somehow ended up without data to plot, should not happen');
+					return
 				endif
-				set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
-			endif
 
-			% TODO: look at both DATA and LOAD timestamps to deduce the start and end timestamps
-			title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(1))), '; sample index: ', num2str(x_range.DATA(1)); ...
-			'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(end))), '; sample index: ', num2str(x_range.DATA(2))]);
+				% this is a dummy plot so we get the dual axis handles...
+				[AX H1 H2] = plotyy(x_vec.DATA(DATA_delays_x_idx), (delays.DATA.sign_list{1} * cur_scaled_data_delays)', x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{1} * cur_scaled_data_rates)', 'plot');
+				%hold both axes
+				legend_list = {};
+				hold(AX(1));
+				for i_field = 1 : length(delays.DATA.fields_to_plot_list)
+					legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+					plot(AX(1), x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+				%legend(legend_list, 'Interpreter', 'none');
+				hold off
+				xlabel(x_label_string);
+				ylabel('Delay [milliseconds]');
+				set(AX(1), 'XLim', x_vec_range);
+
+				if ~isempty(adjusted_ylim_delay)
+					set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+				end
+
+				hold(AX(2));
+				for i_field = 1 : length(rates.DATA.fields_to_plot_list)
+					legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+					plot(AX(2), x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+
+				if (n_LOAD_samples > 0)
+					for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
+						legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
+						cur_scaled_data = autorate_log.LOAD.LISTS.(rates.LOAD.fields_to_plot_list{i_field})(LOAD_rates_x_idx) * rates.LOAD.scale_factor;
+						plot(AX(2), x_vec.LOAD(LOAD_rates_x_idx)', (rates.LOAD.sign_list{i_field} * cur_scaled_data)', 'Color', rates.LOAD.color_list{i_field}, 'Linestyle', rates.LOAD.linestyle_list{i_field}, 'LineWidth', line_width);
+					endfor
+				endif
+				%legend(legend_list, 'Interpreter', 'none');
+				hold off
+				xlabel(AX(2), x_label_string);
+				ylabel(AX(2), 'Rate [Mbps]');
+				set(AX(2), 'XLim', x_vec_range);
+
+				% make sure the zeros of both axes align
+				if (align_rate_and_delay_zeros)
+					ylim_rates = get(AX(2), 'YLim');
+					ylim_delays = get(AX(1), 'YLim');
+
+					rate_up_ratio = abs(ylim_rates(1)) / sum(abs(ylim_rates));
+					rate_down_ratio = abs(ylim_rates(2)) / sum(abs(ylim_rates));
+
+					delay_up_ratio = abs(ylim_delays(1)) / sum(abs(ylim_delays));
+					delay_down_ratio = abs(ylim_delays(2)) / sum(abs(ylim_delays));
+
+					if (delay_up_ratio >= rate_up_ratio)
+						% we need to adjust the upper limit
+						new_lower_y_delay = ylim_delays(1);
+						new_upper_y_delay = (abs(ylim_delays(1)) / rate_up_ratio) - abs(ylim_delays(1));
+
+					else
+						% we need to adjust the lower limit
+						new_lower_y_delay = sign(ylim_delays(1)) * ((abs(max(ylim_delays)) / rate_down_ratio) - abs(max(ylim_delays)));
+						new_upper_y_delay = ylim_delays(2);
+					endif
+					set(AX(1), 'YLim', [new_lower_y_delay, new_upper_y_delay]);
+				endif
+
+				% TODO: look at both DATA and LOAD timestamps to deduce the start and end timestamps
+				title(AX(2), ['Start: ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(1)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(1))), '; sample index: ', num2str(x_range.DATA(1)); ...
+				'End:   ', autorate_log.DATA.LISTS.LOG_DATETIME{DATA_rates_x_idx(end)}, '; ', num2str(autorate_log.DATA.LISTS.LOG_TIMESTAMP(DATA_rates_x_idx(end))), '; sample index: ', num2str(x_range.DATA(2))]);
+			endif
 
 
 
@@ -454,11 +633,13 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			% rates
 			hold on
 			legend_list = {};
-			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
-				legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
-				plot(x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
+			if (n_DATA_samples > 0)
+				for i_field = 1 : length(rates.DATA.fields_to_plot_list)
+					legend_list{end+1} = rates.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(rates.DATA.fields_to_plot_list{i_field})(DATA_rates_x_idx) * rates.DATA.scale_factor;
+					plot(x_vec.DATA(DATA_rates_x_idx)', (rates.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', rates.DATA.color_list{i_field}, 'Linestyle', rates.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+			endif
 			if (n_LOAD_samples > 0)
 				for i_field = 1 : length(rates.LOAD.fields_to_plot_list)
 					legend_list{end+1} = rates.LOAD.fields_to_plot_list{i_field};
@@ -482,36 +663,38 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 			ylabel('Rate [Mbps]');
 			set(cur_sph, 'XLim', x_vec_range);
 
-			cur_sph = subplot(2, 2, 4);
-			% delays
-			hold on
-			legend_list = {};
-			for i_field = 1 : length(delays.DATA.fields_to_plot_list)
-				legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
-				cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
-				plot(x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
-			endfor
-			if ~isempty(adjusted_ylim_delay)
-				set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+			if (n_DATA_samples > 0)
+				cur_sph = subplot(2, 2, 4);
+				% delays
+				hold on
+				legend_list = {};
+				for i_field = 1 : length(delays.DATA.fields_to_plot_list)
+					legend_list{end+1} = delays.DATA.fields_to_plot_list{i_field};
+					cur_scaled_data = autorate_log.DATA.LISTS.(delays.DATA.fields_to_plot_list{i_field})(DATA_delays_x_idx) * delays.DATA.scale_factor;
+					plot(x_vec.DATA(DATA_delays_x_idx)', (delays.DATA.sign_list{i_field} * cur_scaled_data)', 'Color', delays.DATA.color_list{i_field}, 'Linestyle', delays.DATA.linestyle_list{i_field}, 'LineWidth', line_width);
+				endfor
+				if ~isempty(adjusted_ylim_delay)
+					set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
+				endif
+				try
+					if strcmp(graphics_toolkit, 'gnuplot')
+						legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+					else
+						legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+					end
+				catch
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+				end_try_catch
+				hold off
+				xlabel(x_label_string);
+				ylabel('Delay [milliseconds]');
+				set(cur_sph, 'XLim', x_vec_range);
 			endif
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				end
-			catch
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
-			end_try_catch
-			hold off
-			xlabel(x_label_string);
-			ylabel('Delay [milliseconds]');
-			set(cur_sph, 'XLim', x_vec_range);
 
 			if isempty(plot_FQN)
-				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, output_format_extension]);
+				cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.timecourse', range_string, reflector_string, output_format_extension]);
 			else
-				cur_plot_FQN = fullfile(plot_path, [plot_name, '.timecourse', range_string, plot_ext]);
+				cur_plot_FQN = fullfile(plot_path, [plot_name, '.timecourse', range_string, reflector_string, plot_ext]);
 			endif
 
 			disp(['INFO: Writing plot as: ', cur_plot_FQN]);
@@ -520,6 +703,11 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec )
 	catch err
   		warning(err.identifier, err.message);
 		err
+		for i_stack = 1 : length(err.stack)
+			disp(['Stack #: ', num2str(i_stack), ':']);
+			disp(err.stack(i_stack));
+		endfor
+
 		disp('INFO: available graphics toolkits:');
 		disp(available_graphics_toolkits);
 		disp(['INFO: Selected graphics toolkit: ', graphics_toolkit]);
@@ -537,6 +725,7 @@ endfunction
 
 function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command_string )
 	% variables
+	debug = 0;
 	delimiter_string = ";";	% what separator is used in the log file
 	line_increment = 100;		%  by what size to increment data structures on hitting the end
 	% enumerate all field names in HEADER that denote a string field on DATA records, otherwise default to numeric
@@ -554,6 +743,8 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.DATA = [];
 	log_struct.LOAD_HEADER = [];
 	log_struct.LOAD = [];
+	log_struct.REFLECTOR_HEADER = [];
+	log_struct.REFLECTOR = [];
 	log_struct.INFO = [];
 	log_struct.SHAPER = [];
 	log_struct.metainformation = [];
@@ -584,7 +775,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	endif
 	if strcmp(log_ext, '.gz')
 		file_list = gunzip(log_FQN);
-		if length(file_list) ==1
+		if (length(file_list) == 1)
 			orig_log_FQN = log_FQN;
 			log_FQN = file_list{1};
 			[log_dir, log_name, log_ext ] = fileparts(log_FQN);
@@ -616,6 +807,10 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 		current_line = fgetl(log_fd);
 		line_count = line_count + 1;
 
+		if (debug)
+			disp([num2str(line_count), ': ', current_line]);
+		endif
+
 		cur_record_type = fn_get_record_type_4_line(current_line, delimiter_string, string_field_identifier_list);
 		fn_parse_current_line(cur_record_type, current_line, delimiter_string, line_increment);
 
@@ -624,7 +819,6 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 			disp(['INFO: Processed line: ', num2str(line_count)]);
 			fflush(stdout) ;
 		endif
-
 		%disp(current_line)
 	endwhile
 
@@ -632,7 +826,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	fclose(log_fd);
 
 	% shrink global datastructures
-	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER"});
+	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER", "LOAD"});
 
 	% ready for export and
 	autorate_log = log_struct;
@@ -640,6 +834,16 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	% save autorate_log as mat file...
 	disp(['INFO: Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
 	save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
+
+	if ~exist(fullfile(log_dir, [log_name, log_ext, '.gz']), 'file')
+		% compress the uncompressed log
+		FILELIST = gzip(fullfile(log_dir, [log_name, log_ext]));
+	end
+
+	if exist(fullfile(log_dir, [log_name, log_ext]), 'file');
+		% delete the uncompressed log
+		delete(fullfile(log_dir, [log_name, log_ext]));
+	endif
 
 	return
 endfunction
@@ -722,24 +926,79 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 			endif
 		case {"DATA;"}
 			cur_record_type = "DATA";
-			if ~isfield(log_struct.metainformation, 'DATA')
-				log_struct.metainformation.DATA.count = 1;
+			if ~isfield(log_struct.metainformation, 'HEADER') || log_struct.metainformation.HEADER.count < 1
+				# we have not encountered a DATA_HEADER record yet and do not know how to parse DATA records, so SKIP
+				cur_record_type = "SKIP";
+				if ~isfield(log_struct.metainformation, 'SKIP_DATA')
+					log_struct.metainformation.SKIP_DATA.count = 1;
+				else
+					log_struct.metainformation.SKIP_DATA.count = log_struct.metainformation.SKIP_DATA.count + 1;
+				endif
+				disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_DATA.count), ').']);
 			else
-				log_struct.metainformation.DATA.count = log_struct.metainformation.DATA.count + 1;
+				# this is fine we already found a header
+				if ~isfield(log_struct.metainformation, 'DATA')
+					log_struct.metainformation.DATA.count = 1;
+				else
+					log_struct.metainformation.DATA.count = log_struct.metainformation.DATA.count + 1;
+				endif
 			endif
 		case {"LOAD_"}
 			cur_record_type = "LOAD_HEADER";
 			if ~isfield(log_struct.metainformation, 'LOAD_HEADER')
 				log_struct.metainformation.LOAD_HEADER.count = 1;
 			else
-				log_struct.metainformation.LOAD_HEADER.count = log_struct.metainformation.HEADER.count + 1;
+				log_struct.metainformation.LOAD_HEADER.count = log_struct.metainformation.LOAD_HEADER.count + 1;
 			endif
 		case {"LOAD;"}
 			cur_record_type = "LOAD";
-			if ~isfield(log_struct.metainformation, 'LOAD')
-				log_struct.metainformation.LOAD.count = 1;
+			if ~isfield(log_struct.metainformation, 'LOAD_HEADER') || log_struct.metainformation.LOAD_HEADER.count < 1
+				# we have not encountered a LOAD_HEADER record yet and do not know how to parse LOAD records, so SKIP
+				cur_record_type = "SKIP";
+				if ~isfield(log_struct.metainformation, 'SKIP_LOAD')
+					log_struct.metainformation.SKIP_LOAD.count = 1;
+				else
+					log_struct.metainformation.SKIP_LOAD.count = log_struct.metainformation.SKIP_LOAD.count + 1;
+				endif
+				disp(['Found LOAD  before LOAD_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_LOAD.count), ').']);
 			else
-				log_struct.metainformation.LOAD.count = log_struct.metainformation.LOAD.count + 1;
+				# this is fine we already found a header
+
+				if ~isfield(log_struct.metainformation, 'LOAD')
+					log_struct.metainformation.LOAD.count = 1;
+				else
+					log_struct.metainformation.LOAD.count = log_struct.metainformation.LOAD.count + 1;
+				endif
+			endif
+		case {"REFLE"}
+			if strcmp(current_line(1:16), "REFLECTOR_HEADER")
+				cur_record_type = "REFLECTOR_HEADER";
+				if ~isfield(log_struct.metainformation, 'REFLECTOR_HEADER')
+					%log_struct.REFLECTOR_HEADER = [];
+					log_struct.metainformation.REFLECTOR_HEADER.count = 1;
+				else
+					log_struct.metainformation.REFLECTOR_HEADER.count = log_struct.metainformation.REFLECTOR_HEADER.count + 1;
+				endif
+			elseif strcmp(current_line(1:10), "REFLECTOR;")
+				cur_record_type = "REFLECTOR";
+				if ~isfield(log_struct.metainformation, 'REFLECTOR_HEADER') || log_struct.metainformation.REFLECTOR_HEADER.count < 1
+					# we have not encountered a REFLECTOR_HEADER record yet and do not know how to parse REFLECTOR records, so SKIP
+					cur_record_type = "SKIP";
+					if ~isfield(log_struct.metainformation, 'SKIP_REFLECTOR')
+						log_struct.metainformation.SKIP_REFLECTOR.count = 1;
+					else
+						log_struct.metainformation.SKIP_REFLECTOR.count = log_struct.metainformation.SKIP_REFLECTOR.count + 1;
+					endif
+					disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_REFLECTOR.count), ').']);
+				else
+					# this is fine we already found a header
+					if ~isfield(log_struct.metainformation, 'REFLECTOR')
+						%log_struct.REFLECTOR = [];
+						log_struct.metainformation.REFLECTOR.count = 1;
+					else
+						log_struct.metainformation.REFLECTOR.count = log_struct.metainformation.REFLECTOR.count + 1;
+					endif
+				endif
 			endif
 		case {"SHAPE"}
 			cur_record_type = "SHAPER";
@@ -817,6 +1076,22 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				log_struct.LOAD.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
 				log_struct.LOAD.listtypes = {};
 			endif
+		case {"REFLECTOR_HEADER"}
+			if ~isfield(log_struct.REFLECTOR_HEADER, 'listtypes') || isempty(log_struct.REFLECTOR_HEADER.listtypes)
+				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'REFLECTOR_HEADER', 'REFLECTOR');
+				% HEADER stays mostly empty
+				%log_struct.REFLECTOR_HEADER.format_string = "";
+				%log_struct.REFLECTOR_HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+				%log_struct.REFLECTOR_HEADER.listtypes = {};
+			endif
+		case {"REFLECTOR"}
+			if ~isfield(log_struct.REFLECTOR, 'listtypes') || isempty(log_struct.REFLECTOR.listtypes)
+				%throw error as this needs to be filled from header already...
+				% fill this from the header
+				log_struct.REFLECTOR.format_string = "";
+				log_struct.REFLECTOR.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+				log_struct.REFLECTOR.listtypes = {};
+			endif
 		case {"SHAPER"}
 			if ~isfield(log_struct.SHAPER, 'listtypes') || isempty(log_struct.SHAPER.listtypes)
 				log_struct.SHAPER.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};
@@ -843,7 +1118,7 @@ endfunction
 function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_string, line_increment)
 	global log_struct
 
-	if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD'}) % {'DEBUG', 'INFO', 'SJHAPER'}
+	if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR'}) % {'DEBUG', 'INFO', 'SJHAPER'}
 		return
 	endif
 
@@ -913,11 +1188,14 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 	endif
 	field_cell_array = textscan(current_line, log_struct.(cur_record_type).format_string, "Delimiter", delimiter_string);
 
+	if isempty(field_cell_array) || length(field_cell_array) < length(log_struct.(cur_record_type).listnames)
+		disp('This should not happen!');
+	endif
+
 	for i_list = 1 : length(log_struct.(cur_record_type).listnames)
 		cur_listname = log_struct.(cur_record_type).listnames{i_list};
 		log_struct.(cur_record_type).LISTS.(cur_listname)(cur_valid_data_idx) = field_cell_array{i_list};
 	endfor
-
 
 	% increase the pointer
 	log_struct.(cur_record_type).last_valid_data_idx = cur_valid_data_idx;
@@ -940,7 +1218,7 @@ function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, del
 		cur_type_string = '%f'; % default to numeric
 		for i_string_identifier = 1 : length(string_field_identifier_list)
 			cur_string_identifier = string_field_identifier_list{i_string_identifier};
-			if ~isempty(regexp(log_struct.DATA.listnames{i_field}, cur_string_identifier))
+			if ~isempty(regexp(log_struct.(DATA_RECORD_name).listnames{i_field}, cur_string_identifier))
 				cur_type_string = '%s';
 			endif
 		endfor
@@ -1219,20 +1497,23 @@ function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, 
 			switch distribution_string
 				case {'pdf', 'PDF'}
 					cur_data_CDF = cumsum(cur_data);
+					cur_data_CDF = 100 * cur_data_CDF / max(cur_data_CDF);
 			endswitch
-
 			% find high and low x values
-			if ~isempty(find(cur_data >= cumulative_range_percent(1), 1, 'first'))
+			if ~isempty(find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first'))
 				cur_x_low_quantile_idx(i_reflector, i_set) = find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first');
 			endif
-			if ~isempty(find(cur_data <= cumulative_range_percent(2), 1, 'last'))
+			if ~isempty(find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last'))
 				cur_x_high_quantile_idx(i_reflector, i_set) = find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last');
 			endif
 		endfor
 	endfor
 	hold off
 	set(ax_h, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
-	set(ax_h, 'YLim', [0, 100]);
+	% for PDFs use auto scaling, these are scaled to unity area, so 0-100% does not make much sense for PDFs
+	if strcmp(distribution_string, 'CDF')
+		set(ax_h, 'YLim', [0, 100]);
+	endif
 	xlabel(ax_h, xlabel_string);
 	ylabel(ax_h, ylabel_string)
 	title(ax_h, title_string);
@@ -1293,13 +1574,13 @@ endfunction
 
 
 function [ delay_struct, CDF_x_vec, unique_reflector_list ] = fn_get_XDF_by_load(method_string, delay_type_string, UL_OWD_sample_list, DL_OWD_sample_list, data_scale_factor, ...
-	calc_range_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
+	calc_range_ms, step_size_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
 	% method_string = 'CDF';
 	% delay_type_string = 'RAW';
 	delay_struct = struct();
 
 	% the time resolution
-	CDF_x_vec = (calc_range_ms(1):0.01:calc_range_ms(end));
+	CDF_x_vec = (calc_range_ms(1):step_size_ms:calc_range_ms(end));
 	unique_reflector_list = unique(REFLECTOR_by_sample_list);
 	n_unique_reflectors = length(unique_reflector_list);
 
