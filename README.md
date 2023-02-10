@@ -12,7 +12,7 @@ The CAKE algorithm always uses fixed upload and download bandwidth settings to m
 
 As CAKE works with a fixed set bandwidth this effectively forces the user to choose a compromise bandwidth setting, but typically this means lost bandwidth in exchange for latency control and/or bufferbloat during the worst conditions. This compromise is hardly ideal: whilst the actual usable line rate is above the set compromise bandwidth, the connection is unnecessarily throttled back to the compromise setting resulting in lost bandwidth (yellow); and whilst the actual usable line rate is below the compromise value, the connection is not throttled enough (green) resulting in bufferbloat.
 
-<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/bandwidth-compromise.png" width=70% height=70%>
+<img src="https://github.com/lynxthecat/cake-autorate/raw/master/images/bandwidth-compromise.png" width=70% height=70%>
 
 ## The Solution: Automatic Bandwidth Adjustment based on LOAD and RTT
 
@@ -26,7 +26,7 @@ The **cake-autorate.sh** script periodically measures the load and Round-Trip-Ti
 - with high load, increase rate subject to set maximum
 - on bufferbloat, decrease rate subject to set min (and subject to refractory period)
 
-<img src="https://github.com/lynxthecat/cake-autorate/raw/testing/images/cake-bandwidth-autorate-rate-control.png" width=70% height=70%>
+<img src="https://github.com/lynxthecat/cake-autorate/raw/master/images/cake-bandwidth-autorate-rate-control.png" width=70% height=70%>
 
 **Setting the minimum bandwidth:** 
 Set the minimum value to the worst possible observed bufferbloat free bandwidth. Ideally this CAKE bandwidth should never result in bufferbloat even under the worst conditions. This is a hard minimum - the script will never reduce the bandwidth below this level.
@@ -73,7 +73,7 @@ as described in the
 copying and pasting each of the commands below:
 
    ```bash
-   wget -O /tmp/cake-autorate-setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/main/cake-autorate-setup.sh
+   wget -O /tmp/cake-autorate-setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/stable/cake-autorate-setup.sh
    sh /tmp/cake-autorate-setup.sh
    ```
 
@@ -136,7 +136,7 @@ octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 
 ## Example Starlink Configuration
 
-- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/main/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Startlink users.
+- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/stable/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Startlink users.
 - See discussion on OpenWrt thread from [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
 
 ## Manual testing
