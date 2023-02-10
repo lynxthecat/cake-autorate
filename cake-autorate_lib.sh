@@ -139,7 +139,7 @@ proc_man()
 
 			"${@}" &
 			local pid=${!}
-			proc_man_set_key "${name}" "pid=${pid}" "${proc_state_file:?}"
+			proc_man_set_key "${name}" "${pid}" "${proc_state_file:?}"
 			;;
 		"stop")
 			local pid
@@ -167,7 +167,7 @@ proc_man()
 				kill -9 "${pid}"
 			fi
 
-			proc_man_set_key "${name}" "pid=-1" "${proc_state_file:?}"
+			proc_man_set_key "${name}" "-1" "${proc_state_file:?}"
 			;;
 		"status")
 			local pid
