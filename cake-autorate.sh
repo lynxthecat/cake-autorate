@@ -1236,7 +1236,7 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d "${run_path}" ]]; then
 	if [[ -f "${run_path}/pid" ]] && [[ -d "/proc/$(<"${run_path}/pid")" ]]; then
-		log_msg "ERROR" "${run_path} already exists and an instance is running. Exiting script."
+		log_msg "ERROR" "${run_path} already exists and an instance may be running. Exiting script."
 		trap - INT TERM EXIT
 		exit
 	else
