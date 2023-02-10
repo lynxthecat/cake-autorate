@@ -10,13 +10,6 @@ fi
 
 exec {__sleep_fd}<> <(:)
 
-sleep_inf()
-{
-	# sleeps forever
-	read -r <&${__sleep_fd:?} || true &
-	wait ${!}
-}
-
 sleep_s()
 {
 	# calling external sleep binary is slow
