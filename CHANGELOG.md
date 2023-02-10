@@ -6,7 +6,7 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
-## 2022-12-13 - Version 1.2
+## 2023-02-10 - Version 1.2
 
 - cake-autorate now includes a sophisticated offline log file analysis utility written in Matlab/Octave: 'fn_parse_autorate_log.m' and maintained by @moeller0 (OpenWrt forum). This utility takes in a cake-autorate generated log file (in compressed or uncompressed format), which can be generated on the fly by sending an appropriate signal, and presents beautiful plots that depict latency and bandwidth over time together with many important cake-autorate vitals. This gratly simplifies assessing the efficacy of cake-autorate and associated settings on a given connection. 
 - Multiple instances of cake-autorate is now supported. cake-autorate can now be run on multiple interfaces such as in the case of mwan3 failover. The interface is assigned by designating an appropaite interface identifier 'X' in the config file in the form cake-autorate_config.X.sh. A launcher script has been created that creates one cake-autorate instance per cake-autorate_config file placed inside /root/cake-autorate/. Log files are generated for each instance using the form /var/log/cake-autorate.X.log. The interface identifier 'X' cannot be empty. 
@@ -16,7 +16,8 @@ This is the history of changes.
 -  For each new sample, the baseline is now subtracted after having been updated rather than before having been updated. 
 -  Pinger prefix and arguments are now facilitated for the chosen pinger binary to help improve compatibility with mwan3.
 -  Consideration was afforded to switching over to the use of SMA rather than EWMA for reflector baselines, but SMA was found to offer minimal improvement as compared to EWMA with appropriately chosen alpha values. The present use of EWMA with multiple alphas for increase and decrease enables tracking of either reflector owd minimums (conservative default) or averages (by setting alphas to around e.g. 0.095). 
--  User can now specify own log path, e.g. in case of logging out to cloud mount using rclone or USB stick
+-  User can now specify own log path, e.g. in case of logging out to cloud mount using rclone or USB stick.
+-  Various minor robustness and compatability tweaks.
 
 ## 2022-09-28 - Version 1.1
 
