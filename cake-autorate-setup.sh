@@ -3,14 +3,16 @@
 # See https://github.com/lynxthecat/sqm-autorate for details
 # https://www.shellcheck.net/ is your friend
 
-SRC_DIR="https://raw.githubusercontent.com/lynxthecat/cake-autorate/main/"
+SRC_DIR="https://raw.githubusercontent.com/lynxthecat/cake-autorate/stable/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
-# Retrieve required packages
-printf "Running opkg update to update package lists:\n"
-opkg update
-printf "Installing bash, iputils-ping and fping packages:\n"
-opkg install bash iputils-ping fping
+# Retrieve required packages if not present
+if [ $(opkg list-installed | grep -E '^(bash|iputils-ping|fping) ' | wc -l) -ne 3 ]; then
+	printf "Running opkg update to update package lists:\n"
+	opkg update
+	printf "Installing bash, iputils-ping and fping packages:\n"
+	opkg install bash iputils-ping fping
+fi
 
 # Set up CAKE-autorate files
 # cd to the /root directory
