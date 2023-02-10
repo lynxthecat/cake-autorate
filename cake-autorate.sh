@@ -9,7 +9,7 @@
 # each cake-autorate instance must be configured using a corresponding config file 
 
 # Project homepage: https://github.com/lynxthecat/cake-autorate
-# Licence details:  https://github.com/lynxthecat/cake-autorate/blob/main/LICENCE.md
+# Licence details:  https://github.com/lynxthecat/cake-autorate/blob/master/LICENCE.md
 
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
