@@ -52,20 +52,9 @@ cleanup_and_killall()
 	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
-	if [[ -n ${maintain_pingers_pid:-} ]]; then
-		log_msg "DEBUG" "Terminating maintain_pingers_pid: ${maintain_pingers_pid}."
-		kill_and_wait_by_pid_name maintain_pingers_pid 0
-	fi
-
-	if [[ -n ${monitor_achieved_rates_pid:-} ]]; then
-		log_msg "DEBUG" "Terminating monitor_achieved_rates_pid: ${monitor_achieved_rates_pid}."
-		kill_and_wait_by_pid_name monitor_achieved_rates_pid 0
-	fi
-
-	if [[ -n ${maintain_log_file_pid:-} ]]; then
-		log_msg "DEBUG" "Terminating maintain_log_file_pid: ${maintain_log_file_pid}."
-		kill_and_wait_by_pid_name maintain_log_file_pid 0
-	fi
+	proc_man_stop maintain_pingers
+	proc_man_stop monitor_achieved_rates
+	proc_man_stop maintain_log_file
 
 	[[ -d "${run_path}" ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -159,19 +148,19 @@ export_log_file()
 
 		default)
 			printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
-        		log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
-        		log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
-        		;;
+			log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
+			log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
+			;;
 
 		alternative)
 			log_msg "DEBUG" "Exporting log file with alternative path: ${log_file_export_alternative_path}"
-        		log_file_export_path=${log_file_export_alternative_path}
+			log_file_export_path=${log_file_export_alternative_path}
 			;;
 
 		*)
 			log_msg "DEBUG" "Unrecognised export type. Not exporting log file."
 			return
-		;;
+			;;
 	esac
 
 	# Now export with or without compression to the appropriate export path
@@ -192,8 +181,6 @@ export_log_file()
 	fi
 }
 
-
-
 flush_log_fd()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
@@ -207,7 +194,7 @@ get_log_file_size_bytes()
 {
 	read -r log_file_size_bytes< <(du -b "${log_file_path}")
 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
-	! [[ ${log_file_size_bytes} =~ ^[0-9]+$ ]] && log_file_size_bytes=0
+	[[ ${log_file_size_bytes} =~ ^[0-9]+$ ]] || log_file_size_bytes=0
 }
 
 kill_maintain_log_file()
@@ -311,13 +298,13 @@ get_next_shaper_rate()
 		*low*|*idle*)
 			if (( t_next_rate_us > (t_last_decay_us+decay_refractory_period_us) )); then
 
-	                	if ((shaper_rate_kbps > base_shaper_rate_kbps)); then
+				if ((shaper_rate_kbps > base_shaper_rate_kbps)); then
 					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_down_load_low)/1000 ))
 					shaper_rate_kbps=$(( decayed_shaper_rate_kbps > base_shaper_rate_kbps ? decayed_shaper_rate_kbps : base_shaper_rate_kbps))
 				elif ((shaper_rate_kbps < base_shaper_rate_kbps)); then
-        			        decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_up_load_low)/1000 ))
+					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps*shaper_rate_adjust_up_load_low)/1000 ))
 					shaper_rate_kbps=$(( decayed_shaper_rate_kbps < base_shaper_rate_kbps ? decayed_shaper_rate_kbps : base_shaper_rate_kbps))
-                		fi
+				fi
 
 				t_last_decay_us=${EPOCHREALTIME/./}
 			fi
@@ -644,22 +631,16 @@ start_pinger()
 		fping)
 			pinger=0
 			exec {pinger_fds[pinger]}<> <(:)
-			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}" &
+			proc_man_start "pinger_${pinger}" ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 		ping)
 			exec {pinger_fds[pinger]}<> <(:)
 			sleep_until_next_pinger_time_slot ${pinger}
-			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}" &
+			proc_man_start "pinger_${pinger}" ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 	esac
 	
-	pinger_pids[pinger]=${!}
-	log_msg "DEBUG" "Started pinger ${pinger} with PID: ${pinger_pids[pinger]}"
-	log_process_cmdline pinger_pids[pinger]
-
-	monitor_reflector_responses_${pinger_binary} "${pinger}" &
-	monitor_pids[pinger]=${!}
-	log_process_cmdline monitor_pids[pinger]
+	proc_man_start "monitor_${pinger}" monitor_reflector_responses_${pinger_binary} "${pinger}"
 }
 
 start_pingers()
@@ -693,43 +674,6 @@ sleep_until_next_pinger_time_slot()
 	sleep_remaining_tick_time "${t_start_us}" "${time_to_next_time_slot_us}"
 }
 
-log_process_cmdline()
-{
-	local -n process_pid=${1}
-
-	for ((read_try=0; read_try<10; read_try++))
-	do
-		read -r process_cmdline < <( tr '\0' ' ' < "/proc/${process_pid}/cmdline" )
-		[[ -z ${process_cmdline} ]] || break
-		sleep_s 0.01
-	done
-	log_msg "DEBUG" "${!process_pid}=${process_pid} cmdline: ${process_cmdline}"
-}
-
-kill_and_wait_by_pid_name()
-{
-	local -n pid=${1}
-	local err_silence=${2}
-	
-	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-
-	if [[ -n "${pid}" ]]; then
-		if [[ -d "/proc/${pid}" ]]; then
-			log_process_cmdline pid
-			debug_cmd "${!pid}" "${err_silence}" kill "${pid}"
-			wait "${pid}"
-		else
-			log_msg "DEBUG" "expected ${!pid} process: ${pid} does not exist - nothing to kill." 
-		fi
-	else
-		log_msg "DEBUG" "pid (${!pid}) is empty, nothing to kill." 	        
-	fi
-
-	# Reset pid
-	pid=
-
-}
-
 kill_pinger()
 {
 	local pinger=${1}
@@ -737,18 +681,17 @@ kill_pinger()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case ${pinger_binary} in
-
 		fping)
 			pinger=0
-		;;
+			;;
+
 		*)
 			:
-		;;
+			;;
 	esac
 
-	kill_and_wait_by_pid_name pinger_pids[pinger] "${err_silence}"
-
-	kill_and_wait_by_pid_name monitor_pids[pinger] 0
+	proc_man_stop "pinger_${pinger}"
+	proc_man_stop "monitor_${pinger}"
 
 	exec {pinger_fds[pinger]}<&-
 }
@@ -760,14 +703,14 @@ kill_pingers()
 		fping)
 			log_msg "DEBUG" "Killing fping instance."
 			kill_pinger 0
-		;;
+			;;
 		ping)
 			for (( pinger=0; pinger < no_pingers; pinger++))
 			do
 				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
 				kill_pinger "${pinger}"
 			done
-		;;
+			;;
 	esac
 }
 
@@ -1270,6 +1213,9 @@ else
 	exit
 fi
 
+PROC_STATE_FILE="${run_path}/proc_state"
+PROC_STATE_FILE_LOCK="${run_path}/proc_state.lock"
+
 if [[ -n "${log_file_path_override:-}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
 		broken_log_file_path_override=${log_file_path_override}
@@ -1290,7 +1236,7 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d "${run_path}" ]]; then
 	if [[ -f "${run_path}/pid" ]] && [[ -d "/proc/$(<"${run_path}/pid")" ]]; then
-		log_msg "ERROR" "${run_path} already exists and an instance is running. Exiting script."
+		log_msg "ERROR" "${run_path} already exists and an instance may be running. Exiting script."
 		trap - INT TERM EXIT
 		exit
 	else
@@ -1323,10 +1269,7 @@ if ((log_to_file)); then
 	log_file_max_time_us=$((log_file_max_time_mins*60000000))
 	log_file_max_size_bytes=$((log_file_max_size_KB*1024))
 	exec {log_fd}<> <(:)
-	maintain_log_file&
-	maintain_log_file_pid=${!}
-	log_msg "DEBUG" "Started maintain log file process with PID: ${maintain_log_file_pid}"
-	printf '%s' "${maintain_log_file_pid}" > "${run_path}/maintain_log_file_pid"
+	proc_man_start "maintain_log_file" maintain_log_file
 fi
 
 # test if stdout is a tty (terminal)
@@ -1474,14 +1417,12 @@ if ((startup_wait_us>0)); then
 fi
 
 # Initiate achived rate monitor
-monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"&
-monitor_achieved_rates_pid=${!}
+proc_man_start monitor_achieved_rates monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"
 	
 printf '%s' "0" > "${run_path}/dl_load_percent"
 printf '%s' "0" > "${run_path}/ul_load_percent"
 
-maintain_pingers&
-maintain_pingers_pid=${!}
+proc_man_start maintain_pingers maintain_pingers
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -1570,7 +1511,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
 		# send signal USR1 to pause reflector maintenance
-		kill -USR1 ${maintain_pingers_pid}
+		proc_man_signal maintain_pingers "USR1"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
 
@@ -1589,7 +1530,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
-				kill -USR1 ${maintain_pingers_pid}
+				proc_man_signal maintain_pingers "USR1"
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
 				continue 2
@@ -1610,7 +1551,7 @@ do
 	fi
 
 	# send signal USR2 to pause maintain_reflectors
-	kill -USR2 ${maintain_pingers_pid}
+	proc_man_signal maintain_pingers "USR2"
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1629,5 +1570,5 @@ do
 	done
 
 	# send signal USR2 to resume maintain_reflectors
-	kill -USR2 ${maintain_pingers_pid}
+	proc_man_signal maintain_pingers "USR2"
 done
