@@ -136,7 +136,7 @@ octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 
 ## Example Starlink Configuration
 
-- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/master/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Startlink users.
+- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/master/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Starlink users.
 - See discussion on OpenWrt thread from [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
 
 ## Manual testing
