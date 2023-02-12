@@ -37,6 +37,7 @@ sleep_remaining_tick_time()
 	local t_start_us=${1} # (microseconds)
 	local tick_duration_us=${2} # (microseconds)
 
+	# shellcheck disable=SC2154
 	sleep_duration_us=$(( t_start_us + tick_duration_us - ${EPOCHREALTIME/./} ))
 
 	if (( sleep_duration_us > 0 )); then
