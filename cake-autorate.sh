@@ -191,7 +191,8 @@ flush_log_fd()
 
 get_log_file_size_bytes()
 {
-	log_file_size_bytes=$(wc -c < "${log_file_path}" || echo "0")
+	log_file_size_bytes=$(wc -c "${log_file_path}" 2>/dev/null | awk '{print $1}')
+	log_file_size_bytes=${log_file_size_bytes:-0}
 }
 
 kill_maintain_log_file()
