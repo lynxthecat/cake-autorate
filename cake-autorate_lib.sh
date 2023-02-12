@@ -126,6 +126,7 @@ proc_man()
 		true > "${PROC_STATE_FILE:?}"
 	fi
 
+	# shellcheck disable=SC2311
 	case "${action}" in
 		"start")
 			pid=$(_proc_man_get_key_value "${name}")
