@@ -17,8 +17,7 @@ sleep_s()
 	# but read's timeout can more portably be exploited and this is apparently even faster anyway
 
 	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
-	read -r -t "${sleep_duration_s}" <&${__sleep_fd:?} || true &
-	wait ${!}
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 sleep_us()
