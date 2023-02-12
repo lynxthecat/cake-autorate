@@ -465,7 +465,7 @@ monitor_reflector_responses_fping()
 	done
 
 	# shellcheck disable=SC2154
-	while read -r timestamp reflector _ seq_rtt 2>/dev/null
+	while read -r -u "${pinger_fds[pinger]}" timestamp reflector _ seq_rtt 2>/dev/null
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 
@@ -517,8 +517,7 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-	done 2>/dev/null <&"${pinger_fds[pinger]}" &
-	wait "${!}"
+	done 2>/dev/null
 }
 
 # IPUTILS-PING FUNCTIONS
@@ -834,7 +833,8 @@ maintain_pingers()
 	# For each pinger initialize record of offences
 	for ((pinger=0; pinger < no_pingers; pinger++))
 	do
-		declare -na reflector_offences="reflector_${pinger}_offences"                                                                                                               
+		# shellcheck disable=SC2178
+		declare -n reflector_offences="reflector_${pinger}_offences"
 		for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 		sum_reflector_offences[pinger]=0
 	done
@@ -927,7 +927,8 @@ maintain_pingers()
 		do
 			reflector_check_time_us=${EPOCHREALTIME/./}
 			concurrent_read_integer reflector_last_timestamp_us "${run_path}/reflector_${reflectors[pinger]//./-}_last_timestamp_us"
-			declare -na reflector_offences="reflector_${pinger}_offences"
+			# shellcheck disable=SC2178
+			declare -n reflector_offences="reflector_${pinger}_offences"
 
 			(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
 			# shellcheck disable=SC2154
