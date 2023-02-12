@@ -232,7 +232,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 %			end
 
 			% these can be replaced...
-			if isfield(autorate_log.DATA.LISTS, 'DL_ACHIEVED_RATE_KBPS')
+			if isfield(autorate_log.LOAD.LISTS, 'DL_ACHIEVED_RATE_KBPS')
 				rates.LOAD.fields_to_plot_list{end+1} = 'DL_ACHIEVED_RATE_KBPS';
 				rates.LOAD.color_list{end+1} = [208,28,139]/254;
 				rates.LOAD.linestyle_list{end+1} = '-';
@@ -243,7 +243,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				rates.DATA.linestyle_list(rate_DATA_idx) = [];
 				rates.DATA.sign_list(rate_DATA_idx) = [];
 			end
-			if isfield(autorate_log.DATA.LISTS, 'UL_ACHIEVED_RATE_KBPS')
+            if isfield(autorate_log.LOAD.LISTS, 'UL_ACHIEVED_RATE_KBPS')
 				rates.LOAD.fields_to_plot_list{end+1} = 'UL_ACHIEVED_RATE_KBPS';
 				rates.LOAD.color_list{end+1} = [77,172,38]/254;
 				rates.LOAD.linestyle_list{end+1} = '-';
@@ -648,16 +648,18 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				endfor
 			endif
 
-			try
-				if strcmp(graphics_toolkit, 'gnuplot')
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				else
-					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				end
-			catch
-				disp(['Triggered']);
-				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
-			end_try_catch
+			if ~isempty(legend_list)
+				try
+					if strcmp(graphics_toolkit, 'gnuplot')
+						legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+					else
+						legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+					end
+				catch
+					disp(['Triggered']);
+					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+				end_try_catch
+			end
 			hold off
 			xlabel(x_label_string);
 			ylabel('Rate [Mbps]');
@@ -676,15 +678,17 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				if ~isempty(adjusted_ylim_delay)
 					set(cur_sph, 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
 				endif
-				try
-					if strcmp(graphics_toolkit, 'gnuplot')
-						legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-					else
-						legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-					end
-				catch
-					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
-				end_try_catch
+				if ~isempty(legend_list)
+					try
+						if strcmp(graphics_toolkit, 'gnuplot')
+							legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+						else
+							legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
+						end
+					catch
+						legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
+					end_try_catch
+				end
 				hold off
 				xlabel(x_label_string);
 				ylabel('Delay [milliseconds]');
