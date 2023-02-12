@@ -49,7 +49,6 @@ cleanup_and_killall()
 	
 	log_msg "INFO" "Stopping cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 	
-	log_msg "INFO" ""
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
 	proc_man_stop maintain_pingers
