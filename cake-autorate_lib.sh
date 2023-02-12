@@ -8,7 +8,7 @@ if [[ ! ${-} =~ e ]]; then
     __set_e=1
 fi
 
-exec {__sleep_fd}<> <(:)
+exec {__sleep_fd}<> <(:) || true
 
 sleep_s()
 {
@@ -40,7 +40,7 @@ sleep_remaining_tick_time()
 	sleep_duration_us=$(( t_start_us + tick_duration_us - ${EPOCHREALTIME/./} ))
 
 	if (( sleep_duration_us > 0 )); then
-		sleep_us ${sleep_duration_us}
+		sleep_us "${sleep_duration_us}"
 	fi
 }
 

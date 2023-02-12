@@ -13,6 +13,7 @@ DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 BRANCH="master"
 
 # Retrieve required packages if not present
+# shellcheck disable=SC2312
 if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]; then
 	printf "Running opkg update to update package lists:\n"
 	opkg update
@@ -39,11 +40,11 @@ wget -qO- "${SRC_DIR}/${BRANCH}.tar.gz" | tar -xozf - -C "${tmp}"
 mv "${tmp}/cake-autorate-${BRANCH}"/* "${tmp}"
 
 # Check if a configuration file exists, and ask whether to keep it
-editmsg="\nNow edit the cake-autorate_config.primary.sh file as described in:\n   $DOC_URL"
+editmsg="\nNow edit the cake-autorate_config.primary.sh file as described in:\n   ${DOC_URL}"
 if [ -f cake-autorate_config.primary.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
 	read -r keepIt
-	if [ "$keepIt" = "N" ] || [ "$keepIt" = "n" ]; then
+	if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
 		mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
 	else
 		editmsg="Using prior configuration"
@@ -56,7 +57,7 @@ fi
 # move the program files to the cake-autorate directory
 # scripts that need to be executable are already marked as such in the tarball
 files="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
-for file in $files; do
+for file in ${files}; do
 	mv "${tmp}/${file}" "${file}"
 done
 
@@ -68,6 +69,7 @@ chmod +x /etc/init.d/cake-autorate
 # shellcheck disable=SC2059
 printf "${editmsg}\n"
 
+# shellcheck disable=SC2312
 printf '\n%s\n\n' "$(grep ^cake_autorate_version= /root/cake-autorate/cake-autorate_defaults.sh | cut -d= -f2 | cut -d'"' -f2) successfully installed, but not yet running"
 printf '%s\n' "Start the software manually with:"
 printf '%s\n' "   cd /root/cake-autorate; ./cake-autorate.sh"

@@ -624,11 +624,11 @@ start_pinger()
 
 		fping)
 			pinger=0
-			exec {pinger_fds[pinger]}<> <(:)
+			exec {pinger_fds[pinger]}<> <(:) || true
 			proc_man_start "pinger_${pinger}" ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
 		ping)
-			exec {pinger_fds[pinger]}<> <(:)
+			exec {pinger_fds[pinger]}<> <(:) || true
 			sleep_until_next_pinger_time_slot ${pinger}
 			proc_man_start "pinger_${pinger}" ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
 		;;
