@@ -13,7 +13,7 @@ DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 BRANCH="master"
 
 # Retrieve required packages if not present
-if [ $(opkg list-installed | grep -E '^(bash|iputils-ping|fping) ' | wc -l) -ne 3 ]; then
+if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]; then
 	printf "Running opkg update to update package lists:\n"
 	opkg update
 	printf "Installing bash, iputils-ping and fping packages:\n"
