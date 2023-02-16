@@ -4,7 +4,7 @@
 
 CAKE is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
-Present version is 2.0.0 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/master/CHANGELOG.md) for details. 
+Present version is 2.0.0 - please see [the changelog](CHANGELOG.md) for details. 
 
 ## The Problem: CAKE on Variable Connections forces an Unpalatable Compromise
 
@@ -157,7 +157,8 @@ where 'interface' is replaced with e.g. 'primary', 'secondary', etc.
 
 ## Example Starlink Configuration
 
-- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/master/Example_Starlink_config.sh). This ought to provide some helpful pointers for adding appropriate overrides for Starlink users.
+- OpenWrt forum member @gba has kindly shared [his Starlink config](Example_Starlink_config.sh).
+  This ought to provide some helpful pointers for adding appropriate overrides for Starlink users.
 - See discussion on OpenWrt thread from [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
 
 ## Manual testing
