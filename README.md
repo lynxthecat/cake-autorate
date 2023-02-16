@@ -4,7 +4,7 @@
 
 CAKE is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
-Present version is 2.0.0 - please see [the changelog](https://github.com/lynxthecat/cake-autorate/blob/master/CHANGELOG.md) for details. 
+Present version is 2.0.0 - please see [the changelog](CHANGELOG.md) for details. 
 
 ## The Problem: CAKE on Variable Connections forces an Unpalatable Compromise
 
@@ -12,7 +12,7 @@ The CAKE algorithm always uses fixed upload and download bandwidth settings to m
 
 As CAKE works with a fixed set bandwidth this effectively forces the user to choose a compromise bandwidth setting, but typically this means lost bandwidth in exchange for latency control and/or bufferbloat during the worst conditions. This compromise is hardly ideal: whilst the actual usable line rate is above the set compromise bandwidth, the connection is unnecessarily throttled back to the compromise setting resulting in lost bandwidth (yellow); and whilst the actual usable line rate is below the compromise value, the connection is not throttled enough (green) resulting in bufferbloat.
 
-<img src="https://github.com/lynxthecat/cake-autorate/raw/master/images/bandwidth-compromise.png" width=75% height=75%>
+<img src="images/bandwidth-compromise.png" width=75% height=75%>
 
 ## The Solution: Automatic Bandwidth Adjustment based on LOAD and RTT
 
@@ -26,7 +26,7 @@ The **cake-autorate.sh** script periodically measures the load and Round-Trip-Ti
 - with high load, increase rate subject to set maximum
 - on bufferbloat, decrease rate subject to set min (and subject to refractory period)
 
-<img src="https://github.com/lynxthecat/cake-autorate/raw/master/images/cake-bandwidth-autorate-rate-control.png" width=80% height=80%>
+<img src="images/cake-bandwidth-autorate-rate-control.png" width=80% height=80%>
 
 **Setting the minimum bandwidth:** 
 Set the minimum value to the worst possible observed bufferbloat free bandwidth. Ideally this CAKE bandwidth should never result in bufferbloat even under the worst conditions. This is a hard minimum - the script will never reduce the bandwidth below this level.
@@ -157,7 +157,8 @@ where 'interface' is replaced with e.g. 'primary', 'secondary', etc.
 
 ## Example Starlink Configuration
 
-- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/master/Example_Starlink_config.sh). This ought to provide some helpful pointers for adding appropriate overrides for Starlink users.
+- OpenWrt forum member @gba has kindly shared [his Starlink config](Example_Starlink_config.sh).
+  This ought to provide some helpful pointers for adding appropriate overrides for Starlink users.
 - See discussion on OpenWrt thread from [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
 
 ## Manual testing
