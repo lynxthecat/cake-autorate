@@ -1071,14 +1071,12 @@ concurrent_read_integer()
 	do
 		read -r value < "${path}"
 
-		# Verify value is a positive or negative integer 
-		# 1st capture group (optional): negative sign
-		# 2nd capture group (optional): leading zeros
-		# 3rd capture group (not optional): numeric sequence 
-		if [[ ${value} =~ ^([-])?([0]+)?([0-9]+)$ ]]; then
+		# printf '%.0f' is used here to sanitize unsigned integers:
+		# - it removes any leading zeros whilst preserving the sign; and
+		# - it returns false if ${value} is not a number
+		if printf -v sanitized_value '%.0f' ${value} 2>/dev/null; then
 
-			# Strip out any leading zeros and employ arithmetic context
-			value=$((${BASH_REMATCH[1]}${BASH_REMATCH[3]}))
+			value=${sanitized_value}
 			true
 			return
 
