@@ -1074,7 +1074,7 @@ concurrent_read_integer()
 		# printf '%.0f' is used here to sanitize unsigned integers:
 		# - it removes any leading zeros whilst preserving the sign; and
 		# - it returns false if ${value} is not a number
-		if printf -v sanitized_value '%.0f' ${value} 2>/dev/null; then
+		if printf -v sanitized_value '%.0f' "${value:-unset}" 2>/dev/null; then
 
 			value=${sanitized_value}
 			true
