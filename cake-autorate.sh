@@ -1077,8 +1077,7 @@ concurrent_read_integer()
 		if printf -v sanitized_value '%.0f' "${value:-unset}" 2>/dev/null; then
 
 			value=${sanitized_value}
-			true
-			return
+			return 0
 
 		else
 			if ((debug)); then
@@ -1099,8 +1098,7 @@ concurrent_read_integer()
 		log_msg "ERROR" "caller=${caller_output}, value=${value} and path=${path}"
 	fi 
 	value=0
-	false
-	return
+	return 1
 }
 
 verify_ifs_up()
