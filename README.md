@@ -68,24 +68,28 @@ as described in the
 [OpenWrt SQM documentation](https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm)
 - Alternatively, and if you want to work with DSCPs, consider [cake-simple-qos](https://github.com/lynxthecat/cake-qos-simple) or for unusual setups such as those with WireGuard with PBR, then you may want to consider [cake-dual-ifb](https://github.com/lynxthecat/cake-dual-ifb).
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
-- Install manually by placing cake-autorate.sh and cake-autorate_config.primary.sh in /root/cake-autorate and setting executable bit on both. 
-- Or install using the installer script from this repo,
-copying and pasting each of the commands below:
+- It is recommended to install cake-autorate using the installer script from this repo, e.g. by copying and pasting each of the commands below:
 
    ```bash
    wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/master/cake-autorate_setup.sh
    sh /tmp/cake-autorate_setup.sh
    ```
-
 - The installer script will detect a previous configuration file, and ask whether to preserve it. If you do not keep it...
-- Edit the `cake-autorate-config.sh` script (in the `/root/cake-autorate` directory) using vi or nano to set the configuration parameters below (see comments inside `cake-autorate-config.sh` for details). 
+- Edit the `cake-autorate-config.primary.sh` script (in the `/root/cake-autorate` directory) using vi or nano to set the configuration parameters below (see comments inside `cake-autorate-config.sh` for details). 
 
   - Change `ul_if` and `dl_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
 
       | Variable | Setting | 
       |----: |   :-------- | 
-      | `ul_if` | Interface that uploads (often `wan`) | `min_ul_shaper_rate_kbps` |
+      | `ul_if` | Interface that uploads (often `wan`) |
       | `dl_if` | Interface that uploads data (check `tc qdisc ls`) |
+
+  - Choose whether to have cake-autorate actually adjust the shaper rates (disable for monitoring only):
+  
+      | Variable | Setting | 
+      |----: |   :-------- | 
+      | `adjust_dl_shaper_rate` | enable (1) or disable (0) actually changing the dl_shaper_rate | 
+      | `adjust_ul_shaper_rate` | enable (1) or disable (0) actually changing the dl_shaper_rate |
 
   - Set bandwidth variables as described in `cake-autorate-config.sh`.
  
@@ -95,6 +99,12 @@ copying and pasting each of the commands below:
       | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
       | Max. | `max_dl_shaper_rate_kbps` | `max_ul_shaper_rate_kbps` |
       
+  - Set any further overrides by inspecting 'cake-autorate_defaults.sh' and setting different values for any of the defaults. For example, to set a different dl_delay_thr_ms, then add a line to the config like:
+  
+  ```
+  dl_delay_thr_ms=100
+  ```
+  
   - The following variables control logging:
 
       | Variable | Setting | 
@@ -134,9 +144,20 @@ ssh root@192.168.1.1 'kill -USR1 $( cat /var/run/cake-autorate/*/maintain_log_fi
 octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 ```
 
+## Multi-Wan Setups
+
+- cake-autorate has been designed to run multiple instances simultaneously. 
+- cake-autorate will run one instance per config file present in the /root/cake-autorate/ directory in the form:
+
+```
+cake-autorate_config.interface.sh
+```
+
+where 'interface' is replaced with e.g. 'primary', 'secondary', etc.
+
 ## Example Starlink Configuration
 
-- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/master/Example_Starlink_config.sh). This ought to provide a helpful starting point for adjusting the present configuration file format for Starlink users.
+- OpenWrt forum member @gba has kindly shared [his Starlink config](https://github.com/lynxthecat/cake-autorate/blob/master/Example_Starlink_config.sh). This ought to provide some helpful pointers for adding appropriate overrides for Starlink users.
 - See discussion on OpenWrt thread from [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
 
 ## Manual testing
@@ -167,7 +188,7 @@ To do this:
    service cake-autorate start
    ```
 
-When running as a service, the `cake-autorate.sh` script outputs to `/tmp/cake-autorate.log`.
+When running as a service, the `cake-autorate.sh` script outputs to `/var/log/cake-autorate.primary.log` (in dependence upon the the instance identifier 'cake-autorate_config.identifier.sh` set in the config file name). 
 
 WARNING: Take care to ensure sufficient free memory exists in router to handle selected logging parameters.
 
