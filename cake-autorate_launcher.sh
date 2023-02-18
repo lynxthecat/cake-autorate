@@ -1,26 +1,33 @@
 #!/bin/bash
 
+PROC_STATE_FILE=/var/run/cake-autorate-lpids
+PROC_STATE_FILE_LOCK="${PROC_STATE_FILE}.lock"
+. /root/cake-autorate/cake-autorate_lib.sh
 cake_instances=(/root/cake-autorate/cake-autorate_config*sh)
-cake_instance_pids=()
+
+if [[ -f "${PROC_STATE_FILE}" ]]
+then
+	echo "Found a previous instance of cake-autorate-launcher running. Refusing to start." >&2
+	echo "If you are sure that no other instance is running, delete ${PROC_STATE_FILE} and try again." >&2
+	exit 1
+fi
 
 trap kill_cake_instances INT TERM EXIT
-
 kill_cake_instances()
 {
-	trap - INT TERM EXIT
-
+	trap true INT TERM EXIT
 	echo "Killing all instances of cake one-by-one now."
-
-	for ((cake_instance=0; cake_instance<${#cake_instances[@]}; cake_instance++))
+	for cake_instance in "${cake_instances[@]}"
 	do
-		kill "${cake_instance_pids[${cake_instance}]}" 2>/dev/null || true
+		proc_man_stop "${cake_instance}"
 	done
-	wait
+	rm -f "${PROC_STATE_FILE:?}" 2>/dev/null
+	rm -f "${PROC_STATE_FILE_LOCK:?}" 2>/dev/null
+	trap - INT TERM EXIT
 }
 
 for cake_instance in "${cake_instances[@]}"
 do
-	/root/cake-autorate/cake-autorate.sh "${cake_instance}" &
-	cake_instance_pids+=(${!})
+	proc_man_start "${cake_instance}" /root/cake-autorate/cake-autorate.sh "${cake_instance}"
 done
 wait
