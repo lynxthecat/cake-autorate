@@ -183,10 +183,10 @@ export_log_file()
 flush_log_fd()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -r -t 0.01 -u "${log_fd}" log_line
+	while read -r -t 0.01 log_line
 	do
 		printf '%s\n' "${log_line}" >> "${log_file_path}"
-	done
+	done <"&${log_fd}"
 }
 
 get_log_file_size_bytes()
@@ -219,7 +219,7 @@ maintain_log_file()
 
 	while true
 	do
-		while read -r -u "${log_fd}" log_line
+		while read -r log_line
 		do
 
 			printf '%s\n' "${log_line}" >> "${log_file_path}"
@@ -245,7 +245,7 @@ maintain_log_file()
 				break
 			fi
 
-		done
+		done <"&${log_fd}"
 
 		flush_log_fd
 		rotate_log_file
@@ -467,7 +467,7 @@ monitor_reflector_responses_fping()
 	done
 
 	# shellcheck disable=SC2154
-	while read -r -u "${pinger_fds[pinger]}" timestamp reflector _ seq_rtt 2>/dev/null
+	while read -r timestamp reflector _ seq_rtt 2>/dev/null
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 
@@ -519,7 +519,7 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-	done 2>/dev/null
+	done 2>/dev/null <"&${pinger_fds[pinger]}"
 }
 
 # IPUTILS-PING FUNCTIONS
@@ -556,7 +556,7 @@ monitor_reflector_responses_ping()
 			rtt_delta_ewma_us=0
 	fi
 
-	while read -r -u "${pinger_fds[pinger]}" timestamp _ _ _ reflector seq_rtt 2>/dev/null
+	while read -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
 	do
 		# If no match then skip onto the next one
 		[[ ${seq_rtt} =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
@@ -609,7 +609,7 @@ monitor_reflector_responses_ping()
 
 		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-	done 2>/dev/null
+	done 2>/dev/null <"&${pinger_fds[pinger]}"
 }
 
 # END OF IPUTILS-PING FUNCTIONS
@@ -1445,7 +1445,7 @@ log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_
 
 while true
 do
-	while read -r -t "${stall_detection_timeout_s}" -u "${ping_fd}" timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
+	while read -r -t "${stall_detection_timeout_s}" timestamp reflector seq dl_owd_baseline_us dl_owd_us dl_owd_delta_ewma_us dl_owd_delta_us ul_owd_baseline_us ul_owd_us ul_owd_delta_ewma_us ul_owd_delta_us
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 		if (( (t_start_us - 10#"${timestamp//[.]}")>500000 )); then
@@ -1499,7 +1499,7 @@ do
 		
 		t_end_us=${EPOCHREALTIME/./}
 
-	done
+	done <"&${ping_fd}"
 
 	# stall handling procedure
 	# PIPESTATUS[0] == 142 corresponds with while loop timeout
