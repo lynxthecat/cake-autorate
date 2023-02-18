@@ -2,6 +2,7 @@
 
 PROC_STATE_FILE=/var/run/cake-autorate-lpids
 PROC_STATE_FILE_LOCK="${PROC_STATE_FILE}.lock"
+PROC_STATE_KILL_WAIT_MAX=30  # 3 seconds
 # shellcheck source=cake-autorate_lib.sh
 . /root/cake-autorate/cake-autorate_lib.sh
 cake_instances=(/root/cake-autorate/cake-autorate_config*sh)

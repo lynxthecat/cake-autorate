@@ -150,7 +150,7 @@ proc_man()
 
 			# wait for process to die
 			killed=0
-			for ((i=0; i<10; i++));
+			for ((i=0; i<${PROC_STATE_KILL_WAIT_MAX:-10}; i++));
 			do
 				if kill -0 "${pid}" 2> /dev/null; then
 					sleep_us 100000
