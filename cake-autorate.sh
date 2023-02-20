@@ -782,7 +782,7 @@ kill_maintain_pingers()
 
 pause_reflector_maintenance()
 {
-	lock "{run_path}/pause_reflector_maintenance_lock"
+	lock "${run_path}/pause_reflector_maintenance_lock"
 	if ((reflector_maintenance_paused==0)); then
 		log_msg "DEBUG" "Pausing reflector health check (SIGUSR1)."
 		reflector_maintenance_paused=1
@@ -790,12 +790,12 @@ pause_reflector_maintenance()
 		log_msg "DEBUG" "Resuming reflector health check (SIGUSR1)."
 		reflector_maintenance_paused=0
 	fi
-	unlock "{run_path}/pause_reflector_maintenance_lock"
+	unlock "${run_path}/pause_reflector_maintenance_lock"
 }
 
 pause_maintain_pingers()
 {
-	lock "{run_path}/pause_maintain_pingers_lock"
+	lock "${run_path}/pause_maintain_pingers_lock"
 	if ((maintain_pingers_paused==0)); then
 		log_msg "DEBUG" "Pausing maintain pingers (SIGUSR2)."
 		maintain_pingers_paused=1
@@ -803,7 +803,7 @@ pause_maintain_pingers()
 		log_msg "DEBUG" "Resuming maintain pingers (SIGUSR2)."
 		maintain_pingers_paused=0
 	fi
-	unlock "{run_path}/pause_maintain_pingers_lock"
+	unlock "${run_path}/pause_maintain_pingers_lock"
 }
 
 maintain_pingers()
