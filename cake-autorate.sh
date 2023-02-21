@@ -1597,4 +1597,6 @@ do
 
 	# send signal USR2 to resume maintain_reflectors
 	proc_man_signal maintain_pingers "USR2"
+	
+	t_end_us=${EPOCHREALTIME/./}
 done
