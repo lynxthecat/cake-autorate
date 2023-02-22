@@ -1078,11 +1078,12 @@ concurrent_read_integer()
 	for ((read_try=1; read_try<11; read_try++))
 	do
 		read -r value < "${path}"
+		value="${value:-unset}"
 
 		# printf '%.0f' is used here to sanitize unsigned integers:
 		# - it removes any leading zeros whilst preserving the sign; and
 		# - it returns false if ${value} is not a number
-		if printf -v sanitized_value '%.0f' "${value:-unset}" 2>/dev/null; then
+		if printf -v sanitized_value '%.0f' "${value}" 2>/dev/null; then
 
 			value=${sanitized_value}
 			return 0
