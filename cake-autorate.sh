@@ -864,9 +864,9 @@ maintain_pingers()
 		do
 			sleep_s "${reflector_health_check_interval_s}"
 
-			((reflector_maintenance_paused)) && continue
-
 			((maintain_pingers_paused)) &&  break
+
+			((reflector_maintenance_paused)) && continue
 
 			if (( ${EPOCHREALTIME/./}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000))); then
 	
