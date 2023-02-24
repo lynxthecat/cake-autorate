@@ -124,7 +124,7 @@ A compressed log file can be extracted from a running cake-autorate instance usi
 kill -USR1 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_file=' | cut -d= -f2)
 ```
 
-This will place a compressed log file in /var/log with the date and time in its filename
+This will place a compressed log file in /var/log with the date and time in its filename.
 
 And a very helpful summary plot like this: 
 
@@ -140,7 +140,7 @@ can be created therefrom using the excellent Octave/Matlab utility put together 
 Here is an example script to extract the log from the router and generate the pdfs for viewing from a client machine:
 
 ```bash
-ssh root@192.168.1.1 'kill -USR1 $( cat /var/run/cake-autorate/*/maintain_log_file_pid )'  && sleep 5 && scp  root@192.168.1.1:/var/log/cake-autorate*.log.gz . && ssh root@192.168.1.1 'rm /var/log/cake-autorate*.log.gz'
+ssh root@192.168.1.1 'kill -USR1 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_file=' | cut -d= -f2)'  && sleep 5 && scp  root@192.168.1.1:/var/log/cake-autorate*.log.gz . && ssh root@192.168.1.1 'rm /var/log/cake-autorate*.log.gz'
 octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 ```
 
