@@ -6,6 +6,18 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
+## 2023-02-25 - Version 2.0
+
+- This version incorporates a significant overhaul of the bash code mostly undertaken by bash expert @rany2 to improving robustness, stability and performance, with changing including, inter alia, the following. 
+  - Compliance with shellcheck to help squash unknown bugs.
+  - Decreased CPU consumption compared to the previous release.
+  - Fixed eternal sleep issue.
+  - Introduce more user-friendly config format by introducing cake-autorate_defaults.sh and cake-autorate_config.X.sh with the basics (interface names, whether to adjust the shaper rates and the min, base and max shaper rates) and any overrides from the default. 
+  - More intelligent "another instance is running check"
+  - Proper process management to avoid the dangerous ping inflation issue and simplify background processes handling (less error prone now)
+  - And more!
+- Introduce more user-friendly log file exports by automatically generating an export script for each running cake-autorate instance inside /var/run/cake-autorate/*/.
+
 ## 2022-12-13 - Version 1.2
 
 - cake-autorate now includes a sophisticated offline log file analysis utility written in Matlab/Octave: 'fn_parse_autorate_log.m' and maintained by @moeller0 (OpenWrt forum). This utility takes in a cake-autorate generated log file (in compressed or uncompressed format), which can be generated on the fly by sending an appropriate signal, and presents beautiful plots that depict latency and bandwidth over time together with many important cake-autorate vitals. This gratly simplifies assessing the efficacy of cake-autorate and associated settings on a given connection. 
