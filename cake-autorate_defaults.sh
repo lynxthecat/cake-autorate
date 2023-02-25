@@ -27,9 +27,8 @@ log_to_file=1              # enable (1) or disable (0) output logging to file (/
 log_file_max_time_mins=10  # maximum time between log file rotations
 log_file_max_size_KB=2000  # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
 
-# log file path defaults to /var/log/cake-autorate or /var/log/cake-autorate/X
-# where X is set from the config file name as in: cake-autorate_config.X.sh
-# or, if set below, then $log_file_path_override/X
+# log file path defaults to /var/log/
+# or, if set below, then ${log_file_path_override}
 log_file_path_override=""
 
 # *** STANDARD CONFIGURATION OPTIONS ***
@@ -103,15 +102,7 @@ startup_wait_s=0.0 # number of seconds to wait on startup (e.g. to wait for thin
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
-# cake-autorate facilitates triggering an export of the log file either within or outside cake-autorate
-# namely, to trigger a log file export:
-# send a USR1 or USR2 signal to $maintain_log_file_pid: "kill -USR1 $maintain_log_file_pid"
-# $maintain_log_file_pid can be read from /var/run/cake-autorate/maintain_log_file_pid
-# a USR1 signal will trigger an export to path: /var/log/cake-autorate_$datetime.log
-# a USR2 signal will trigger an export to the path set in $log_file_export_alternative_path below
-# in either case both the current .log and previously rotated .log.old (if it exists) will be exported
-log_file_export_alternative_path="/var/log/cake-autorate_export.log"
-log_file_export_compress=1 # compress the exported log file with its default/override path using gzip and append .gz to export filename
+log_file_export_compress=1 # compress log file exports using gzip and append .gz to export filename
 
 ### In multi-homed setups, it is mandatory to use either ping_extra_args
 ### or ping_prefix_string to direct the pings through $dl_if and $ul_if.
