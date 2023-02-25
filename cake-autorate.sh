@@ -144,13 +144,13 @@ generate_log_file_exporter()
 	cat > ${run_path}/export_log_file <<- EOT
 	#!/bin/bash
 
-	kill -USR2 "${maintain_log_file_pid}"
-	
 	if compgen -G "${log_file_path/.log/*.log.tmp*}" > /dev/null; then
 
-		printf "ERROR: Temporary log file already exists in "${log_file_path}".\n"
+		printf "ERROR: Temporary log file(s) "${log_file_path/.log/*.log.tmp*}" already exist.\n"
 		exit 1
 	fi
+	
+	kill -USR2 "${maintain_log_file_pid}"
 
 	read_try=0
 
