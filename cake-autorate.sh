@@ -137,23 +137,63 @@ rotate_log_file()
 	((output_processing_stats)) && print_headers
 }
 
+generate_log_file_exporter()
+{
+	maintain_log_file_pid=$(_proc_man_get_key_value "maintain_log_file")
+
+	cat > ${run_path}/export_log_file <<- EOT
+	#!/bin/bash
+
+	if compgen -G "${log_file_path/.log/*.log.tmp*}" > /dev/null; then
+
+		printf "ERROR: Temporary log file(s) "${log_file_path/.log/*.log.tmp*}" already exist.\n"
+		exit 1
+	fi
+	
+	kill -USR2 "${maintain_log_file_pid}"
+
+	read_try=0
+
+	while ! compgen -G "${log_file_path/.log/*.log.tmp*}" > /dev/null
+	do
+		sleep 1
+		if (( ++read_try > 20 )); then
+			printf "ERROR: Timeout (20s) reached before temporary log file export identified.\n"
+			exit 1
+		fi
+	done
+
+	log_file_export_path=\$(compgen -G "${log_file_path/.log/*.log.tmp*}")
+
+	mv "\${log_file_export_path}" "\${log_file_export_path/.tmp/}"
+		
+	printf "Log file export complete.\n"
+
+	printf "Log file available at location: "
+	printf "\${log_file_export_path/.tmp/}\n"
+	EOT
+
+	chmod +x ${run_path}/export_log_file
+}
+
 export_log_file()
 {
 	local export_type=${1}
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
+	printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
+
 	case ${export_type} in
 
 		default)
-			printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
 			log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 			log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
 			;;
 
 		alternative)
-			log_msg "DEBUG" "Exporting log file with alternative path: ${log_file_export_alternative_path}"
-			log_file_export_path=${log_file_export_alternative_path}
+			log_msg "DEBUG" "Exporting log file with alternative path: ${log_file_path/.log/_${log_file_export_datetime}.tmp.log}"
+			log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log.tmp}"
 			;;
 
 		*)
@@ -172,7 +212,7 @@ export_log_file()
 		fi
 	else
 		if [[ -f "${log_file_path}.old" ]]; then
-			cp "${log_file_path}.old" "${log_file_export_path}.old"
+			cp "${log_file_path}.old" "${log_file_export_path}"
 			cat "${log_file_path}" >> "${log_file_export_path}"
 		else
 			cp "${log_file_path}" "${log_file_export_path}"
@@ -1449,6 +1489,8 @@ printf '%s' "0" > "${run_path}/dl_load_percent"
 printf '%s' "0" > "${run_path}/ul_load_percent"
 
 proc_man_start maintain_pingers maintain_pingers
+
+generate_log_file_exporter
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
