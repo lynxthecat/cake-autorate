@@ -118,7 +118,17 @@ as described in the
   
 ## Extracting and plotting logs ##
 
-A compressed log file can be extracted from a running cake-autorate instance using:
+A compressed log file can be extracted from a running cake-autorate instance using one of either two methods:
+
+- **1) by running an auto-generated export script inside the run directory:**
+
+```bash
+/var/run/cake-autorate/*/export_log_file
+```
+
+or
+
+- **2) by sending a USR1 signal to the maintain log file process using:**
 
 ```bash
 kill -USR1 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_file=' | cut -d= -f2)
