@@ -212,7 +212,7 @@ export_log_file()
 		fi
 	else
 		if [[ -f "${log_file_path}.old" ]]; then
-			cp "${log_file_path}.old" "${log_file_export_path}.old"
+			cp "${log_file_path}.old" "${log_file_export_path}"
 			cat "${log_file_path}" >> "${log_file_export_path}"
 		else
 			cp "${log_file_path}" "${log_file_export_path}"
