@@ -141,74 +141,53 @@ generate_log_file_exporter()
 {
 	maintain_log_file_pid=$(_proc_man_get_key_value "maintain_log_file")
 
-	cat > ${run_path}/export_log_file <<- EOT
+	cat > "${run_path}/export_log_file" <<- EOT
 	#!/bin/bash
 
-	if compgen -G "${log_file_path/.log/*.log.tmp*}" > /dev/null; then
+	timeout_s=\${1:-20}
 
-		printf "ERROR: Temporary log file(s) "${log_file_path/.log/*.log.tmp*}" already exist.\n"
-		exit 1
-	fi
+	[[ -f "${run_path}/last_log_file_export" ]] && rm "${run_path}/last_log_file_export"
 	
-	kill -USR2 "${maintain_log_file_pid}"
+	kill -USR1 "${maintain_log_file_pid}"
 
 	read_try=0
 
-	while ! compgen -G "${log_file_path/.log/*.log.tmp*}" > /dev/null
+	while [[ ! -f "${run_path}/last_log_file_export" ]]
 	do
 		sleep 1
-		if (( ++read_try > 20 )); then
-			printf "ERROR: Timeout (20s) reached before temporary log file export identified.\n"
+		if (( ++read_try >= \${timeout_s} )); then
+			printf "ERROR: Timeout (\${timeout_s}s) reached before temporary log file export identified.\n"
 			exit 1
 		fi
 	done
 
-	log_file_export_path=\$(compgen -G "${log_file_path/.log/*.log.tmp*}")
-
-	mv "\${log_file_export_path}" "\${log_file_export_path/.tmp/}"
+	read -r log_file_export_path < "${run_path}/last_log_file_export"
 		
 	printf "Log file export complete.\n"
 
 	printf "Log file available at location: "
-	printf "\${log_file_export_path/.tmp/}\n"
+	printf "\${log_file_export_path}\n"
 	EOT
 
-	chmod +x ${run_path}/export_log_file
+	chmod +x "${run_path}/export_log_file"
 }
 
 export_log_file()
 {
-	local export_type=${1}
-	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
-
-	case ${export_type} in
-
-		default)
-			log_msg "DEBUG" "Exporting log file with regular path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
-			log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
-			;;
-
-		alternative)
-			log_msg "DEBUG" "Exporting log file with alternative path: ${log_file_path/.log/_${log_file_export_datetime}.tmp.log}"
-			log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log.tmp}"
-			;;
-
-		*)
-			log_msg "DEBUG" "Unrecognised export type. Not exporting log file."
-			return
-			;;
-	esac
+	log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
+	log_msg "DEBUG" "Exporting log file with path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 
 	# Now export with or without compression to the appropriate export path
 	if ((log_file_export_compress)); then
+		log_file_export_path="${log_file_export_path}.gz"
 		if [[ -f "${log_file_path}.old" ]]; then 
-			gzip -c "${log_file_path}.old" > "${log_file_export_path}.gz"
-			gzip -c "${log_file_path}" >> "${log_file_export_path}.gz"
+			gzip -c "${log_file_path}.old" > "${log_file_export_path}"
+			gzip -c "${log_file_path}" >> "${log_file_export_path}"
 		else
-			gzip -c "${log_file_path}" > "${log_file_export_path}.gz"
+			gzip -c "${log_file_path}" > "${log_file_export_path}"
 		fi
 	else
 		if [[ -f "${log_file_path}.old" ]]; then
@@ -218,6 +197,8 @@ export_log_file()
 			cp "${log_file_path}" "${log_file_export_path}"
 		fi
 	fi
+	
+	printf '%s' "${log_file_export_path}" > "${run_path}/last_log_file_export"
 }
 
 flush_log_fd()
@@ -248,8 +229,7 @@ maintain_log_file()
 	trap '' INT
 	trap "kill_maintain_log_file" TERM EXIT
 
-	trap 'export_log_file "default"' USR1
-	trap 'export_log_file "alternative"' USR2
+	trap "export_log_file" USR1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
