@@ -139,8 +139,6 @@ rotate_log_file()
 
 generate_log_file_exporter()
 {
-	maintain_log_file_pid=$(_proc_man_get_key_value "maintain_log_file")
-
 	cat > "${run_path}/export_log_file" <<- EOT
 	#!/bin/bash
 
@@ -148,7 +146,7 @@ generate_log_file_exporter()
 
 	[[ -f "${run_path}/last_log_file_export" ]] && rm "${run_path}/last_log_file_export"
 	
-	kill -USR1 "${maintain_log_file_pid}"
+	kill -USR1 \$(cat "${run_path}/proc_state" | grep -E '^maintain_log_file=' | cut -d= -f2)
 
 	read_try=0
 
@@ -156,7 +154,7 @@ generate_log_file_exporter()
 	do
 		sleep 1
 		if (( ++read_try >= \${timeout_s} )); then
-			printf "ERROR: Timeout (\${timeout_s}s) reached before temporary log file export identified.\n"
+			printf "ERROR: Timeout (\${timeout_s}s) reached before new log file export identified.\n"
 			exit 1
 		fi
 	done
@@ -227,9 +225,8 @@ kill_maintain_log_file()
 maintain_log_file()
 {
 	trap '' INT
-	trap "kill_maintain_log_file" TERM EXIT
-
-	trap "export_log_file" USR1
+	trap 'kill_maintain_log_file' TERM EXIT
+	trap 'export_log_file' USR1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
