@@ -184,19 +184,21 @@ proc_man()
 			local pid
 			pid=$(_proc_man_get_key_value "${name}")
 			if (( pid && pid > 0 )); then
-				wait "${pid}"
+				wait "${pid}" && return 0
 			fi
+
+			return 1
 			;;
 		"signal")
 			shift 3
 
 			local pid
 			pid=$(_proc_man_get_key_value "${name}")
-			if (( pid && pid > 0 )) && kill -0 "${pid}" 2> /dev/null; then
-				kill -s "${1}" "${pid}"
-			else
-				return 1
+			if (( pid && pid > 0 )); then
+				kill -s "${1}" "${pid}" 2>/dev/null && return 0
 			fi
+
+			return 1
 			;;
 		*)
 			printf '%s\n' "unknown action: ${action}" >&2
