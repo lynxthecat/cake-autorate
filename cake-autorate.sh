@@ -151,8 +151,13 @@ generate_log_file_exporter()
 	PROC_STATE_FILE_LOCK="${run_path}/proc_state.lock"
 
 	timeout_s=\${1:-20}
+
+	if ! proc_man_signal maintain_log_file "USR1"
+	then
+		printf "ERROR: Failed to signal maintain_log_file process.\n" >&2
+		exit 1
+	fi
 	rm -f "${run_path}/last_log_file_export"
-	proc_man_signal maintain_log_file "USR1"
 
 	read_try=0
 
@@ -160,7 +165,7 @@ generate_log_file_exporter()
 	do
 		sleep 1
 		if (( ++read_try >= \${timeout_s} )); then
-			printf "ERROR: Timeout (\${timeout_s}s) reached before new log file export identified.\n"
+			printf "ERROR: Timeout (\${timeout_s}s) reached before new log file export identified.\n" >&2
 			exit 1
 		fi
 	done
