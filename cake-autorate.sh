@@ -35,10 +35,14 @@ set -o pipefail
 # Possible performance improvement
 export LC_ALL=C
 
+# Set PREFIX
+PREFIX=/root/cake-autorate/
+
 # shellcheck source=cake-autorate_lib.sh
-. /root/cake-autorate/cake-autorate_lib.sh
+. "$PREFIX/cake-autorate_lib.sh"
 # shellcheck source=cake-autorate_defaults.sh
-. /root/cake-autorate/cake-autorate_defaults.sh
+. "$PREFIX/cake-autorate_defaults.sh"
+
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
@@ -142,11 +146,13 @@ generate_log_file_exporter()
 	cat > "${run_path}/export_log_file" <<- EOT
 	#!/bin/bash
 
-	timeout_s=\${1:-20}
+	. "$PREFIX/cake-autorate_lib.sh"
+	PROC_STATE_FILE="${run_path}/proc_state"
+	PROC_STATE_FILE_LOCK="${run_path}/proc_state.lock"
 
-	[[ -f "${run_path}/last_log_file_export" ]] && rm "${run_path}/last_log_file_export"
-	
-	kill -USR1 \$(cat "${run_path}/proc_state" | grep -E '^maintain_log_file=' | cut -d= -f2)
+	timeout_s=\${1:-20}
+	rm -f "${run_path}/last_log_file_export"
+	proc_man_signal maintain_log_file "USR1"
 
 	read_try=0
 
@@ -1227,7 +1233,7 @@ run_path=/var/run/cake-autorate/
 if [[ -n ${1:-} ]]; then
 	config_path=${1}
 else
-	config_path=/root/cake-autorate/cake-autorate_config.primary.sh
+	config_path="$PREFIX/cake-autorate_config.primary.sh"
 fi
 
 if [[ ! -f "${config_path}" ]]; then
