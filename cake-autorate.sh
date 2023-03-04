@@ -39,9 +39,9 @@ export LC_ALL=C
 PREFIX=/root/cake-autorate/
 
 # shellcheck source=cake-autorate_lib.sh
-. "$PREFIX/cake-autorate_lib.sh"
+. "${PREFIX}/cake-autorate_lib.sh"
 # shellcheck source=cake-autorate_defaults.sh
-. "$PREFIX/cake-autorate_defaults.sh"
+. "${PREFIX}/cake-autorate_defaults.sh"
 
 trap cleanup_and_killall INT TERM EXIT
 
@@ -1219,10 +1219,6 @@ type logger &> /dev/null && use_logger=1 || use_logger=0 # only perform the test
 
 log_file_path=/var/log/cake-autorate.log
 
-# redirect stderr to log_msg
-coproc log_stderr { exec >"/proc/${PPID}/fd/1"; while read -r error; do log_msg "ERROR" "${error}"; done; }
-exec 2>&"${log_stderr[1]}"
-
 # *** WARNING: take great care if attempting to alter the run_path! ***
 # *** cake-autorate issues mkdir -p ${run_path} and rm -r ${run_path} on exit. ***
 run_path=/var/run/cake-autorate/
@@ -1271,6 +1267,10 @@ else
 fi
 
 rotate_log_file # rotate here to force header prints at top of log file
+
+# redirect stderr to log_msg
+coproc log_stderr { exec >"/proc/${PPID}/fd/1"; while read -r error; do log_msg "ERROR" "${error}"; done; }
+exec 2>&"${log_stderr[1]}"
 
 log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
