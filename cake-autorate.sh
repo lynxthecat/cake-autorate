@@ -146,7 +146,7 @@ generate_log_file_exporter()
 	cat > "${run_path}/export_log_file" <<- EOT
 	#!/bin/bash
 
-	. "$PREFIX/cake-autorate_lib.sh"
+	. "${PREFIX}/cake-autorate_lib.sh"
 	PROC_STATE_FILE="${run_path}/proc_state"
 	PROC_STATE_FILE_LOCK="${run_path}/proc_state.lock"
 
