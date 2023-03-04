@@ -808,29 +808,38 @@ kill_maintain_pingers()
 	exit
 }
 
-update_state_maintain_pingers()
+change_state_maintain_pingers()
 {
-	for ((read_try=1; read_try<11; read_try++))
-	do
-		read -r new_maintain_pingers_state < "${run_path}/maintain_pingers_state"
-		new_maintain_pingers_state=${new_maintain_pingers_state:-unset}
-		[[ "${new_maintain_pingers_state}" != "unset" ]] && break
-	done
+	# Set to 1 if external process effects change via USR1
+	local external_process=${1:-0}
 
-	case ${new_maintain_pingers_state} in
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
+	if ((external_process==1)); then
+		if [[ -f "${run_path}/maintain_pingers_new_state" ]]; then
+			for ((read_try=1; read_try<11; read_try++))
+			do
+				read -r maintain_pingers_new_state < "${run_path}/maintain_pingers_new_state"
+				maintain_pingers_new_state=${maintain_pingers_new_state:-unset}
+				[[ "${maintain_pingers_new_state}" != "unset" ]] && break
+			done
+		else
+			new_maintain_pingers_state="no_new_state_file"
+		fi
+	fi
+
+	case ${maintain_pingers_new_state} in
 
 		START|STOP|PAUSED|RUNNING)
 		
-			log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${new_maintain_pingers_state}"
-			maintain_pingers_state=${new_maintain_pingers_state}
+			log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${maintain_pingers_new_state}"
+			maintain_pingers_state=${maintain_pingers_new_state}
+			printf "%s" ${maintain_pingers_state} > ${run_path}/maintain_pingers_state
 			;;
 
 		*)
 	
-			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_state}"
-			log_msg "ERROR" "Setting maintain_pingers state to: RUNNING"
-			maintain_pingers_state="RUNNING"
-			printf "RUNNING" > ${run_path}/maintain_pingers_state
+			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_new_state}"
 			;;
 	esac
 }
@@ -842,7 +851,7 @@ maintain_pingers()
  	trap '' INT
 	trap 'kill_maintain_pingers' TERM EXIT
 	
-	trap 'update_state_maintain_pingers' USR1
+	trap 'change_state_maintain_pingers 1' USR1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -879,7 +888,6 @@ maintain_pingers()
 	done
 
 	maintain_pingers_state="START"
-	printf "START" > ${run_path}/maintain_pingers_state
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
@@ -888,14 +896,14 @@ maintain_pingers()
 
 			START)
 				start_pingers
-				printf "RUNNING" > ${run_path}/maintain_pingers_state
-				update_state_maintain_pingers
+				maintain_pingers_new_state="RUNNING"
+				change_state_maintain_pingers
 				;;
 
 			STOP)
 				kill_pingers
-				printf "PAUSED" > ${run_path}/maintain_pingers_state
-				update_state_maintain_pingers
+				maintain_pingers_new_state="PAUSED"
+				change_state_maintain_pingers
 				;;
 			
 			PAUSED)
@@ -1012,8 +1020,8 @@ maintain_pingers()
 			*)
 				log_msg "ERROR" "Unrecognized maintain pingers state: ${maintain_pingers_state}."
 				log_msg "ERROR" "Setting state to RUNNING"
-				printf "RUNNING" > ${run_path}/maintain_pingers_state
-				update_maintain_pingers_state
+				maintain_pingers_new_state="RUNNING"
+				change_maintain_pingers_state
 			;;
 		esac
 		
@@ -1569,7 +1577,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
 		# update maintain_pingers state
-		printf "PAUSED" > ${run_path}/maintain_pingers_state
+		printf "PAUSED" > ${run_path}/maintain_pingers_new_state
 		proc_man_signal maintain_pingers "USR1"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1590,7 +1598,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# update maintain_pingers state
-				printf "RUNNING" > ${run_path}/maintain_pingers_state
+				printf "RUNNING" > ${run_path}/maintain_pingers_new_state
 				proc_man_signal maintain_pingers "USR1"
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
@@ -1612,7 +1620,7 @@ do
 	fi
 
 	# update maintain_pingers state
-	printf "STOP" > ${run_path}/maintain_pingers_state
+	printf "STOP" > ${run_path}/maintain_pingers_new_state
 	proc_man_signal maintain_pingers "USR1"
 
 	# reset idle timer
@@ -1632,7 +1640,7 @@ do
 	done
 
 	# update maintain_pingers state
-	printf "START" > ${run_path}/maintain_pingers_state
+	printf "START" > ${run_path}/maintain_pingers_new_state
 	proc_man_signal maintain_pingers "USR1"
 	
 	t_end_us=${EPOCHREALTIME/./}
