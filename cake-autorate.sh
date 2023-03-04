@@ -808,30 +808,31 @@ kill_maintain_pingers()
 	exit
 }
 
-pause_reflector_maintenance()
+update_state_maintain_pingers()
 {
-	lock "${run_path}/pause_reflector_maintenance_lock"
-	if ((reflector_maintenance_paused==0)); then
-		log_msg "DEBUG" "Pausing reflector health check (SIGUSR1)."
-		reflector_maintenance_paused=1
-	else
-		log_msg "DEBUG" "Resuming reflector health check (SIGUSR1)."
-		reflector_maintenance_paused=0
-	fi
-	unlock "${run_path}/pause_reflector_maintenance_lock"
-}
+	for ((read_try=1; read_try<11; read_try++))
+	do
+		read -r new_maintain_pingers_state < "${run_path}/maintain_pingers_state"
+		new_maintain_pingers_state=${new_maintain_pingers_state:-unset}
+		[[ "${new_maintain_pingers_state}" != "unset" ]] && break
+	done
 
-pause_maintain_pingers()
-{
-	lock "${run_path}/pause_maintain_pingers_lock"
-	if ((maintain_pingers_paused==0)); then
-		log_msg "DEBUG" "Pausing maintain pingers (SIGUSR2)."
-		maintain_pingers_paused=1
-	else
-		log_msg "DEBUG" "Resuming maintain pingers (SIGUSR2)."
-		maintain_pingers_paused=0
-	fi
-	unlock "${run_path}/pause_maintain_pingers_lock"
+	case ${new_maintain_pingers_state} in
+
+		START|STOP|PAUSED|RUNNING)
+		
+			log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${new_maintain_pingers_state}"
+			maintain_pingers_state=${new_maintain_pingers_state}
+			;;
+
+		*)
+	
+			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_state}"
+			log_msg "ERROR" "Setting maintain_pingers state to: RUNNING"
+			maintain_pingers_state="RUNNING"
+			printf "RUNNING" > ${run_path}/maintain_pingers_state
+			;;
+	esac
 }
 
 maintain_pingers()
@@ -841,8 +842,7 @@ maintain_pingers()
  	trap '' INT
 	trap 'kill_maintain_pingers' TERM EXIT
 	
-	trap 'pause_reflector_maintenance' USR1
-	trap 'pause_maintain_pingers' USR2
+	trap 'update_state_maintain_pingers' USR1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -862,7 +862,6 @@ maintain_pingers()
 	t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 	t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
-
 	for ((reflector=0; reflector < no_reflectors; reflector++))
 	do
 		printf '%s' "${pingers_t_start_us}" > "${run_path}/reflector_${reflectors[reflector]//./-}_last_timestamp_us"
@@ -879,131 +878,146 @@ maintain_pingers()
 		sum_reflector_offences[pinger]=0
 	done
 
+	maintain_pingers_state="START"
+	printf "START" > ${run_path}/maintain_pingers_state
+
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
 	do
-		if ((maintain_pingers_paused)); then
-			sleep_s "${reflector_health_check_interval_s}"
-			continue
-		else
-			start_pingers
-		fi
-		while ((maintain_pingers_paused==0))
-		do
-			sleep_s "${reflector_health_check_interval_s}"
+		case ${maintain_pingers_state} in
 
-			((maintain_pingers_paused)) &&  break
+			START)
+				start_pingers
+				printf "RUNNING" > ${run_path}/maintain_pingers_state
+				update_state_maintain_pingers
+				;;
 
-			((reflector_maintenance_paused)) && continue
-
-			if (( ${EPOCHREALTIME/./}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000))); then
-	
-				log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
-				replace_pinger_reflector $((RANDOM%no_pingers))
-				t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
-				continue
-			fi
-
-			if (( ${EPOCHREALTIME/./}>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) )); then
-
-				t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
-
-				concurrent_read_integer dl_min_owd_baseline_us "${run_path}/reflector_${reflectors[0]//./-}_dl_owd_baseline_us" || continue
-				concurrent_read_integer dl_min_owd_delta_ewma_us "${run_path}/reflector_${reflectors[0]//./-}_dl_owd_delta_ewma_us" || continue
-				concurrent_read_integer ul_min_owd_baseline_us "${run_path}/reflector_${reflectors[0]//./-}_ul_owd_baseline_us" || continue
-				concurrent_read_integer ul_min_owd_delta_ewma_us "${run_path}/reflector_${reflectors[0]//./-}_ul_owd_delta_ewma_us" || continue
+			STOP)
+				kill_pingers
+				printf "PAUSED" > ${run_path}/maintain_pingers_state
+				update_state_maintain_pingers
+				;;
 			
-				concurrent_read_integer compensated_dl_delay_thr_us "${run_path}/compensated_dl_delay_thr_us"
-				concurrent_read_integer compensated_ul_delay_thr_us "${run_path}/compensated_ul_delay_thr_us"
-
-				for ((pinger=0; pinger < no_pingers; pinger++))
-				do
-					concurrent_read_integer "dl_owd_baselines_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_dl_owd_baseline_us" || continue 2
-					concurrent_read_integer "dl_owd_delta_ewmas_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_dl_owd_delta_ewma_us" || continue 2
-					concurrent_read_integer "ul_owd_baselines_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_ul_owd_baseline_us" || continue 2
-					concurrent_read_integer "ul_owd_delta_ewmas_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_ul_owd_delta_ewma_us" || continue 2
-					
-					((   dl_owd_baselines_us[${reflectors[pinger]}] < dl_min_owd_baseline_us   )) && dl_min_owd_baseline_us="${dl_owd_baselines_us[${reflectors[pinger]}]}"
-					(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < dl_min_owd_delta_ewma_us )) && dl_min_owd_delta_ewma_us="${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}"
-					((   ul_owd_baselines_us[${reflectors[pinger]}] < ul_min_owd_baseline_us   )) && ul_min_owd_baseline_us="${ul_owd_baselines_us[${reflectors[pinger]}]}"
-					(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < ul_min_owd_delta_ewma_us )) && ul_min_owd_delta_ewma_us="${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}"
-				done
-
-				for ((pinger=0; pinger < no_pingers; pinger++))
-				do
-
-					dl_owd_baseline_delta_us=$((   dl_owd_baselines_us[${reflectors[pinger]}]   - dl_min_owd_baseline_us   ))
-					dl_owd_delta_ewma_delta_us=$(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] - dl_min_owd_delta_ewma_us ))
-					ul_owd_baseline_delta_us=$((   ul_owd_baselines_us[${reflectors[pinger]}]   - ul_min_owd_baseline_us   ))
-					ul_owd_delta_ewma_delta_us=$(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] - ul_min_owd_delta_ewma_us ))
-
-					if ((output_reflector_stats)); then
-						printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${reflectors[pinger]}" "${dl_min_owd_baseline_us}" "${dl_owd_baselines_us[${reflectors[pinger]}]}" "${dl_owd_baseline_delta_us}" "${reflector_owd_baseline_delta_thr_us}" "${dl_min_owd_delta_ewma_us}" "${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}" "${dl_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}" "${ul_min_owd_baseline_us}" "${ul_owd_baselines_us[${reflectors[pinger]}]}" "${ul_owd_baseline_delta_us}" "${reflector_owd_baseline_delta_thr_us}" "${ul_min_owd_delta_ewma_us}" "${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}" "${ul_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}"
-						log_msg "REFLECTOR" "${reflector_stats}"
-					fi
-
-					if (( dl_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
-						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
-						replace_pinger_reflector "${pinger}"
-						continue 2
-					fi
-
-					if (( dl_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
-						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
-						replace_pinger_reflector "${pinger}"
-						continue 2
-					fi
-				
-					if (( ul_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
-						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
-						replace_pinger_reflector "${pinger}"
-						continue 2
-					fi
+			PAUSED)
+				;;
+			
+			RUNNING)
+				if (( ${EPOCHREALTIME/./}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000))); then
 	
-					if (( ul_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
-						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
-						replace_pinger_reflector "${pinger}"
-						continue 2
-					fi
-				done
-
-			fi
-
-			enable_replace_pinger_reflector=1
-
-			for ((pinger=0; pinger < no_pingers; pinger++))
-			do
-				reflector_check_time_us=${EPOCHREALTIME/./}
-				concurrent_read_integer reflector_last_timestamp_us "${run_path}/reflector_${reflectors[pinger]//./-}_last_timestamp_us"
-				# shellcheck disable=SC2178
-				declare -n reflector_offences="reflector_${pinger}_offences"
-
-				(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
-				# shellcheck disable=SC2154
-				reflector_offences[reflector_offences_idx]=$(( (((reflector_check_time_us-reflector_last_timestamp_us) > reflector_response_deadline_us)) ? 1 : 0 ))
-
-				if (( reflector_offences[reflector_offences_idx] )); then 
-					((sum_reflector_offences[pinger]++))
-					log_msg "DEBUG" "no ping response from reflector: ${reflectors[pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
-					log_msg "DEBUG" "reflector=${reflectors[pinger]}, sum_reflector_offences=${sum_reflector_offences[pinger]} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
+					log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
+					replace_pinger_reflector $((RANDOM%no_pingers))
+					t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
+					continue
 				fi
 
-				if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
+				if (( ${EPOCHREALTIME/./}>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) )); then
 
-					log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
-					if ((enable_replace_pinger_reflector)); then
-						replace_pinger_reflector "${pinger}"
-						for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
-						sum_reflector_offences[pinger]=0
-						enable_replace_pinger_reflector=0
-					else
-						log_msg "DEBUG" "Warning: skipping replacement of reflector: ${reflectors[pinger]} given prior replacement within this reflector health check cycle."
+					t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
+
+					concurrent_read_integer dl_min_owd_baseline_us "${run_path}/reflector_${reflectors[0]//./-}_dl_owd_baseline_us" || continue
+					concurrent_read_integer dl_min_owd_delta_ewma_us "${run_path}/reflector_${reflectors[0]//./-}_dl_owd_delta_ewma_us" || continue
+					concurrent_read_integer ul_min_owd_baseline_us "${run_path}/reflector_${reflectors[0]//./-}_ul_owd_baseline_us" || continue
+					concurrent_read_integer ul_min_owd_delta_ewma_us "${run_path}/reflector_${reflectors[0]//./-}_ul_owd_delta_ewma_us" || continue
+				
+					concurrent_read_integer compensated_dl_delay_thr_us "${run_path}/compensated_dl_delay_thr_us"
+					concurrent_read_integer compensated_ul_delay_thr_us "${run_path}/compensated_ul_delay_thr_us"
+
+					for ((pinger=0; pinger < no_pingers; pinger++))
+					do
+						concurrent_read_integer "dl_owd_baselines_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_dl_owd_baseline_us" || continue 2
+						concurrent_read_integer "dl_owd_delta_ewmas_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_dl_owd_delta_ewma_us" || continue 2
+						concurrent_read_integer "ul_owd_baselines_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_ul_owd_baseline_us" || continue 2
+						concurrent_read_integer "ul_owd_delta_ewmas_us[${reflectors[pinger]}]" "${run_path}/reflector_${reflectors[pinger]//./-}_ul_owd_delta_ewma_us" || continue 2
+					
+						((   dl_owd_baselines_us[${reflectors[pinger]}] < dl_min_owd_baseline_us   )) && dl_min_owd_baseline_us="${dl_owd_baselines_us[${reflectors[pinger]}]}"
+						(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < dl_min_owd_delta_ewma_us )) && dl_min_owd_delta_ewma_us="${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}"
+						((   ul_owd_baselines_us[${reflectors[pinger]}] < ul_min_owd_baseline_us   )) && ul_min_owd_baseline_us="${ul_owd_baselines_us[${reflectors[pinger]}]}"
+						(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < ul_min_owd_delta_ewma_us )) && ul_min_owd_delta_ewma_us="${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}"
+					done
+
+					for ((pinger=0; pinger < no_pingers; pinger++))
+					do
+
+						dl_owd_baseline_delta_us=$((   dl_owd_baselines_us[${reflectors[pinger]}]   - dl_min_owd_baseline_us   ))
+						dl_owd_delta_ewma_delta_us=$(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] - dl_min_owd_delta_ewma_us ))
+						ul_owd_baseline_delta_us=$((   ul_owd_baselines_us[${reflectors[pinger]}]   - ul_min_owd_baseline_us   ))
+						ul_owd_delta_ewma_delta_us=$(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] - ul_min_owd_delta_ewma_us ))
+
+						if ((output_reflector_stats)); then
+							printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${reflectors[pinger]}" "${dl_min_owd_baseline_us}" "${dl_owd_baselines_us[${reflectors[pinger]}]}" "${dl_owd_baseline_delta_us}" "${reflector_owd_baseline_delta_thr_us}" "${dl_min_owd_delta_ewma_us}" "${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}" "${dl_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}" "${ul_min_owd_baseline_us}" "${ul_owd_baselines_us[${reflectors[pinger]}]}" "${ul_owd_baseline_delta_us}" "${reflector_owd_baseline_delta_thr_us}" "${ul_min_owd_delta_ewma_us}" "${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}" "${ul_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}"
+							log_msg "REFLECTOR" "${reflector_stats}"
+						fi
+	
+						if (( dl_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
+							log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} dl_owd_baseline_us exceeds the minimum by set threshold."
+							replace_pinger_reflector "${pinger}"
+							continue 2
+						fi
+
+						if (( dl_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
+							log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} dl_owd_delta_ewma_us exceeds the minimum by set threshold."
+							replace_pinger_reflector "${pinger}"
+							continue 2
+						fi
+				
+						if (( ul_owd_baseline_delta_us > reflector_owd_baseline_delta_thr_us )); then
+							log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} ul_owd_baseline_us exceeds the minimum by set threshold."
+							replace_pinger_reflector "${pinger}"
+							continue 2
+						fi
+	
+						if (( ul_owd_delta_ewma_delta_us > reflector_owd_delta_ewma_delta_thr_us )); then
+							log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} ul_owd_delta_ewma_us exceeds the minimum by set threshold."
+							replace_pinger_reflector "${pinger}"
+							continue 2
+						fi
+					done
+
+				fi
+
+				enable_replace_pinger_reflector=1
+
+				for ((pinger=0; pinger < no_pingers; pinger++))
+				do
+					reflector_check_time_us=${EPOCHREALTIME/./}
+					concurrent_read_integer reflector_last_timestamp_us "${run_path}/reflector_${reflectors[pinger]//./-}_last_timestamp_us"
+					# shellcheck disable=SC2178
+					declare -n reflector_offences="reflector_${pinger}_offences"
+
+					(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
+					# shellcheck disable=SC2154
+					reflector_offences[reflector_offences_idx]=$(( (((reflector_check_time_us-reflector_last_timestamp_us) > reflector_response_deadline_us)) ? 1 : 0 ))
+
+					if (( reflector_offences[reflector_offences_idx] )); then 
+						((sum_reflector_offences[pinger]++))
+						log_msg "DEBUG" "no ping response from reflector: ${reflectors[pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
+						log_msg "DEBUG" "reflector=${reflectors[pinger]}, sum_reflector_offences=${sum_reflector_offences[pinger]} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
 					fi
-				fi		
-			done
-			((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
-		done
-		kill_pingers
+
+					if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
+
+						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
+						if ((enable_replace_pinger_reflector)); then
+							replace_pinger_reflector "${pinger}"
+							for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+							sum_reflector_offences[pinger]=0
+							enable_replace_pinger_reflector=0
+						else
+							log_msg "DEBUG" "Warning: skipping replacement of reflector: ${reflectors[pinger]} given prior replacement within this reflector health check cycle."
+						fi
+					fi		
+				done
+				((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
+				;;
+			*)
+				log_msg "ERROR" "Unrecognized maintain pingers state: ${maintain_pingers_state}."
+				log_msg "ERROR" "Setting state to RUNNING"
+				printf "RUNNING" > ${run_path}/maintain_pingers_state
+				update_maintain_pingers_state
+			;;
+		esac
+		
+		sleep_s "${reflector_health_check_interval_s}"
 	done
 }
 
@@ -1534,7 +1548,6 @@ do
 	# i.e. no reflector responses within ${stall_detection_thr} * ${ping_response_interval_us}
 	if (( PIPESTATUS[0] == 142 )); then
 
-
 		log_msg "DEBUG" "Warning: no reflector response within: ${stall_detection_timeout_s} seconds. Checking for loads."
 
 		get_loads
@@ -1555,7 +1568,8 @@ do
 		# save intial global reflector timestamp to check against for any new reflector response
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
-		# send signal USR1 to pause reflector maintenance
+		# update maintain_pingers state
+		printf "PAUSED" > ${run_path}/maintain_pingers_state
 		proc_man_signal maintain_pingers "USR1"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1575,7 +1589,8 @@ do
 
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
-				# send signal USR1 to resume reflector health monitoring to resume reflector rotation
+				# update maintain_pingers state
+				printf "RUNNING" > ${run_path}/maintain_pingers_state
 				proc_man_signal maintain_pingers "USR1"
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
@@ -1596,8 +1611,9 @@ do
 		((min_shaper_rates_enforcement)) && set_min_shaper_rates
 	fi
 
-	# send signal USR2 to pause maintain_reflectors
-	proc_man_signal maintain_pingers "USR2"
+	# update maintain_pingers state
+	printf "STOP" > ${run_path}/maintain_pingers_state
+	proc_man_signal maintain_pingers "USR1"
 
 	# reset idle timer
 	t_sustained_connection_idle_us=0
@@ -1615,8 +1631,9 @@ do
 		sleep_remaining_tick_time "${t_start_us}" "${reflector_ping_interval_us}"
 	done
 
-	# send signal USR2 to resume maintain_reflectors
-	proc_man_signal maintain_pingers "USR2"
+	# update maintain_pingers state
+	printf "START" > ${run_path}/maintain_pingers_state
+	proc_man_signal maintain_pingers "USR1"
 	
 	t_end_us=${EPOCHREALTIME/./}
 done
