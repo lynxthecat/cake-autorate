@@ -36,7 +36,7 @@ set -o pipefail
 export LC_ALL=C
 
 # Set PREFIX
-PREFIX=/root/cake-autorate/
+PREFIX=/root/cake-autorate
 
 # shellcheck source=cake-autorate_lib.sh
 . "${PREFIX}/cake-autorate_lib.sh"
@@ -810,36 +810,42 @@ kill_maintain_pingers()
 
 change_state_maintain_pingers()
 {
-	# Set to 1 if external process effects change via USR1
-	local external_process=${1:-0}
+	local maintain_pingers_next_state=${1:-unset}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if ((external_process==1)); then
-		if [[ -f "${run_path}/maintain_pingers_new_state" ]]; then
+	if [[ "${maintain_pingers_next_state}" == "unset" ]]; then
+		if [[ -f "${run_path}/maintain_pingers_next_state" ]]; then
 			for ((read_try=1; read_try<11; read_try++))
 			do
-				read -r maintain_pingers_new_state < "${run_path}/maintain_pingers_new_state"
-				maintain_pingers_new_state=${maintain_pingers_new_state:-unset}
-				[[ "${maintain_pingers_new_state}" != "unset" ]] && break
+				read -r maintain_pingers_next_state < "${run_path}/maintain_pingers_next_state"
+				maintain_pingers_next_state=${maintain_pingers_next_state:-unset}
+				[[ "${maintain_pingers_next_state}" != "unset" ]] && break
 			done
 		else
-			new_maintain_pingers_state="no_new_state_file"
+			log_msg "ERROR" "Received change signal but ${run_path}/maintain_pingers_next_state does not exist. Exiting now."
+			kill -INT $$
 		fi
 	fi
 
-	case ${maintain_pingers_new_state} in
+	case ${maintain_pingers_next_state} in
 
 		START|STOP|PAUSED|RUNNING)
 		
-			log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${maintain_pingers_new_state}"
-			maintain_pingers_state=${maintain_pingers_new_state}
-			printf "%s" ${maintain_pingers_state} > ${run_path}/maintain_pingers_state
+			if [[ "${maintain_pingers_state}" != "${maintain_pingers_next_state}" ]]
+			then
+				log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${maintain_pingers_next_state}"
+				maintain_pingers_state=${maintain_pingers_next_state}
+				printf "%s" ${maintain_pingers_state} > ${run_path}/maintain_pingers_state
+			else
+				log_msg "ERROR" "Received request to change maintain_pingers state to existing state."
+			fi
 			;;
 
 		*)
 	
-			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_new_state}"
+			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_next_state}. Exiting now."
+			kill -INT $$
 			;;
 	esac
 }
@@ -851,7 +857,7 @@ maintain_pingers()
  	trap '' INT
 	trap 'kill_maintain_pingers' TERM EXIT
 	
-	trap 'change_state_maintain_pingers 1' USR1
+	trap 'change_state_maintain_pingers' USR1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -861,11 +867,8 @@ maintain_pingers()
 	declare -A ul_owd_delta_ewmas_us
 
 	err_silence=0
-
-	reflector_maintenance_paused=0
-	maintain_pingers_paused=0
-
 	reflector_offences_idx=0
+	pingers_active=0
 
 	pingers_t_start_us=${EPOCHREALTIME/./}	
 	t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
@@ -895,15 +898,21 @@ maintain_pingers()
 		case ${maintain_pingers_state} in
 
 			START)
-				start_pingers
-				maintain_pingers_new_state="RUNNING"
-				change_state_maintain_pingers
+				if ((pingers_active==0))
+				then
+					start_pingers
+					pingers_active=1
+				fi
+				change_state_maintain_pingers "RUNNING"
 				;;
 
 			STOP)
-				kill_pingers
-				maintain_pingers_new_state="PAUSED"
-				change_state_maintain_pingers
+				if ((pingers_active))
+				then
+					kill_pingers
+					pingers_active=0
+				fi
+				change_state_maintain_pingers "PAUSED"
 				;;
 			
 			PAUSED)
@@ -1020,7 +1029,7 @@ maintain_pingers()
 			*)
 				log_msg "ERROR" "Unrecognized maintain pingers state: ${maintain_pingers_state}."
 				log_msg "ERROR" "Setting state to RUNNING"
-				maintain_pingers_new_state="RUNNING"
+				maintain_pingers_next_state="RUNNING"
 				change_maintain_pingers_state
 			;;
 		esac
@@ -1577,7 +1586,7 @@ do
 		concurrent_read_integer initial_reflectors_last_timestamp_us "${run_path}/reflectors_last_timestamp_us"
 
 		# update maintain_pingers state
-		printf "PAUSED" > ${run_path}/maintain_pingers_new_state
+		printf "PAUSED" > ${run_path}/maintain_pingers_next_state
 		proc_man_signal maintain_pingers "USR1"
 
 		t_connection_stall_time_us=${EPOCHREALTIME/./}
@@ -1598,7 +1607,7 @@ do
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 
 				# update maintain_pingers state
-				printf "RUNNING" > ${run_path}/maintain_pingers_new_state
+				printf "RUNNING" > ${run_path}/maintain_pingers_next_state
 				proc_man_signal maintain_pingers "USR1"
 
 				# continue main loop (i.e. skip idle/global timeout handling below)
@@ -1620,7 +1629,7 @@ do
 	fi
 
 	# update maintain_pingers state
-	printf "STOP" > ${run_path}/maintain_pingers_new_state
+	printf "STOP" > ${run_path}/maintain_pingers_next_state
 	proc_man_signal maintain_pingers "USR1"
 
 	# reset idle timer
@@ -1640,7 +1649,7 @@ do
 	done
 
 	# update maintain_pingers state
-	printf "START" > ${run_path}/maintain_pingers_new_state
+	printf "START" > ${run_path}/maintain_pingers_next_state
 	proc_man_signal maintain_pingers "USR1"
 	
 	t_end_us=${EPOCHREALTIME/./}
