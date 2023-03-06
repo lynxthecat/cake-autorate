@@ -1294,62 +1294,6 @@ ewma_iteration()
 	ewma=$(( (alpha*value+(1000000-alpha)*prev_ewma)/1000000 ))
 }
 
-# DEBUG COMMAND WRAPPER
-# INSPIRED BY cmd_wrapper of sqm-script
-
-debug_cmd()
-{
-	# Usage: debug_cmd debug_msg err_silence cmd arg1 arg2, etc.
-
-	# Error messages are output as log_msg ERROR messages
-	# Or set error_silence=1 to output errors as log_msg DEBUG messages
-
-	local debug_msg=${1}
-	local err_silence=${2}
-	local cmd=${3}
-
-	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-
-	shift 3
-
-	local args=("${@}")
-
-	local caller_id
-	local err_type
-
-	local ret
-	local stderr
-
-	err_type="ERROR"
-
-	if ((err_silence)); then
-		err_type="DEBUG"
-	fi
-
-	stderr=$(${cmd} "${args[@]}" 2>&1)
-	ret=${?}
-
-	caller_id=$(caller)
-
-	if ((ret==0)); then
-		log_msg "DEBUG" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=SUCCESS"
-	else
-		[[ "${err_type}" == "DEBUG" && "${debug}" == "0" ]] && return # if debug disabled, then skip on DEBUG but not on ERROR
-
-		log_msg "${err_type}" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=FAILURE (${ret})"
-		log_msg "${err_type}" "debug_cmd: LAST ERROR (${stderr})"
-
-		frame=1
-		while caller_output=$(caller "${frame}")
-		do
-			log_msg "${err_type}" "debug_cmd: CALL CHAIN: ${caller_output}"
-			((++frame))
-		done
-	fi
-}
-
-# END OF DEBUGGING ROUTINES
-
 # ======= Start of the Main Routine ========
 
 [[ -t 1 ]] && terminal=1 || terminal=0
@@ -1407,9 +1351,9 @@ fi
 
 rotate_log_file # rotate here to force header prints at top of log file
 
-# redirect stderr to log_msg
-coproc log_stderr { exec >"/proc/${PPID}/fd/1"; while read -r error; do log_msg "ERROR" "${error}"; done; }
-exec 2>&"${log_stderr[1]}"
+# Intercept stderr, redirect it to log_msg and exit cake-autorate
+# see cake-autorate_lib.sh
+intercept_stderr
 
 log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
