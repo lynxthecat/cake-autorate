@@ -449,6 +449,109 @@ classify_load()
 
 # MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
 
+# TSPING FUNCTIONS #
+
+kill_monitor_reflector_responses_tsping()
+{
+	trap - TERM EXIT
+
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
+	# Store baselines and ewmas to files ready for next instance (e.g. after sleep)
+	for (( reflector=0; reflector<no_reflectors; reflector++ ))
+	do
+		[[ -n "${dl_owd_baselines_us[${reflectors[reflector]}]}" ]] && printf '%s' "${dl_owd_baselines_us[${reflectors[reflector]}]}" > "${run_path}/reflector_${reflectors[reflector]//./-}_dl_baseline_us"
+		[[ -n "${ul_owd_baselines_us[${reflectors[reflector]}]}" ]] && printf '%s' "${ul_owd_baselines_us[${reflectors[reflector]}]}" > "${run_path}/reflector_${reflectors[reflector]//./-}_ul_baseline_us"
+		[[ -n "${dl_owd_delta_ewmas_us[${reflectors[reflector]}]}" ]] && printf '%s' "${dl_owd_delta_ewmas_us[${reflectors[reflector]}]}" > "${run_path}/reflector_${reflectors[reflector]//./-}_dl_delta_ewma_us"
+		[[ -n "${ul_owd_delta_ewmas_us[${reflectors[reflector]}]}" ]] && printf '%s' "${ul_owd_delta_ewmas_us[${reflectors[reflector]}]}" > "${run_path}/reflector_${reflectors[reflector]//./-}_ul_delta_ewma_us"
+	done
+
+	exit
+}
+
+monitor_reflector_responses_tsping()
+{
+	trap '' INT
+	trap kill_monitor_reflector_responses_tsping TERM EXIT		
+
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
+	declare -A dl_owd_baselines_us
+	declare -A ul_owd_baselines_us
+	declare -A dl_owd_delta_ewmas_us
+	declare -A ul_owd_delta_ewmas_us
+
+	t_start_us=${EPOCHREALTIME/./}
+
+	# Read in baselines if they exist, else just set them to 1s (rapidly converges downwards on new OWDs)
+	for (( reflector=0; reflector < no_reflectors; reflector++ ))
+	do
+		if [[ -f "${run_path}/reflector_${reflectors[reflector]//./-}_dl_baseline_us" ]]; then
+			read -r "dl_owd_baselines_us[${reflectors[reflector]}]" < "${run_path}/reflector_${reflectors[reflector]//./-}_dl_baseline_us"
+		else
+			dl_owd_baselines_us[${reflectors[reflector]}]=100000
+		fi
+		if [[ -f "${run_path}/reflector_${reflectors[reflector]//./-}_ul_baseline_us" ]]; then
+			read -r "ul_owd_baselines_us[${reflectors[reflector]}]" < "${run_path}/reflector_${reflectors[reflector]//./-}_ul_baseline_us"
+		else
+			ul_owd_baselines_us[${reflectors[reflector]}]=100000
+		fi
+		if [[ -f "${run_path}/reflector_${reflectors[reflector]//./-}_dl_delta_ewma_us" ]]; then
+			read -r "dl_owd_delta_ewmas_us[${reflectors[reflector]}]" < "${run_path}/reflector_${reflectors[reflector]//./-}_dl_delta_ewma_us"
+		else
+			dl_owd_delta_ewmas_us[${reflectors[reflector]}]=0
+		fi
+		if [[ -f "${run_path}/reflector_${reflectors[reflector]//./-}_ul_delta_ewma_us" ]]; then
+			read -r "ul_owd_delta_ewmas_us[${reflectors[reflector]}]" < "${run_path}/reflector_${reflectors[reflector]//./-}_ul_delta_ewma_us"
+		else
+			ul_owd_delta_ewmas_us[${reflectors[reflector]}]=0
+		fi
+	done
+
+	# shellcheck disable=SC2154
+	while read -r -u "${pinger_fds[pinger]}" timestamp reflector seq _ _ _ _ dl_owd_ms ul_owd_ms _
+	do 
+		t_start_us=${EPOCHREALTIME/./}
+
+		dl_owd_us=${dl_owd_ms}000
+		ul_owd_us=${ul_owd_ms}000
+	
+		dl_alpha=$(( (( dl_owd_us >= dl_owd_baselines_us[${reflector}] )) ? alpha_baseline_increase : alpha_baseline_decrease ))
+		ul_alpha=$(( (( ul_owd_us >= ul_owd_baselines_us[${reflector}] )) ? alpha_baseline_increase : alpha_baseline_decrease ))
+
+		ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
+		ewma_iteration "${ul_owd_us}" "${ul_alpha}" "ul_owd_baselines_us[${reflector}]"
+
+		dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
+		ul_owd_delta_us=$(( ul_owd_us - ul_owd_baselines_us[${reflector}] ))
+
+		concurrent_read_integer dl_load_percent "${run_path}/dl_load_percent"
+		concurrent_read_integer ul_load_percent "${run_path}/ul_load_percent"
+
+		if (( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent)); then
+			ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
+			ewma_iteration "${ul_owd_delta_us}" "${alpha_delta_ewma}" "ul_owd_delta_ewmas_us[${reflector}]"
+		fi
+
+		timestamp=${timestamp//[\[\]]}0
+
+		printf '%s %s %s %s %s %s %s %s %s %s %s\n' "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[${reflector}]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[${reflector}]}" "${dl_owd_delta_us}" "${ul_owd_baselines_us[${reflector}]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[${reflector}]}" "${ul_owd_delta_us}" >&"${ping_fd}"
+
+		timestamp_us=${timestamp//[.]}
+
+		printf '%s' "${timestamp_us}" > "${run_path}/reflector_${reflector//./-}_last_timestamp_us"
+	
+		printf '%s' "${dl_owd_baselines_us[${reflector}]}" > "${run_path}/reflector_${reflector//./-}_dl_owd_baseline_us"
+		printf '%s' "${ul_owd_baselines_us[${reflector}]}" > "${run_path}/reflector_${reflector//./-}_ul_owd_baseline_us"
+	
+		printf '%s' "${dl_owd_delta_ewmas_us[${reflector}]}" > "${run_path}/reflector_${reflector//./-}_dl_owd_delta_ewma_us"
+		printf '%s' "${ul_owd_delta_ewmas_us[${reflector}]}" > "${run_path}/reflector_${reflector//./-}_ul_owd_delta_ewma_us"
+
+		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
+
+	done
+}
+
 # FPING FUNCTIONS # 
 
 kill_monitor_reflector_responses_fping()
@@ -653,6 +756,11 @@ start_pinger()
 	# shellcheck disable=SC1083,SC2086,SC2261
 	case ${pinger_binary} in
 
+		tsping)
+			pinger=0
+			exec {pinger_fds[pinger]}<> <(:) || true
+			proc_man_start "pinger_${pinger}" ${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
+			;;	
 		fping)
 			pinger=0
 			exec {pinger_fds[pinger]}<> <(:) || true
@@ -678,7 +786,7 @@ start_pingers()
 	log_msg "DEBUG" "Starting pingers."
 	case ${pinger_binary} in
 
-		fping)
+		tsping|fping)
 			start_pinger 0
 		;;
 		ping)
@@ -714,7 +822,7 @@ kill_pinger()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case ${pinger_binary} in
-		fping)
+		tsping|fping)
 			pinger=0
 			;;
 
@@ -734,8 +842,8 @@ kill_pingers()
 {
 	case ${pinger_binary} in
 
-		fping)
-			log_msg "DEBUG" "Killing fping instance."
+		tsping|fping)
+			log_msg "DEBUG" "Killing ${pinger_binary} instance."
 			kill_pinger 0
 			;;
 		ping)
