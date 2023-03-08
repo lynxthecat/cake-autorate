@@ -17,7 +17,6 @@ intercept_stderr()
 			log_msg "ERROR" "${error}"
 			log_msg "ERROR" "Exiting cake-autorate now."
 			kill -INT $$
-			break
 		done
 	)
 }
