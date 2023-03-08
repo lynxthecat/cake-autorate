@@ -11,17 +11,15 @@ fi
 # redirect stderr to log_msg and exit cake-autorate
 intercept_stderr() 
 {
-	coproc intercept_stderr_coproc {
-       	exec >"/proc/${PPID}/fd/1"
-       	while read -r error
-       	do
-		log_msg "ERROR" "${error}"
-		log_msg "ERROR" "Exiting cake-autorate now."
-		kill -INT $$
-		break
-	done
-	}
-	exec 2>&"${intercept_stderr_coproc[1]}"
+	exec 2> >(
+		while read -r error
+		do
+			log_msg "ERROR" "${error}"
+			log_msg "ERROR" "Exiting cake-autorate now."
+			kill -INT $$
+			break
+		done
+	)
 }
 
 # Debug command wrapper
