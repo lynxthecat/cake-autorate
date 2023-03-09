@@ -15,7 +15,7 @@ sleep_s()
 	# Calling the external sleep binary could be rather slow,
 	# especially as it is called it very frequently and typically on mediocre hardware.
 	#
-	# Due to bash's loadable sleep module not being available,
+	# Due to bash's loadable sleep module not being available
 	# on OpenWRT and most embedded systems, we use the bash
 	# read command with a timeout which performs roughly
 	# as good as bash's sleep module.
