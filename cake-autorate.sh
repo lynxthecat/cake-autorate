@@ -1298,6 +1298,7 @@ ewma_iteration()
 intercept_stderr() 
 {
 	exec 2> >(
+		exec >"/proc/${PPID}/fd/1"
 		while read -r error
 		do
 			log_msg "ERROR" "${error}"
