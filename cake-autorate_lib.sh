@@ -16,7 +16,7 @@ sleep_s()
 	# especially as it is called very frequently and typically on mediocre hardware.
 	#
 	# bash's loadable sleep module is not typically available
-	# in OpenWRT and most embedded systems, use of the bash
+	# in OpenWRT and most embedded systems, and use of the bash
 	# read command with a timeout offers performance that is
 	# at least on a par with bash's sleep module.
 	#
