@@ -1542,6 +1542,9 @@ if ((startup_wait_us>0)); then
         sleep_us "${startup_wait_us}"
 fi
 
+# Initialize proc_man
+proc_man_initialize
+
 # Initiate achived rate monitor
 proc_man_start monitor_achieved_rates monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"
 	

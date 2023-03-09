@@ -190,7 +190,7 @@ proc_man()
 	shift 2
 
 	if [[ ! -f "${PROC_STATE_FILE:?}" ]]; then
-		true > "${PROC_STATE_FILE:?}"
+		return 1
 	fi
 
 	# shellcheck disable=SC2311
@@ -266,6 +266,10 @@ proc_man()
 
 			return 1
 			;;
+		"initialize")
+			proc_man_initialize
+			return $?
+			;;
 		*)
 			printf '%s\n' "unknown action: ${action}" >&2
 			return 1
@@ -273,6 +277,11 @@ proc_man()
 	esac
 
 	return 0
+}
+
+proc_man_initialize()
+{
+	true > "${PROC_STATE_FILE:?}"
 }
 
 proc_man_start()
