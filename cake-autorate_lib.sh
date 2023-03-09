@@ -13,7 +13,7 @@ exec {__sleep_fd}<> <(:) || true
 sleep_s()
 {
 	# Calling the external sleep binary could be rather slow,
-	# especially as it is called it very frequently and typically on mediocre hardware.
+	# especially as it is called very frequently and typically on mediocre hardware.
 	#
 	# Due to bash's loadable sleep module not being available
 	# For OpenWRT and most embedded systems, use of the bash
