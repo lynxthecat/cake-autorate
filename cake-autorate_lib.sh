@@ -12,9 +12,17 @@ exec {__sleep_fd}<> <(:) || true
 
 sleep_s()
 {
-	# calling external sleep binary is slow
-	# bash does have a loadable sleep
-	# but read's timeout can more portably be exploited and this is apparently even faster anyway
+	# Calling the external sleep binary could be rather slow,
+	# especially as we call it very frequently on mediocre hardware.
+	#
+	# Due to bash's loadable sleep module not being available,
+	# on OpenWRT and most embedded systems, we use the bash
+	# read command with a timeout which performs roughly
+	# as good as bash's sleep module.
+	#
+	# For benchmarks, check the following links:
+	# - https://github.com/lynxthecat/cake-autorate/issues/174#issuecomment-1460057382
+	# - https://github.com/lynxthecat/cake-autorate/issues/174#issuecomment-1460074498
 
 	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
 	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || : &
