@@ -1301,7 +1301,6 @@ intercept_stderr()
 		while read -r error
 		do
 			log_msg "ERROR" "${error}"
-			log_msg "ERROR" "Exiting cake-autorate now."
 			kill -INT $$
 		done
 	)
@@ -1418,7 +1417,6 @@ fi
 rotate_log_file # rotate here to force header prints at top of log file
 
 # Intercept stderr, redirect it to log_msg and exit cake-autorate
-# see cake-autorate_lib.sh
 intercept_stderr
 
 log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
