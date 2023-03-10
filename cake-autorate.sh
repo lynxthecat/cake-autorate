@@ -403,7 +403,7 @@ monitor_achieved_rates()
 
 get_loads()
 {
-	# read in the dl/ul achived rates and determine the loads
+	# read in the dl/ul achieved rates and determine the loads
 
 	concurrent_read_integer dl_achieved_rate_kbps "${run_path}/dl_achieved_rate_kbps"
 	concurrent_read_integer ul_achieved_rate_kbps "${run_path}/ul_achieved_rate_kbps"
@@ -1436,6 +1436,10 @@ if [[ -d "${run_path}" ]]; then
 else
 	mkdir -p "${run_path}"
 fi
+
+# Initialize proc_man
+proc_man_initialize
+
 printf "%s" "${BASHPID}" > "${run_path}/pid"
 
 no_reflectors=${#reflectors[@]} 
@@ -1606,10 +1610,7 @@ if ((startup_wait_us>0)); then
         sleep_us "${startup_wait_us}"
 fi
 
-# Initialize proc_man
-proc_man_initialize
-
-# Initiate achived rate monitor
+# Initiate achieved rate monitor
 proc_man_start monitor_achieved_rates monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}"
 	
 printf '%s' "0" > "${run_path}/dl_load_percent"
