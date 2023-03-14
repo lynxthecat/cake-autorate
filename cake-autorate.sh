@@ -509,7 +509,7 @@ monitor_reflector_responses_tsping()
 	done
 
 	# shellcheck disable=SC2154
-	while read -r -u "${pinger_fds[pinger]}" timestamp reflector seq _ _ _ _ dl_owd_ms ul_owd_ms _
+	while read -r -u "${pinger_fds[pinger]}" timestamp reflector seq _ _ _ _ _ dl_owd_ms ul_owd_ms
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 
