@@ -451,7 +451,7 @@ classify_load()
 
 # TSPING FUNCTIONS #
 
-kill_monitor_reflector_responses_tsping()
+kill_parse_tsping()
 {
 	trap - TERM EXIT
 
@@ -469,10 +469,10 @@ kill_monitor_reflector_responses_tsping()
 	exit
 }
 
-monitor_reflector_responses_tsping()
+parse_tsping()
 {
 	trap '' INT
-	trap kill_monitor_reflector_responses_tsping TERM EXIT		
+	trap kill_parse_tsping TERM EXIT		
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -509,7 +509,7 @@ monitor_reflector_responses_tsping()
 	done
 
 	# shellcheck disable=SC2154
-	while read -r -u "${pinger_fds[pinger]}" timestamp reflector seq _ _ _ _ _ dl_owd_ms ul_owd_ms
+	while read -r timestamp reflector seq _ _ _ _ _ dl_owd_ms ul_owd_ms 2> /dev/null
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 
@@ -549,12 +549,12 @@ monitor_reflector_responses_tsping()
 
 		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-	done
+	done< <(${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2> /dev/null)
 }
 
 # FPING FUNCTIONS # 
 
-kill_monitor_reflector_responses_fping()
+kill_parse_fping()
 {
 	trap - TERM EXIT
 
@@ -570,10 +570,10 @@ kill_monitor_reflector_responses_fping()
 	exit
 }
 
-monitor_reflector_responses_fping()
+parse_fping()
 {
 	trap '' INT
-	trap kill_monitor_reflector_responses_fping TERM EXIT		
+	trap kill_parse_fping TERM EXIT		
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -598,7 +598,7 @@ monitor_reflector_responses_fping()
 	done
 
 	# shellcheck disable=SC2154
-	while read -r -u "${pinger_fds[pinger]}" timestamp reflector _ seq_rtt 2>/dev/null
+	while read -r timestamp reflector _ seq_rtt 2>/dev/null
 	do 
 		t_start_us=${EPOCHREALTIME/./}
 
@@ -650,12 +650,12 @@ monitor_reflector_responses_fping()
 
 		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-	done 2>/dev/null
+	done< <(${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null)
 }
 
 # IPUTILS-PING FUNCTIONS
 
-kill_monitor_reflector_responses_ping()
+kill_parse_ping()
 {
 	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
@@ -664,10 +664,10 @@ kill_monitor_reflector_responses_ping()
 	exit
 }
 
-monitor_reflector_responses_ping() 
+parse_ping() 
 {
 	trap '' INT
-	trap kill_monitor_reflector_responses_ping TERM EXIT		
+	trap kill_parse_ping TERM EXIT		
 
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
@@ -687,7 +687,7 @@ monitor_reflector_responses_ping()
 			rtt_delta_ewma_us=0
 	fi
 
-	while read -r -u "${pinger_fds[pinger]}" timestamp _ _ _ reflector seq_rtt 2>/dev/null
+	while read -r timestamp _ _ _ reflector seq_rtt 2>/dev/null
 	do
 		# If no match then skip onto the next one
 		[[ ${seq_rtt} =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
@@ -740,7 +740,7 @@ monitor_reflector_responses_ping()
 
 		printf '%s' "${timestamp_us}" > "${run_path}/reflectors_last_timestamp_us"
 
-	done 2>/dev/null
+	done< <(${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null)
 }
 
 # END OF IPUTILS-PING FUNCTIONS
@@ -753,31 +753,7 @@ start_pinger()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	# shellcheck disable=SC1083,SC2086,SC2261
-	case ${pinger_binary} in
-
-		tsping)
-			pinger=0
-			exec {pinger_fds[pinger]}<> <(:) || true
-			proc_man_start "pinger_${pinger}" ${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
-			;;	
-		fping)
-			pinger=0
-			exec {pinger_fds[pinger]}<> <(:) || true
-			proc_man_start "pinger_${pinger}" ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
-			;;
-		ping)
-			exec {pinger_fds[pinger]}<> <(:) || true
-			sleep_until_next_pinger_time_slot "${pinger}"
-			proc_man_start "pinger_${pinger}" ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
-			;;
-		*)
-			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
-			exit 1
-			;;
-	esac
-	
-	proc_man_start "monitor_${pinger}" "monitor_reflector_responses_${pinger_binary}" "${pinger}"
+	proc_man_start "pinger_${pinger}" "parse_${pinger_binary}" "${pinger}"
 }
 
 start_pingers()
@@ -832,10 +808,6 @@ kill_pinger()
 	esac
 
 	proc_man_stop "pinger_${pinger}"
-	proc_man_stop "monitor_${pinger}"
-
-	# shellcheck disable=SC1083
-	exec {pinger_fds[pinger]}<&-
 }
 
 kill_pingers()
