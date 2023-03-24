@@ -758,18 +758,15 @@ start_pinger()
 
 		tsping)
 			pinger=0
-			exec {pinger_fds[pinger]}<> <(:) || true
-			proc_man_start "pinger_${pinger}" ${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
+			pinger_cmdline(){ ${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"; }
 			;;	
 		fping)
 			pinger=0
-			exec {pinger_fds[pinger]}<> <(:) || true
-			proc_man_start "pinger_${pinger}" ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"
+			pinger_cmdline(){ ${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_fds[pinger]}"; }
 			;;
 		ping)
-			exec {pinger_fds[pinger]}<> <(:) || true
 			sleep_until_next_pinger_time_slot "${pinger}"
-			proc_man_start "pinger_${pinger}" ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"
+			pinger_cmdline(){ ${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_fds[pinger]}"; }
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
@@ -777,6 +774,10 @@ start_pinger()
 			;;
 	esac
 	
+	exec {pinger_fds[pinger]}<> <(:) || true
+	# Encapsulation of each pinger binary command line including redirection(s) inside the function pinger_cmdline()
+	# ensures that the redirections only apply in respect of the proc_man_start "${@} &" call. 
+	proc_man_start "pinger_${pinger}" pinger_cmdline	
 	proc_man_start "monitor_${pinger}" "monitor_reflector_responses_${pinger_binary}" "${pinger}"
 }
 
