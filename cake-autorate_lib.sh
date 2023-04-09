@@ -53,6 +53,19 @@ sleep_remaining_tick_time()
 	fi
 }
 
+get_remaining_tick_time()
+{
+	# updates sleep_duration_s remaining to end of tick duration
+
+	local t_start_us=${1} # (microseconds)
+	local tick_duration_us=${2} # (microseconds)
+
+	sleep_duration_us=$(( t_start_us + tick_duration_us - ${EPOCHREALTIME/./} ))
+	((sleep_duration_us<0)) && sleep_duration_us=0
+	sleep_duration_s=000000${sleep_duration_us}
+	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
+}
+
 randomize_array()
 {
 	local -n array=${1}
@@ -85,171 +98,23 @@ unlock()
 	rm -f "${path:?}"
 }
 
-_proc_man_set_key()
+kill_with_fire()
 {
-	local key=${1}
-	local value=${2}
+	# Checks for any leftover processes 
+	# and kills with with any that remain
 
-	lock "${PROC_STATE_FILE_LOCK:?}"
-	trap 'unlock "${PROC_STATE_FILE_LOCK:?}"' RETURN
+	local -n pids=${1}
 
-	local entered=0
-	while read -r line; do
-		if [[ ${line} =~ ^${key}= ]]; then
-			printf '%s\n' "${key}=${value}"
-			entered=1
-		else
-			printf '%s\n' "${line}"
+	for process in "${!pids[@]}"
+	do
+		if kill -0 "${pids[${process}]}" 2> /dev/null
+		then
+			printf "Process: ${process} with pid: "${pids[${process}]}" still alive so killing with fire.\n"
+			kill -9 "${pids[${process}]}" 2> /dev/null || true
 		fi
-	done < "${PROC_STATE_FILE:?}" > "${PROC_STATE_FILE:?}.tmp"
-	if (( entered == 0 )); then
-		printf '%s\n' "${key}=${value}" >> "${PROC_STATE_FILE:?}.tmp"
-	fi
-	mv "${PROC_STATE_FILE:?}.tmp" "${PROC_STATE_FILE:?}"
-	return 0
+	done
 }
 
-_proc_man_get_key_value()
-{
-	local key=${1}
-
-	lock "${PROC_STATE_FILE_LOCK:?}"
-	trap 'unlock "${PROC_STATE_FILE_LOCK:?}"' RETURN
-
-	while read -r line; do
-		if [[ ${line} =~ ^${key}= ]]; then
-			printf '%s\n' "${line#*=}"
-			return 0
-		fi
-	done < "${PROC_STATE_FILE:?}"
-	return 1
-}
-
-proc_man()
-{
-	local action=${1}
-	local name=${2}
-	shift 2
-
-	if [[ ! -f "${PROC_STATE_FILE:?}" ]]; then
-		return 1
-	fi
-
-	# shellcheck disable=SC2311
-	case "${action}" in
-		"start")
-			pid=$(_proc_man_get_key_value "${name}")
-			if (( pid && pid > 0 )) && kill -0 "${pid}" 2> /dev/null; then
-				return 1;
-			fi
-
-			"${@}" &
-			local pid=${!}
-			_proc_man_set_key "${name}" "${pid}"
-			;;
-		"stop")
-			local pid
-			pid=$(_proc_man_get_key_value "${name}")
-			if ! (( pid && pid > 0 )); then
-				return 0;
-			fi
-
-			kill "${pid}" 2> /dev/null || true
-
-			# wait for process to die
-			killed=0
-			for ((i=0; i<10; i++));
-			do
-				if kill -0 "${pid}" 2> /dev/null; then
-					sleep_us 100000
-				else
-					killed=1
-					break
-				fi
-			done
-
-			# if process still alive, kill it with fire
-			if (( killed == 0 )); then
-				kill -9 "${pid}" 2> /dev/null || true
-			fi
-
-			_proc_man_set_key "${name}" "-1" "${PROC_STATE_FILE:?}"
-			;;
-		"status")
-			local pid
-			pid=$(_proc_man_get_key_value "${name}")
-			if (( pid && pid > 0 )); then
-				if kill -0 "${pid}" 2> /dev/null; then
-					printf '%s\n' "running"
-				else
-					printf '%s\n' "dead"
-				fi
-			else
-				printf '%s\n' "stopped"
-			fi
-			;;
-		"wait")
-			local pid
-			pid=$(_proc_man_get_key_value "${name}")
-			if (( pid && pid > 0 )); then
-				wait "${pid}" && return 0
-			fi
-
-			return 1
-			;;
-		"signal")
-			shift 3
-
-			local pid
-			pid=$(_proc_man_get_key_value "${name}")
-			if (( pid && pid > 0 )); then
-				kill -s "${1}" "${pid}" 2>/dev/null && return 0
-			fi
-
-			return 1
-			;;
-		"initialize")
-			proc_man_initialize
-			return $?
-			;;
-		*)
-			printf '%s\n' "unknown action: ${action}" >&2
-			return 1
-			;;
-	esac
-
-	return 0
-}
-
-proc_man_initialize()
-{
-	true > "${PROC_STATE_FILE:?}"
-}
-
-proc_man_start()
-{
-	proc_man start "${@}"
-}
-
-proc_man_stop()
-{
-	proc_man stop "${@}"
-}
-
-proc_man_status()
-{
-	proc_man status "${@}"
-}
-
-proc_man_wait()
-{
-	proc_man wait "${@}"
-}
-
-proc_man_signal()
-{
-	proc_man signal "${@}"
-}
 
 if (( __set_e == 1 )); then
     set +e
