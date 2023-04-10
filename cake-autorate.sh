@@ -14,6 +14,8 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
+cake_autorate_version="2.0.0"
+
 ## cake-autorate uses multiple asynchronous processes including
 ## main - main process
 ## monitor_achieved_rates - monitor network transfer rates
