@@ -203,6 +203,24 @@ When running as a service, the `cake-autorate.sh` script outputs to `/var/log/ca
 
 WARNING: Take care to ensure sufficient free memory exists in router to handle selected logging parameters.
 
+## Example output of 'ps |grep -e bash -e fping'
+
+cake-autorate employs multiple concurrent processes and uses inter process communication therebetween. 
+
+```bash
+root@OpenWrt-1:~/cake-autorate# ps |grep -e bash -e fping
+ 2492 root      2744 S    bash
+ 2787 root      2356 S    {cake-autorate_l} /bin/bash /root/cake-autorate/cake-autorate_launcher.sh
+ 2789 root      3228 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2817 root      3176 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2822 root      3136 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2834 root      3160 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2836 root      3256 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2839 root      3340 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2840 root      3308 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
+ 2841 root      1928 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9
+```
+
 ## Preserving CAKE-autorate files for backup or upgrades
 
 The [Backup and Restore page on the wiki](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify)
