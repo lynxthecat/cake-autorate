@@ -78,7 +78,7 @@ chmod +x /etc/init.d/cake-autorate
 printf "${editmsg}\n"
 
 # shellcheck disable=SC2312
-printf '\n%s\n\n' "$(grep ^cake_autorate_version= /root/cake-autorate/cake-autorate.sh | cut -d= -f2 | cut -d'"' -f2) successfully installed, but not yet running"
+printf '\n%s\n\n' "$(grep -m 1 ^cake_autorate_version= /root/cake-autorate/cake-autorate.sh | cut -d= -f2 | cut -d'"' -f2) successfully installed, but not yet running"
 printf '%s\n' "Start the software manually with:"
 printf '%s\n' "   cd /root/cake-autorate; ./cake-autorate.sh"
 printf '%s\n' "Run as a service with:"
