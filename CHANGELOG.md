@@ -6,17 +6,18 @@ bandwidth settings by measuring traffic load and RTT times.
 Read the [README](./README.md) file for more details.
 This is the history of changes.
 
-## 2023-02-25 - Version 2.0
+## 2023-04-13 - Version 2.0
 
-- This version incorporates a significant overhaul of the bash code mostly undertaken by bash expert @rany2 to improving robustness, stability and performance, with changing including, inter alia, the following. 
-  - Compliance with shellcheck to help squash unknown bugs.
-  - Decreased CPU consumption compared to the previous release.
-  - Fixed eternal sleep issue.
-  - Introduce more user-friendly config format by introducing cake-autorate_defaults.sh and cake-autorate_config.X.sh with the basics (interface names, whether to adjust the shaper rates and the min, base and max shaper rates) and any overrides from the default. 
-  - More intelligent "another instance is running check"
-  - Proper process management to avoid the dangerous ping inflation issue and simplify background processes handling (less error prone now)
-  - And more!
+- This version incorporates a restructure of the bash code for improved robustness, stability and performance.
+- Introduce support for one way delays (OWDs) using the 'tsping' binary developed by @Lochnair of the OpenWrt forum. This works with ICMP type 13 (timestamp) requests to ascertain the delay in each direction (i.e. OWDs).
+- Employ FIFOs for passing not only data, but also commands, between the major processes, obviating costly reliance on temporary files. A side effect of this is that now /var/run/cake-autorate is mostly empty during runs.
+- Significantly reduced CPU consumption.
+- Fixed eternal sleep issue.
+- Introduce more user-friendly config format by introducing cake-autorate_defaults.sh and cake-autorate_config.X.sh with the basics (interface names, whether to adjust the shaper rates and the min, base and max shaper rates) and any overrides from the default. 
+- More intelligent check for another running instance.
 - Introduce more user-friendly log file exports by automatically generating an export script for each running cake-autorate instance inside /var/run/cake-autorate/*/.
+- Many more fixes and improvements.
+- Particular thanks to @rany2 for his input on this version.
 
 ## 2022-12-13 - Version 1.2
 
