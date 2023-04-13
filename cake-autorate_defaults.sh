@@ -7,8 +7,6 @@
 # Author: @Lynx (OpenWrt forum)
 # Inspiration taken from: @moeller0 (OpenWrt forum)
 
-cake_autorate_version="2.0.0"
-
 # *** OUTPUT AND LOGGING OPTIONS ***
 
 output_processing_stats=1 	# enable (1) or disable (0) output monitoring lines showing processing stats
