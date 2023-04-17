@@ -79,7 +79,7 @@ cleanup_and_killall()
 
 	printf "TERMINATE\n" >&${maintain_pingers_fd}
 	printf "TERMINATE\n" >&${monitor_achieved_rates_fd}
-	[[ -n ${proc_pids['maintain_log_file']-} ]] && kill "${proc_pids['maintain_log_file']}" 2>/dev/null
+	[[ -n ${proc_pids['maintain_log_file']:-} ]] && kill "${proc_pids['maintain_log_file']}" 2>/dev/null
 
 	[[ -d "${run_path}" ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -399,7 +399,7 @@ monitor_achieved_rates()
 			case "${command[0]}" in
 
 				SET_VAR)
-					if [[ "${command[1]-}" && "${command[2]-}" ]]
+					if [[ "${command[1]:-}" && "${command[2]:-}" ]]
 					then
 						export -n "${command[1]}=${command[2]}"
 					fi
@@ -575,7 +575,7 @@ parse_tsping()
 
                                 SET_VAR)
 
-                                        if [[ "${command[1]-}" && "${command[2]-}" ]]
+                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -702,7 +702,7 @@ parse_fping()
 
                                 SET_VAR)
 
-                                        if [[ "${command[1]-}" && "${command[2]-}" ]]
+                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -825,7 +825,7 @@ parse_ping()
 
 				SET_REFLECTOR)
 
-                                        if [[ "${command[1]-}" ]]
+                                        if [[ "${command[1]:-}" ]]
 					then
 						reflector="${command[1]}"	
 						log_msg "DEBUG" "Read in new reflector: ${reflector}"
@@ -837,7 +837,7 @@ parse_ping()
 
                                 SET_VAR)
 
-                                        if [[ "${command[1]-}" && "${command[2]-}" ]]
+                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -1180,19 +1180,19 @@ maintain_pingers()
                         case "${command[0]}" in
 
                                 CHANGE_STATE)
-					if [[ "${command[1]-}" ]] 
+					if [[ "${command[1]:-}" ]] 
 					then
 						change_state_maintain_pingers "${command[1]}"
 					fi
 					;;
 				SET_ARRAY_ELEMENT)
-					if [[ "${command[1]-}" && "${command[2]-}" && "${command[3]-}" ]]
+					if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
 					then
 						declare -A "${command[1]}"+="(["${command[2]}"]="${command[3]}")"
 					fi
 					;;
 				SET_VAR)
-                                        if [[ "${command[1]-}" && "${command[2]-}" ]]
+                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -1246,7 +1246,7 @@ maintain_pingers()
 
 						t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
-						[[ "${dl_owd_baselines_us[${reflectors[0]}]-}" && "${dl_owd_baselines_us[${reflectors[0]}]-}" && "${ul_owd_baselines_us[${reflectors[0]}]-}" && "${ul_owd_baselines_us[${reflectors[0]}]-}" ]] || continue
+						[[ "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" ]] || continue
 
 						dl_min_owd_baseline_us="${dl_owd_baselines_us[${reflectors[0]}]}"
 						dl_min_owd_delta_ewma_us="${dl_owd_baselines_us[${reflectors[0]}]}"
@@ -1255,7 +1255,7 @@ maintain_pingers()
 
 						for ((pinger=0; pinger < no_pingers; pinger++))
 						do
-							[[ "${dl_owd_baselines_us[${reflectors[pinger]}]-}" && "${dl_owd_delta_ewmas_us[${reflectors[pinger]}]-}" && "${ul_owd_baselines_us[${reflectors[pinger]}]-}" && "${ul_owd_delta_ewmas_us[${reflectors[pinger]}]-}" ]] || continue 2
+							[[ "${dl_owd_baselines_us[${reflectors[pinger]}]:-}" && "${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-}" && "${ul_owd_baselines_us[${reflectors[pinger]}]:-}" && "${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-}" ]] || continue 2
 
 							((   dl_owd_baselines_us[${reflectors[pinger]}] < dl_min_owd_baseline_us   )) && dl_min_owd_baseline_us="${dl_owd_baselines_us[${reflectors[pinger]}]}"
 							(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < dl_min_owd_delta_ewma_us )) && dl_min_owd_delta_ewma_us="${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}"
@@ -1402,9 +1402,9 @@ get_max_wire_packet_size_bits()
  
 	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu" 
 	[[ $(tc qdisc show dev "${interface}" || true) =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
-	[[ -n "${BASH_REMATCH[2]-}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
+	[[ -n "${BASH_REMATCH[2]:-}" ]] && max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) )) 
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
-	[[ "${BASH_REMATCH[1]-}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
+	[[ "${BASH_REMATCH[1]:-}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
 }
 
 update_max_wire_packet_compensation()
@@ -1835,13 +1835,13 @@ do
 				;;
 
 			SET_VAR)
-				if [[ ${command[1]-} && ${command[2]-} ]]
+				if [[ ${command[1]:-} && ${command[2]:-} ]]
 				then
 					export -n "${command[1]}=${command[2]}"
 				fi
 				;;
 			SET_ARRAY_ELEMENT)
-				if [[ "${command[1]-}" && "${command[2]-}" && "${command[3]-}" ]]
+				if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
 				then
 					declare -A "${command[1]}"+="(["${command[2]}"]="${command[3]}")"
 				fi
