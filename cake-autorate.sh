@@ -79,7 +79,7 @@ cleanup_and_killall()
 
 	printf "TERMINATE\n" >&${maintain_pingers_fd}
 	printf "TERMINATE\n" >&${monitor_achieved_rates_fd}
-	kill "${proc_pids['maintain_log_file']}"
+	[[ -n ${proc_pids['maintain_log_file']-} ]] && kill "${proc_pids['maintain_log_file']}" 2>/dev/null
 
 	[[ -d "${run_path}" ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -1104,7 +1104,7 @@ change_state_maintain_pingers()
 		*)
 	
 			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_next_state}. Exiting now."
-			kill -INT $$
+			kill $$ 2>/dev/null
 			;;
 	esac
 }
@@ -1360,11 +1360,7 @@ set_cake_rate()
 
 	if ((adjust_shaper_rate)); then
 
-		if ((debug)); then
-			tc qdisc change root dev "${interface}" cake bandwidth "${shaper_rate_kbps}Kbit"
-		else
-			tc qdisc change root dev "${interface}" cake bandwidth "${shaper_rate_kbps}Kbit" 2> /dev/null
-		fi
+		tc qdisc change root dev "${interface}" cake bandwidth "${shaper_rate_kbps}Kbit" 2> /dev/null
 
 	else
 		((output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
@@ -1471,7 +1467,7 @@ change_state_main()
 		*)
 
 			log_msg "ERROR" "Received unrecognized main state change request: ${main_next_state}. Exiting now."
-			kill -INT $$
+			kill $$ 2>/dev/null
 			;;
 	esac
 }
@@ -1484,7 +1480,7 @@ intercept_stderr()
 	while read -r error
 	do
 		log_msg "ERROR" "${error}"
-		kill -INT $$
+		kill $$ 2>/dev/null
 	done
 }
 
