@@ -1964,7 +1964,7 @@ do
 			
 			[[ "${command[0]}" == "REFLECTOR_RESPONSE" && "${timestamp-}" ]] && reflectors_last_timestamp_us=${timestamp//[.]}
 
-			if [[ "${command[0]}" == "REFLECTOR_RESPONSE" || ! (( dl_achieved_rate_kbps > connection_stall_thr_kbps && ul_achieved_rate_kbps > connection_stall_thr_kbps )) ]]
+			if [[ "${command[0]}" == "REFLECTOR_RESPONSE" ]] || (( dl_achieved_rate_kbps > connection_stall_thr_kbps && ul_achieved_rate_kbps > connection_stall_thr_kbps ))
 			then
 
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
