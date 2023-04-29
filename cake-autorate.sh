@@ -1976,7 +1976,6 @@ do
 			if (( global_ping_response_timeout==0 && ${EPOCHREALTIME/./} > (t_connection_stall_time_us + global_ping_response_timeout_us - stall_detection_timeout_us) ))
 			then 
 				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded." 
-				verify_ifs_up
 				((min_shaper_rates_enforcement)) && set_min_shaper_rates
 				global_ping_response_timeout=1
 			fi
