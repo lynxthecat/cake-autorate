@@ -98,21 +98,35 @@ unlock()
 	rm -f "${path:?}"
 }
 
-kill_with_fire()
+terminate()
 {
-	# Checks for any leftover processes 
-	# and kills with with any that remain
+	# Send regular kill to active processes and monitor terminations;
+	# return as soon as all of the previously active processes terminate;
+	# if any processes remain after one second, kill with fire using kill -9
 
-	local -n pids=${1}
-
+	local pids=(${@:-})
+	
 	for process in "${!pids[@]}"
 	do
 		if kill -0 "${pids[${process}]}" 2> /dev/null
 		then
-			printf "Process: ${process} with pid: "${pids[${process}]}" still alive so killing with fire.\n"
-			kill -9 "${pids[${process}]}" 2> /dev/null || true
+			kill "${pids[${process}]}" 2> /dev/null
+		else
+			unset pids["${process}"]
 		fi
 	done
+
+	for((i=0; i<10; i++))
+	do
+		for process in "${!pids[@]}"
+		do
+			kill -0 "${pids[${process}]}" 2> /dev/null || unset pids["${process}"]
+		done
+		[[ "${pids[@]}" ]] || return
+		sleep_s 0.1
+	done
+
+	kill -9 "${pids[@]}" 2> /dev/null
 }
 
 

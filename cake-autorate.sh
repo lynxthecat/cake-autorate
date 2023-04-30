@@ -79,7 +79,6 @@ cleanup_and_killall()
 
 	printf "TERMINATE\n" >&${maintain_pingers_fd}
 	printf "TERMINATE\n" >&${monitor_achieved_rates_fd}
-	[[ -n ${proc_pids['maintain_log_file']:-} ]] && kill "${proc_pids['maintain_log_file']}" 2>/dev/null
 
 	[[ -d "${run_path}" ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -87,8 +86,8 @@ cleanup_and_killall()
 	# give some time for processes to gracefully exit
 	sleep_s 1
 
-	# kill with fire any processes that remain
-	kill_with_fire proc_pids
+	# terminate any processes that remain
+	terminate "${proc_pids[@]}"
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -504,7 +503,7 @@ parse_preprocessor()
 parse_tsping()
 {
 	trap '' INT
-	trap 'kill "${parse_preprocessor_pid}" "${pinger_pid}" 2> /dev/null' TERM EXIT		
+	trap 'terminate "${parse_preprocessor_pid}" "${pinger_pid}"' TERM EXIT		
 
 	local parse_id="${1}"
 	local reflectors=("${@:2}")
@@ -554,7 +553,7 @@ parse_tsping()
 
 				KILL_PINGER)
 
-					kill "${pinger_pid}" 2>/dev/null
+					terminate "${pinger_pid}"
 					continue
 					;;
 
@@ -634,7 +633,7 @@ parse_tsping()
 parse_fping()
 {
 	trap '' INT
-	trap 'kill "${parse_preprocessor_pid}" "${pinger_pid}" 2> /dev/null' TERM EXIT		
+	trap 'terminate "${parse_preprocessor_pid}" "${pinger_pid}"' TERM EXIT		
 
 	local parse_id="${1}"
 
@@ -682,7 +681,7 @@ parse_fping()
 
 				KILL_PINGER)
 
-					kill "${pinger_pid}" 2> /dev/null
+					terminate "${pinger_pid}"
 					continue
 					;;
 
@@ -774,7 +773,7 @@ parse_fping()
 parse_ping() 
 {
 	trap '' INT
-	trap 'kill "${parse_preprocessor_pid}" "${pinger_pid}" 2> /dev/null' TERM EXIT		
+	trap 'terminate "${parse_preprocessor_pid}" "${pinger_pid}"' TERM EXIT		
 
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
@@ -819,7 +818,7 @@ parse_ping()
 
 				KILL_PINGER)
 
-					kill "${pinger_pid}" 2> /dev/null
+					terminate "${pinger_pid}"
 					continue
 					;;
 
