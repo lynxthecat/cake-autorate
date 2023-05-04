@@ -560,7 +560,7 @@ parse_tsping()
 				SET_REFLECTORS)
 
 					read -r -a reflectors <<< "${command[@]:1}"
-					log_msg "DEBUG" "Read in new reflectors: ${reflectors[@]}"
+					log_msg "DEBUG" "Read in new reflectors: ${reflectors[*]}"
 					
 					for (( reflector=0; reflector<no_pingers; reflector++ ))
 					do
@@ -688,7 +688,7 @@ parse_fping()
 				SET_REFLECTORS)
 
 					read -a reflectors <<< "${command[@]:1}"
-					log_msg "DEBUG" "Read in new reflectors: ${reflectors[@]}"
+					log_msg "DEBUG" "Read in new reflectors: ${reflectors[*]}"
 				
 					for (( reflector=0; reflector<no_pingers; reflector++ ))
 					do
