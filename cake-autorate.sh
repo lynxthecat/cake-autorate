@@ -1235,8 +1235,9 @@ maintain_pingers()
 
 					if (( ${t_start_us}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) )); then
 		
+						pinger=$((RANDOM%no_pingers))
 						log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
-						replace_pinger_reflector $((RANDOM%no_pingers))
+						replace_pinger_reflector "${pinger}"
 						t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
 						continue
 					fi
