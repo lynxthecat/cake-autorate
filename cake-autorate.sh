@@ -613,8 +613,6 @@ parse_tsping()
 				ewma_iteration "${ul_owd_delta_us}" "${alpha_delta_ewma}" "ul_owd_delta_ewmas_us[${reflector}]"
 			fi
 
-			timestamp="${timestamp//[\[\]]}0"
-
 			printf "REFLECTOR_RESPONSE ${timestamp} ${reflector} ${seq} ${dl_owd_baselines_us[${reflector}]} ${dl_owd_us} ${dl_owd_delta_ewmas_us[${reflector}]} ${dl_owd_delta_us} ${ul_owd_baselines_us[${reflector}]} ${ul_owd_us} ${ul_owd_delta_ewmas_us[${reflector}]} ${ul_owd_delta_us}\n" >&"${main_fd}"
 
 			timestamp_us="${timestamp//[.]}"
