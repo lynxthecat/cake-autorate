@@ -598,17 +598,31 @@ parse_tsping()
 
 			dl_owd_us="${dl_owd_ms}000"
 			ul_owd_us="${ul_owd_ms}000"
-		
-			dl_alpha=$(( dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
-			ul_alpha=$(( ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
-
-			ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
-			ewma_iteration "${ul_owd_us}" "${ul_alpha}" "ul_owd_baselines_us[${reflector}]"
 
 			dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
 			ul_owd_delta_us=$(( ul_owd_us - ul_owd_baselines_us[${reflector}] ))
 
-			if (( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent)); then
+			if (( (${dl_owd_delta_us#-} + ${ul_owd_delta_us#-}) < 3000000000 )) 
+			then
+
+				dl_alpha=$(( dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
+				ul_alpha=$(( ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
+
+				ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
+				ewma_iteration "${ul_owd_us}" "${ul_alpha}" "ul_owd_baselines_us[${reflector}]"
+
+				dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
+				ul_owd_delta_us=$(( ul_owd_us - ul_owd_baselines_us[${reflector}] ))
+			else
+				dl_owd_baselines_us[${reflector}]=${dl_owd_us}
+				ul_owd_baselines_us[${reflector}]=${ul_owd_us}
+
+				dl_owd_delta_us=0
+				ul_owd_delta_us=0
+			fi
+
+			if (( dl_load_percent < high_load_thr_percent && ul_load_percent < high_load_thr_percent))
+			then
 				ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
 				ewma_iteration "${ul_owd_delta_us}" "${alpha_delta_ewma}" "ul_owd_delta_ewmas_us[${reflector}]"
 			fi
@@ -1229,9 +1243,9 @@ maintain_pingers()
 				
 				RUNNING)
 
-					if (( ${t_start_us}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) )); then
-		
-						pinger=$((RANDOM%no_pingers))
+					if (( ${t_start_us}>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) ))
+					then
+						pinger=$((RANDOM%no_pingers))	
 						log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
 						replace_pinger_reflector "${pinger}"
 						t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
