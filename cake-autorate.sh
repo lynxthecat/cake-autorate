@@ -1063,8 +1063,6 @@ kill_maintain_pingers()
 
 	log_msg "DEBUG" "Terminating maintain_pingers."
 
-	kill_pingers
-
         case "${pinger_binary}" in
 
                 tsping|fping)
