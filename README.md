@@ -56,8 +56,9 @@ Only requires:
 
 A pinger binary chosen from:
 
-- **fping** round robin pinging to multiple reflectors with tightly controlled timings (default selection)
-- **iputils-ping** advanced pinging than the default busybox ping with sub 1s ping frequency
+- **fping** round robin pinging to multiple reflectors with tightly controlled timings (default)
+- **tsping** round robin ICMP type 13 pinging to multiple reflectors with tightly controlled timings 
+- **iputils-ping** more advanced pinging than the default busybox ping with sub 1s ping frequency
 
 The pinger binary that cake-autorate uses is set using the $pinger_binary variable in the config file. 
 
@@ -116,6 +117,14 @@ as described in the
       | `log_file_max_time_mins` | Number of minutes to elapse between log file rotaton |
       | `log_file_max_size_KB` | Number of KB (i.e. bytes/1024) worth of log lines between log file rotations |
   
+## tsping ## 
+
+@Lochnair has coded up an elegant ping utility in C that sends out ICMP type 13 requests in a round robin manner, thereby facilitating determination of one way delays (OWDs), i.e. not just round trip time (RTT), but the constituent download and upload delays, relative to multiple reflectors. Presently this must be compiled manually (although we can expect an official OpenWrt package soon). 
+
+tsping is available (together with instructions for building an OpenWrt package) here:
+
+https://github.com/Lochnair/tsping
+
 ## Extracting and plotting logs ##
 
 A compressed log file can be extracted from a running cake-autorate instance using one of either two methods:
