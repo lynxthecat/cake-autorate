@@ -431,9 +431,6 @@ monitor_achieved_rates()
 			dl_load_percent=$(( (100*dl_achieved_rate_kbps)/dl_shaper_rate_kbps ))
 			ul_load_percent=$(( (100*ul_achieved_rate_kbps)/ul_shaper_rate_kbps ))
 			
-			printf "SET_VAR dl_load_percent %s\n" "${dl_load_percent}" >&"${main_fd}"
-			printf "SET_VAR dl_load_percent %s\n" "${dl_load_percent}" >&"${main_fd}"
-
 			for pinger_fd in "${pinger_fds[@]}"
 			do
 				printf "SET_VAR dl_load_percent %s\n" "${dl_load_percent}" >&"${pinger_fd}"
