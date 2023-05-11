@@ -104,7 +104,7 @@ terminate()
 	# return as soon as all of the previously active processes terminate;
 	# if any processes remain after one second, kill with fire using kill -9
 
-	local pids=(${@:-})
+	local pids=("${@:-}")
 	
 	for process in "${!pids[@]}"
 	do
@@ -112,7 +112,7 @@ terminate()
 		then
 			kill "${pids[${process}]}" 2> /dev/null
 		else
-			unset pids["${process}"]
+			unset "pids[${process}]"
 		fi
 	done
 
@@ -120,9 +120,9 @@ terminate()
 	do
 		for process in "${!pids[@]}"
 		do
-			kill -0 "${pids[${process}]}" 2> /dev/null || unset pids["${process}"]
+			kill -0 "${pids[${process}]}" 2> /dev/null || unset "pids[${process}]"
 		done
-		[[ "${pids[@]}" ]] || return
+		[[ "${pids[*]}" ]] || return
 		sleep_s 0.1
 	done
 
