@@ -602,6 +602,23 @@ parse_tsping()
 			dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
 			ul_owd_delta_us=$(( ul_owd_us - ul_owd_baselines_us[${reflector}] ))
 
+			# tsping employs ICMP type 13 and works with timestamps: Originate; Received; Transmit; and Finished, such that:
+			#
+			# dl_owd_us = Finished - Transmit
+			# ul_owd_us = Received - Originate
+			# 
+			# The timestamps are supposed to relate to milliseconds past midnight UTC, albeit implementation varies, and, 
+			# in any case, timestamps rollover at the local and/or remote ends, and the rollover may not be synchronized. 
+			# 
+			# Such an event would result in a huge spike in dl_owd_us or ul_owd_us and a lare delta relative to the baseline.
+			# 
+			# So, to compensate, in the event that delta > 50 mins, immediately reset the baselines to the new dl_owd_us and ul_owd_us.
+			# 
+			# Happilly, the sum of dl_owd_baseline_us and ul_owd_baseline_us will roughly equal rtt_baseline_us.
+			# And since Transmit is approximately equal to Received, RTT is approximately equal to Finished - Originate.
+			# And thus the sum of dl_owd_baseline_us and ul_owd_baseline_us should not be affected by the rollover/compensation.
+			# Hence working with this sum, rather than the individual components, is useful for the reflector health check in maintain_pingers(). 
+
 			if (( (${dl_owd_delta_us#-} + ${ul_owd_delta_us#-}) < 3000000000 )) 
 			then
 
