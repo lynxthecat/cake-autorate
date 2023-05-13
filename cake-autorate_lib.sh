@@ -100,21 +100,14 @@ unlock()
 
 terminate()
 {
-	# Send regular kill to active processes and monitor terminations;
-	# return as soon as all of the previously active processes terminate;
-	# if any processes remain after one second, kill with fire using kill -9
+	# Send regular kill to processes and monitor terminations;
+	# return as soon as all of the active processes terminate;
+	# if any processes remain active after one second, kill with fire using kill -9;
+	# and, finally, call wait on all processes to reap any zombie processes.
 
 	local pids=("${@:-}")
 	
-	for process in "${!pids[@]}"
-	do
-		if kill -0 "${pids[${process}]}" 2> /dev/null
-		then
-			kill "${pids[${process}]}" 2> /dev/null
-		else
-			unset "pids[${process}]"
-		fi
-	done
+	kill "${pids[@]}" 2> /dev/null
 
 	for((i=0; i<10; i++))
 	do
@@ -127,6 +120,8 @@ terminate()
 	done
 
 	kill -9 "${pids[@]}" 2> /dev/null
+
+	wait "${@:-}"
 }
 
 
