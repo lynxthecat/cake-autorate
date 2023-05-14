@@ -1974,6 +1974,7 @@ do
 				log_msg "DEBUG" "dl achieved rate: ${dl_achieved_rate_kbps} kbps or ul achieved rate: ${ul_achieved_rate_kbps} kbps exceeded connection active threshold: ${connection_active_thr_kbps} kbps. Resuming normal operation."
 				change_state_main "RUNNING"
 				printf "CHANGE_STATE START\n" >&"${maintain_pingers_fd}"
+				t_sustained_connection_idle_us=0
 				# Give some time to enable pingers to get set up
 				reflectors_last_timestamp_us=$(( "${EPOCHREALTIME/./}" + 2*reflector_ping_interval_us ))
 			fi
