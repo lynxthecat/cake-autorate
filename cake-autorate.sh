@@ -1767,17 +1767,22 @@ set_shaper_rates
 
 update_max_wire_packet_compensation
 
+main_state="RUNNING"
+
 t_start_us="${EPOCHREALTIME/./}"
 t_end_us="${EPOCHREALTIME/./}"
 
-t_prev_ul_rate_set_us="${t_start_us}"
-t_prev_dl_rate_set_us="${t_start_us}"
-t_ul_last_bufferbloat_us="${t_start_us}"
-t_ul_last_decay_us="${t_start_us}"
 t_dl_last_bufferbloat_us="${t_start_us}"
+t_ul_last_bufferbloat_us="${t_start_us}"
 t_dl_last_decay_us="${t_start_us}"
+t_ul_last_decay_us="${t_start_us}"
 
 t_sustained_connection_idle_us=0
+reflectors_last_timestamp_us="${EPOCHREALTIME/./}"
+dl_achieved_rate_kbps=0
+ul_achieved_rate_kbps=0
+dl_load_percent=0
+ul_load_percent=0
 
 mapfile -t dl_delays < <(for ((i=1; i <= bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t ul_delays < <(for ((i=1; i <= bufferbloat_detection_window; i++)); do echo 0; done)
@@ -1831,13 +1836,6 @@ generate_log_file_exporter
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
-main_state="RUNNING"
-
-reflectors_last_timestamp_us="${EPOCHREALTIME/./}"
-dl_achieved_rate_kbps=0
-ul_achieved_rate_kbps=0
-dl_load_percent=0
-ul_load_percent=0
 
 while true
 do
