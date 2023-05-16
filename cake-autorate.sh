@@ -524,10 +524,6 @@ parse_tsping()
 	dl_load_percent=0
 	ul_load_percent=0
 	
-	exec {parse_preprocessor_fd}> >(parse_preprocessor)
-	parse_preprocessor_pid="${!}"
-	printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
-
 	while true
 	do
 		unset command
@@ -542,6 +538,9 @@ parse_tsping()
 
 				START_PINGER)
 				
+					exec {parse_preprocessor_fd}> >(parse_preprocessor)
+					parse_preprocessor_pid="${!}"
+					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
 					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
@@ -551,6 +550,7 @@ parse_tsping()
 				KILL_PINGER)
 
 					terminate "${pinger_pid}"
+					exec {parse_preprocessor_fd}>&-
 					continue
 					;;
 
@@ -680,10 +680,6 @@ parse_fping()
 	ul_load_percent=0
 	t_start_us="${EPOCHREALTIME/./}"
 					
-	exec {parse_preprocessor_fd}> >(parse_preprocessor)
-	parse_preprocessor_pid="${!}"
-	printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
-
 	while true
 	do
 		unset command
@@ -699,6 +695,9 @@ parse_fping()
 
 				START_PINGER)
 
+					exec {parse_preprocessor_fd}> >(parse_preprocessor)
+					parse_preprocessor_pid="${!}"
+					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
 					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
@@ -708,6 +707,7 @@ parse_fping()
 				KILL_PINGER)
 
 					terminate "${pinger_pid}"
+					exec {parse_preprocessor_fd}>&-
 					continue
 					;;
 
@@ -817,10 +817,6 @@ parse_ping()
 	dl_load_percent=0
 	ul_load_percent=0
 	
-	exec {parse_preprocessor_fd}> >(parse_preprocessor)
-	parse_preprocessor_pid="${!}"
-	printf "SET_ARRAY_ELEMENT %s %s\n" "proc_pids ${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
-	
 	while true
 	do
 		unset command
@@ -836,6 +832,9 @@ parse_ping()
 
 				START_PINGER)
 
+					exec {parse_preprocessor_fd}> >(parse_preprocessor)
+					parse_preprocessor_pid="${!}"
+					printf "SET_ARRAY_ELEMENT %s %s\n" "proc_pids ${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflector}" 2> /dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
 					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
@@ -845,6 +844,7 @@ parse_ping()
 				KILL_PINGER)
 
 					terminate "${pinger_pid}"
+					exec {parse_preprocessor_fd}>&-
 					continue
 					;;
 
