@@ -540,10 +540,10 @@ parse_tsping()
 				
 					exec {parse_preprocessor_fd}> >(parse_preprocessor)
 					parse_preprocessor_pid="${!}"
-					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
+					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
-					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
+					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
 					continue
 					;;
 
@@ -697,10 +697,10 @@ parse_fping()
 
 					exec {parse_preprocessor_fd}> >(parse_preprocessor)
 					parse_preprocessor_pid="${!}"
-					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
+					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
-					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
+					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
 					continue
 					;;
 
@@ -834,10 +834,10 @@ parse_ping()
 
 					exec {parse_preprocessor_fd}> >(parse_preprocessor)
 					parse_preprocessor_pid="${!}"
-					printf "SET_ARRAY_ELEMENT %s %s\n" "proc_pids ${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
+					printf "SET_PROC_PID %s %s\n" "proc_pids ${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflector}" 2> /dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
-					printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
+					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
 					continue
 					;;
 
@@ -1177,17 +1177,17 @@ maintain_pingers()
 
 		tsping)
 			parse_tsping "parse_tsping" "${reflectors[@]:0:${no_pingers}}" &
-			printf "SET_ARRAY_ELEMENT proc_pids parse_tsping %s\n" "${!}" >&"${main_fd}"
+			printf "SET_PROC_PID proc_pids parse_tsping %s\n" "${!}" >&"${main_fd}"
 			;;		
 		fping)
 			parse_fping "parse_fping" "${reflectors[@]:0:${no_pingers}}" &
-			printf "SET_ARRAY_ELEMENT proc_pids parse_fping %s\n" "${!}" >&"${main_fd}"
+			printf "SET_PROC_PID proc_pids parse_fping %s\n" "${!}" >&"${main_fd}"
 			;;	
 		ping)
 			for((pinger=0; pinger < no_pingers; pinger++))
 			do
 				parse_ping "parse_ping_${pinger}" "${reflectors[pinger]}" &
-				printf "SET_ARRAY_ELEMENT proc_pids %s %s\n" "parse_ping_${pinger}" "${!}" >&"${main_fd}"
+				printf "SET_PROC_PID proc_pids %s %s\n" "parse_ping_${pinger}" "${!}" >&"${main_fd}"
 			done
 			;;
 	esac
@@ -1865,6 +1865,17 @@ do
 				then
 					declare -A "${command[1]}"+="(["${command[2]}"]="${command[3]}")"
 				fi
+				;;
+			SET_PROC_PID)
+				if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+				then
+					declare -A "${command[1]}"+="(["${command[2]}"]="${command[3]}")"
+				fi
+				> "${run_path}/proc_pids"
+				for proc_pid in "${!proc_pids[@]}"
+				do
+					printf "%s = %s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> "${run_path}/proc_pids"
+				done
 				;;
 			*)
 				;;
