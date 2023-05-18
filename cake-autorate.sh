@@ -491,9 +491,10 @@ classify_load()
 
 parse_preprocessor()
 {
-	while read -r pinger_line
+	# prepend REFLECTOR_RESPONSE and append timestamp as a checksum
+	while read -r timestamp remainder
 	do
-		printf "REFLECTOR_RESPONSE %s\n" "${pinger_line}" >&"${pinger_fds[pinger]}" 
+		printf "REFLECTOR_RESPONSE %s %s %s\n" "${timestamp}" "${remainder}" "${timestamp}" >&"${pinger_fds[pinger]}" 
 	done
 }
 
@@ -520,7 +521,6 @@ parse_tsping()
 		ul_owd_delta_ewmas_us[${reflectors[reflector]}]="${ul_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
 	done
 
-	t_start_us="${EPOCHREALTIME/./}"
 	dl_load_percent=0
 	ul_load_percent=0
 	
@@ -533,7 +533,7 @@ parse_tsping()
                         case "${command[0]}" in
 
 				REFLECTOR_RESPONSE)
-					read -r timestamp reflector seq _ _ _ _ _ dl_owd_ms ul_owd_ms <<< "${command[@]:1}"
+					read -r timestamp reflector seq _ _ _ _ _ dl_owd_ms ul_owd_ms checksum <<< "${command[@]:1}"
 					;;
 
 				START_PINGER)
@@ -589,9 +589,9 @@ parse_tsping()
                         esac
 		fi
 
-		if [[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${dl_owd_ms-}" && "${ul_owd_ms-}" ]]
+		if [[ "${timestamp:-}" && "${reflector:-}" && "${seq:-}" && "${dl_owd_ms:-}" && "${ul_owd_ms:-}" && "${checksum:-}" ]]
 		then
-			t_start_us="${EPOCHREALTIME/./}"
+			[[ "${checksum}" == "${timestamp}" ]] || continue
 
 			dl_owd_us="${dl_owd_ms}000"
 			ul_owd_us="${ul_owd_ms}000"
@@ -691,6 +691,7 @@ parse_fping()
 				REFLECTOR_RESPONSE)
 
 					read -r timestamp reflector _ seq_rtt <<< "${command[@]:1}"
+					checksum="${command[@]: -1}"
 					;;
 
 				START_PINGER)
@@ -746,9 +747,9 @@ parse_fping()
                         esac
 		fi	
 
-		if [[ "${timestamp-}" && "${reflector-}" && "${seq_rtt}" ]]
+		if [[ "${timestamp:-}" && "${reflector:-}" && "${seq_rtt:-}" && "${checksum:-}" ]]
 		then
-			t_start_us="${EPOCHREALTIME/./}"
+			[[ "${checksum}" == "${timestamp}" ]] || continue
 
 			[[ "${seq_rtt}" =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
@@ -828,6 +829,7 @@ parse_ping()
 				REFLECTOR_RESPONSE)
 
 					read -r timestamp _ _ _ reflector seq_rtt <<< "${command[@]:1}"
+					checksum="${command[@]: -1}"
 					;;
 
 				START_PINGER)
@@ -883,8 +885,9 @@ parse_ping()
                         esac
 		fi	
 
-		if [[ "${timestamp-}" && "${reflector-}" && "${seq_rtt-}" ]]
+		if [[ "${timestamp:-}" && "${reflector:-}" && "${seq_rtt:-}" && "${checksum:-}" ]]
 		then
+			[[ "${checksum}" == "${timestamp}" ]] 
 			# If no match then skip onto the next one
 			[[ "${seq_rtt}" =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
