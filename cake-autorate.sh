@@ -2007,9 +2007,12 @@ do
 
 			if (( global_ping_response_timeout==0 && ${EPOCHREALTIME/./} > (t_connection_stall_time_us + global_ping_response_timeout_us - stall_detection_timeout_us) ))
 			then 
-				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded." 
-				((min_shaper_rates_enforcement)) && set_min_shaper_rates
 				global_ping_response_timeout=1
+				((min_shaper_rates_enforcement)) && set_min_shaper_rates
+				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded." 
+				log_msg "DEBUG" "Restarting pingers." 
+				printf "CHANGE_STATE STOP\n" >&"${maintain_pingers_fd}"
+				printf "CHANGE_STATE START\n" >&"${maintain_pingers_fd}"
 			fi
 			;;
 	esac
