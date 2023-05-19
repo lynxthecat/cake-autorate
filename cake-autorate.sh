@@ -86,8 +86,14 @@ cleanup_and_killall()
 	# give some time for processes to gracefully exit
 	sleep_s 1
 
-	# terminate any processes that remain
+	# terminate any processes that remain, save for intercept_stderr
+	intercept_stderr_pid="${proc_pids[intercept_stderr]}"
+	unset proc_pids[intercept_stderr]
 	terminate "${proc_pids[@]}"
+
+	# restore original stderr, and terminate intercept_stderr
+	exec 2>&"${original_stderr_fd}"
+	terminate "${intercept_stderr_pid}"
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -1639,8 +1645,11 @@ fi
 
 rotate_log_file # rotate here to force header prints at top of log file
 
-# Intercept stderr, redirect it to log_msg and exit cake-autorate
-exec 2> >(intercept_stderr)
+# save stderr fd, redirect stderr to intercept_stderr
+# intercept_stderr sends stderr to log_msg and exits cake-autorate
+exec {original_stderr_fd}>&2 2> >(intercept_stderr)
+
+proc_pids['intercept_stderr']=${!}
 
 log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
