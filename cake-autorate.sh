@@ -168,15 +168,17 @@ rotate_log_file()
 	((output_processing_stats)) && print_headers
 }
 
-generate_log_file_exporter()
+generate_log_file_scripts()
 {
-	cat > "${run_path}/export_log_file" <<- EOT
+	cat > "${run_path}/log_file_export" <<- EOT
 	#!/bin/bash
 
 	timeout_s=\${1:-20}
 
-	if ! kill -USR1 "${proc_pids['maintain_log_file']}"
+	if kill -USR1 "${proc_pids['maintain_log_file']}"
 	then
+		printf "Successfully signalled maintain_log_file process to request log file export.\n"
+	else
 		printf "ERROR: Failed to signal maintain_log_file process.\n" >&2
 		exit 1
 	fi
@@ -201,7 +203,19 @@ generate_log_file_exporter()
 	printf "\${log_file_export_path}\n"
 	EOT
 
-	chmod +x "${run_path}/export_log_file"
+        cat > "${run_path}/log_file_rotate" <<- EOT
+        #!/bin/bash
+
+        if kill -USR2 "${proc_pids['maintain_log_file']}"
+        then
+		printf "Successfully signalled maintain_log_file process to request log file rotation.\n"
+	else
+                printf "ERROR: Failed to signal maintain_log_file process.\n" >&2
+                exit 1
+        fi
+	EOT
+
+	chmod +x "${run_path}/log_file_export" "${run_path}/log_file_rotate"
 }
 
 export_log_file()
@@ -261,9 +275,11 @@ maintain_log_file()
 	trap '' INT
 	trap 'kill_maintain_log_file' TERM EXIT
 	trap 'export_log_file' USR1
+	trap 'rotate_log_file_signalled=1' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
+	rotate_log_file_signalled=0
 	t_log_file_start_us=${EPOCHREALTIME/./}
 
 	get_log_file_size_bytes
@@ -283,16 +299,20 @@ maintain_log_file()
 			((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
 
 			# Verify log file time < configured maximum
-			if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us )); then
+			if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us ))
+			then
 			
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so rotating log file"
 				break
-			fi
-
-			if (( log_file_size_bytes > log_file_max_size_bytes )); then
-
+			elif (( log_file_size_bytes > log_file_max_size_bytes ))
+			then
 				log_file_size_KB=$((log_file_size_bytes/1024))
 				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so rotating log file"
+				break
+			elif (( rotate_log_file_signalled ))
+			then
+				log_msg "DEBUG" "received log file rotation signal so rotating log file."
+				rotate_log_file_signalled=0
 				break
 			fi
 
@@ -1837,7 +1857,7 @@ esac
 maintain_pingers &
 proc_pids['maintain_pingers']="${!}"
 
-generate_log_file_exporter
+generate_log_file_scripts
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
