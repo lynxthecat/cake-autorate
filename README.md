@@ -178,7 +178,7 @@ can be created from an exported log file using the excellent Octave/Matlab utili
 Here is an example script to extract the log from the router and generate the pdfs for viewing from a client machine:
 
 ```bash
-log_file=$(ssh root@192.168.1.1 '/var/run/cake-autorate/primary/log_file_export 1>/dev/null && cat /var/run/cake-autorate/primary/last_log_file_export') && scp root@192.168.1.1:${log_file} . && ssh root@192.168.1.1 'rm ${log_file}'
+log_file=$(ssh root@192.168.1.1 '/var/run/cake-autorate/primary/log_file_export 1>/dev/null && cat /var/run/cake-autorate/primary/last_log_file_export') && scp root@192.168.1.1:${log_file} . && ssh root@192.168.1.1 "rm ${log_file}"
 octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 ```
 
