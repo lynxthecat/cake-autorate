@@ -125,14 +125,14 @@ tsping is available (together with instructions for building an OpenWrt package)
 
 https://github.com/Lochnair/tsping
 
-## Extracting and plotting logs ##
+## Exporting a Log File ##
 
 A compressed log file can be extracted from a running cake-autorate instance using one of either two methods:
 
-- **1) by running an auto-generated export script inside the run directory:**
+- **1) by running the auto-generated log_file_export script inside the run directory:**
 
 ```bash
-/var/run/cake-autorate/*/export_log_file
+/var/run/cake-autorate/*/log_file_export
 ```
 
 or
@@ -145,11 +145,30 @@ kill -USR1 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_fi
 
 This will place a compressed log file in /var/log with the date and time in its filename.
 
-And a very helpful summary plot like this: 
+## Rotating the Log File ##
+
+Similarly, a log file rotation can be requested on a running cake-autorate instance by using one of either two methods
+
+- **1) by running the auto-generated log_file_rotate script inside the run directory:**
+
+```bash
+/var/run/cake-autorate/*/log_file_rotate
+```
+or
+
+- **2) by sending a USR2 signal to the maintain log file process using:**
+
+```bash
+kill -USR2 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_file=' | cut -d= -f2)
+```
+
+## Plotting the Log File ##
+
+A very helpful summary plot like this: 
 
 <img src="https://user-images.githubusercontent.com/10721999/194724668-d8973bb6-5a37-4b05-a212-3514db8f56f1.png" width=80% height=80%>
 
-can be created therefrom using the excellent Octave/Matlab utility put together by @moeller0 of OpenWrt, using something like:
+can be created from an exported log file using the excellent Octave/Matlab utility put together by @moeller0 of OpenWrt, using something like:
  
  ```bash
  octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./output.pdf")'
@@ -159,7 +178,7 @@ can be created therefrom using the excellent Octave/Matlab utility put together 
 Here is an example script to extract the log from the router and generate the pdfs for viewing from a client machine:
 
 ```bash
-ssh root@192.168.1.1 'kill -USR1 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_file=' | cut -d= -f2)'  && sleep 5 && scp  root@192.168.1.1:/var/log/cake-autorate*.log.gz . && ssh root@192.168.1.1 'rm /var/log/cake-autorate*.log.gz'
+log_file=$(ssh root@192.168.1.1 '/var/run/cake-autorate/primary/log_file_export 1>/dev/null && cat /var/run/cake-autorate/primary/last_log_file_export') && scp root@192.168.1.1:${log_file} . && ssh root@192.168.1.1 'rm ${log_file}'
 octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 ```
 
