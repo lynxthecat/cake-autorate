@@ -1,22 +1,13 @@
 # Changelog
 
-**CAKE-autorate** is a script that minimizes latency by adjusting CAKE bandwidth settings based on traffic load and round-trip time measurements.
-Read the [README](./README.md) file for more about CAKE-autorate.
-This is the history of changes.
+**CAKE-autorate** is a script that minimizes latency by adjusting CAKE bandwidth settings based on traffic load and one-way-delay or round-trip time measurements.
+Read the [README](./README.md) file for more about CAKE-autorate. This is the history of changes.
 
-## 2023-06-?? - Version 2.1
-
-The theory of operation of CAKE-autorate remains the same.
-This 2.1 release improves the implementation over earlier versions.
-
-- CAKE-autorate has even lower CPU requirements and can now run successfully on older routers.
-- Many changes to catch and handle unusual error conditions
-- Log files: Improved rotation, and better information for analysis
-- Incorporate the ability to use different ping binary programs
-
-## 2023-04-13 - Version 2.0
+## 2023-05-27 - Version 2.0
 
 - This version incorporates a restructure of the bash code for improved robustness, stability and performance.
+- CAKE-autorate has even lower CPU requirements and can now run successfully on older routers.
+- Many changes to catch and handle unusual error conditions
 - Introduce support for one way delays (OWDs) using the 'tsping' binary developed by @Lochnair of the OpenWrt forum. This works with ICMP type 13 (timestamp) requests to ascertain the delay in each direction (i.e. OWDs).
 - Employ FIFOs for passing not only data, but also commands, between the major processes, obviating costly reliance on temporary files. A side effect of this is that now /var/run/cake-autorate is mostly empty during runs.
 - Significantly reduced CPU consumption.
