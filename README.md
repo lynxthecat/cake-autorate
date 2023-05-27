@@ -1,6 +1,6 @@
 # CAKE with Adaptive Bandwidth - "autorate"
 
-**CAKE-autorate** is a script that minimizes latency by adjusting CAKE bandwidth settings based on traffic load and round-trip time measurements. CAKE-autorate is intended for variable bandwidth connections such as LTE, Starlink, and cable modems and is not generally required for use on connections that have a stable, fixed bandwidth.
+**CAKE-autorate** is a script that automatcially adjusts CAKE bandwidth settings based on traffic load and round-trip time measurements. CAKE-autorate is intended for variable bandwidth connections such as LTE, Starlink, and cable modems and is not generally required for use on connections that have a stable, fixed bandwidth.
 
 [CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/) is an algorithm that manages the buffering of data being sent/received by a device such as an [OpenWrt router](https://openwrt.org) so that no more data is queued than is necessary, minimizing the latency ("bufferbloat") and improving the responsiveness of a network.
 
