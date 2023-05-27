@@ -6,12 +6,11 @@
 
 Present version is 2.0.0 - please see [the changelog](CHANGELOG.md) for details.
 
-## The Problem: CAKE on variable speed connections forces an Unpalatable Compromise
+## The Problem: CAKE on variable speed connections forces an unpalatable compromise
 
 The CAKE algorithm uses static upload and download bandwidth settings to manage its queues. Variable bandwidth connections present a challenge because the actual bandwidth at any given moment is not known.
 
-Because CAKE works with fixed speed parameters,  the user must choose a single compromise bandwidth setting. This compromise is not ideal: setting the parameter too low means
-the connection is unnecessarily throttled to the compromise setting even when the available link speed is higher (yellow). Setting the rate too high, for times when the usable line rate falls below the compromise value, the link is not throttled enough (green) resulting in bufferbloat.
+Because CAKE works with fixed bandwidth parameters,  the user must choose a single compromise bandwidth setting. This compromise is not ideal: setting the parameter too low means the connection is unnecessarily throttled to the compromise setting even when the available link speed is higher (yellow). Setting the rate too high, for times when the usable line rate falls below the compromise value, means that the link is not throttled enough (green) resulting in bufferbloat.
 
 <img src="images/bandwidth-compromise.png" width=75% height=75%>
 
@@ -25,11 +24,9 @@ The CAKE-autorate script continually measures the load and One Way Delay or Roun
 
 CAKE-autorate uses this simple approach:
 
-- with low load, decay rate back to the configured baseline
-(and subject to refractory period)
+- with low load, decay rate back to the configured baseline (and subject to refractory period)
 - with high load, increase rate subject to the configured maximum
-- if bufferbloat (increased latency) is detected, decrease rate subject
-to the configured min (and subject to refractory period)
+- if bufferbloat (increased latency) is detected, decrease rate subject to the configured min (and subject to refractory period)
 
 <img src="images/cake-bandwidth-autorate-rate-control.png" width=80% height=80%>
 
@@ -63,7 +60,7 @@ CAKE-autorate maintains a detailed log file thats is helpful in discerning perfo
 
 ## Optimizations
 
-CAKE-autorate uses inter-process communication between multiple concurrent processes to dramatically decrease the CPU required to perform its many tasks. The `ps |grep -e bash -e fping` shows the many tasks running:
+CAKE-autorate uses inter-process communication between multiple concurrent processes and incorporates various optimisations to reduce the CPU load nedded to perform its many tasks. A call to `ps |grep -e bash -e fping` reveals the presence of the multiple concurrent processes for each cake-autorate instance. This is normal and expected behaviour. 
 
 ```bash
 root@OpenWrt-1:~/cake-autorate# ps |grep -e bash -e fping
