@@ -1,10 +1,18 @@
 # Changelog
 
-**autorate.sh** is a script that automatically adapts
-[CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
-bandwidth settings by measuring traffic load and RTT times.
-Read the [README](./README.md) file for more details.
+**CAKE-autorate** is a script that minimizes latency by adjusting CAKE bandwidth settings based on traffic load and round-trip time measurements.
+Read the [README](./README.md) file for more about CAKE-autorate.
 This is the history of changes.
+
+## 2023-06-?? - Version 2.1
+
+The theory of operation of CAKE-autorate remains the same.
+This 2.1 release improves the implementation over earlier versions.
+
+- CAKE-autorate has even lower CPU requirements and can now run successfully on older routers.
+- Many changes to catch and handle unusual error conditions
+- Log files: Improved rotation, and better information for analysis
+- Incorporate the ability to use different ping binary programs
 
 ## 2023-04-13 - Version 2.0
 
