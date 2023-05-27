@@ -4,10 +4,10 @@
 bandwidth settings based on traffic load and round-trip time measurements.
 See the main [README](./README.md) page for more details of the algorithm.
 
-## Exporting a Log File ##
+## Exporting a Log File
 
-A compressed log file can be extracted from a running
-cake-autorate instance using one of either two methods:
+Extract a compressed log file from a running
+cake-autorate instance using one of these methods:
 
 1. Run the auto-generated _log\_file\_export_ script inside the run directory:
 
@@ -28,8 +28,8 @@ with the date and time in its filename.
 
 ## Rotating the Log File
 
-Similarly, a log file rotation can be requested on a running
-cake-autorate instance by using one of either two methods
+Force a log file rotation on a running
+cake-autorate instance by using one of these methods:
 
 1. Run the auto-generated log_file_rotate script inside the run directory:
 

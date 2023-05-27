@@ -2,7 +2,7 @@
 
 **CAKE-autorate** is a script that minimizes latency by adjusting CAKE
 bandwidth settings based on traffic load and round-trip time measurements.
-This is intended for variable bandwidth connections such as
+CAKE-autorate is intended for variable bandwidth connections such as
 LTE, Starlink, and cable modems and is not generally required
 for use on connections that have a stable, fixed bandwidth.
 
@@ -14,23 +14,21 @@ and improving the responsiveness of a network.
 
 Present version is 2.1.0 - please see [the changelog](CHANGELOG.md) for details.
 
-## The Problem: CAKE on Variable Speed Connections forces an Unpalatable Compromise
+## The Problem: CAKE on variable speed connections forces an Unpalatable Compromise
 
-The CAKE algorithm works from fixed upload and download bandwidth
+The CAKE algorithm uses static upload and download bandwidth
 settings to manage its queues.
 Variable bandwidth connections present a challenge because
 the actual bandwidth at any given moment is not known.
 
-Because CAKE works with fixed speed parameters the user must choose
-a compromise bandwidth setting.
-Setting it too low means lost bandwidth in exchange for latency control;
-setting the parameter too high induces bufferbloat when the link slows down.
-
-This compromise is not ideal: when the usable line rate is above the
-set compromise bandwidth, the connection is unnecessarily throttled
-to the compromise setting resulting in lost bandwidth (yellow);
-when the usable line rate falls below the compromise value,
-the connection is not throttled enough (green) resulting in bufferbloat.
+Because CAKE works with fixed speed parameters, 
+the user must choose a single compromise bandwidth setting.
+This compromise is not ideal: setting the parameter too low means
+the connection is unnecessarily throttled to the compromise
+setting even when the available link speed is higher (yellow).
+Setting the rate too high, for times when the
+usable line rate falls below the compromise value,
+the link is not throttled enough (green) resulting in bufferbloat.
 
 <img src="images/bandwidth-compromise.png" width=75% height=75%>
 
@@ -40,21 +38,24 @@ The CAKE-autorate script continually measures the load and
 Round-Trip-Time (RTT) to adjust the upload and download settings
 for the CAKE algorithm.
 
-## Theory of Operation
+### Theory of Operation
 
-`cake-autorate.sh` monitors load (rx and tx utilization) and ping responses
-from one or more reflectors, and adjusts the download and upload
-bandwidth settings for CAKE.
-Rate control is intentionally kept as simple as possible and follows
-the following approach:
+`cake-autorate.sh` monitors load (receive and transmit utilization)
+and ping response times from one or more reflectors
+(hosts on the internet),
+and adjusts the download and upload bandwidth settings for CAKE.
+CAKE-autorate uses this simple approach:
 
 - with low load, decay rate back to the configured baseline
 (and subject to refractory period)
 - with high load, increase rate subject to the configured maximum
-- on bufferbloat (when increased latency is detected), decrease rate subject
+- if bufferbloat (increased latency) is detected, decrease rate subject
 to the configured min (and subject to refractory period)
 
 <img src="images/cake-bandwidth-autorate-rate-control.png" width=80% height=80%>
+
+CAKE-autorate requires three configuration values for each direction,
+upload and download:
 
 **Setting the minimum bandwidth:**
 Set the minimum value to the worst possible observed bufferbloat-free bandwidth.
@@ -68,13 +69,13 @@ the value you would set CAKE to that is bufferbloat free most,
 but not necessarily all, of the time.
 
 **Setting the maximum bandwidth:**
-The maximum bandwidth should be set to the lower of the maximum bandwidth
-that the ISP can provide or the maximum bandwidth required by the user.
-The script will adjust the bandwidth up when there is traffic,
-as long no RTT spike is detected.
-Setting this value to a maximum required level will have the advantage that
-the script will stay at that level during optimum conditions rather than
-always having to test whether the bandwidth can be increased
+The maximum bandwidth should be set to the maximum bandwidth
+that the ISP can provide.
+When there is heavy traffic, the script will adjust the
+bandwidth up to this limit,
+and then back off if a RTT spike is detected.
+The script will tend to remain at that level during low latency
+rather than always testing whether the bandwidth can be increased
 (which necessarily results in allowing some excess latency through).
 
 To elaborate on setting the minimum and maximum, a variable bandwidth connection
@@ -96,7 +97,7 @@ There is a detailed and fun discussion with plenty of sketches relating to the
 development of the script and alternatives on the
 [OpenWrt Forum - CAKE /w Adaptive Bandwidth.](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/312)
 
-## Installation
+## Installation on OpenWrt
 
 Read the installation instructions in the separate
 [INSTALLATION](./INSTALLATION.md) page.

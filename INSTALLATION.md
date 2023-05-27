@@ -16,8 +16,9 @@ You may have more complex networking needs:
 DSCPs - consider [cake-simple-qos](https://github.com/lynxthecat/cake-qos-simple);
 WireGuard with PBR - consider [cake-dual-ifb](https://github.com/lynxthecat/cake-dual-ifb).
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
-- Use the installer script from this repo by copying and
-pasting each of the commands below:
+- Use the installer script by copying and
+pasting each of the commands below.
+The commands retrieve the current version from this repo:
 
    ```bash
    wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/master/cake-autorate_setup.sh
@@ -26,20 +27,20 @@ pasting each of the commands below:
    ```
 
 - The installer script will detect a previous configuration file,
-and ask whether to preserve it. If you do not keep it...
+and ask whether to preserve it. If you do not keep it, you will need to...
 - Edit the _cake-autorate\_config.primary.sh_ script (in the
 _/root/cake-autorate_ directory) using vi or nano to set the
 configuration parameters below (see comments
-inside _cake-autorate-config.sh_ for details).
+in _cake-autorate\_config.primary.sh_ for details).
 
   - Change `dl_if` and `ul_if` to match the names of the upload and download
   interfaces to which CAKE is applied.
   These can be obtained, for example, by consulting the
-  configured SQM settings in LuCi or by examining the output of `tc qdisc ls`.
+  configured SQM settings in LuCI or by examining the output of `tc qdisc ls`.
 
       | Variable | Setting |
       |----: |   :-------- |
-      | `dl_if` | Interface that downloads data (often _ifb4-wan_ - check `tc qdisc ls`) |
+      | `dl_if` | Interface that downloads data (often _ifb4-wan_)
       | `ul_if` | Interface that uploads (often _wan_) |
 
   - Set bandwidth variables as described in _cake-autorate\_config.primary.sh_.
@@ -55,17 +56,20 @@ inside _cake-autorate-config.sh_ for details).
   
       | Variable | Setting |
       |----: |   :-------- |
-      | `adjust_dl_shaper_rate` | enable (1) or disable (0) actually changing the dl\_shaper\_rate |
-      | `adjust_ul_shaper_rate` | enable (1) or disable (0) actually changing the dl\_shaper\_rate |
+      | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
+      | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping |
 
-  - Set any further overrides by inspecting _cake-autorate\_defaults.sh_
-  and setting different values for any of the defaults.
-  For example, to set a different `dl_delay_thr_ms`, then
+- The other configuration file - _cake-autorate\_defaults.sh_ -
+  has good default settings.
+  After CAKE-autorate has been installed and is
+  running, you may wish to change some of these.
+  
+  - For example, to set a different `dl_delay_thr_ms`, then
   add a line to the config like:
   
-  ```bash
-  dl_delay_thr_ms=100
-  ```
+     ```bash
+     dl_delay_thr_ms=100
+     ```
   
   - The following variables control logging:
 
@@ -80,8 +84,8 @@ inside _cake-autorate-config.sh_ for details).
 
 ## Manual testing
 
-To start the `cake-autorate.sh` script and watch the as it
-adjusts the CAKE parameters, run these commands:
+To start the `cake-autorate.sh` script and watch the logged output
+as it adjusts the CAKE parameters, run these commands:
 
    ```bash
    cd /root/cake-autorate     # to the cake-autorate directory
@@ -107,11 +111,15 @@ To do this:
    service cake-autorate start
    ```
 
+If you edit any of the configuration files,
+you will need to restart the service with `service cake-autorate restart`
+
 When running as a service, the `cake-autorate.sh` script outputs to
 _/var/log/cake-autorate.primary.log_ (observing the instance identifier
 _cake-autorate\_config.identifier.sh_ set in the config file name).
 
-WARNING: Take care to ensure sufficient free (Flash) memory exists in router to handle selected logging parameters.
+WARNING: Take care to ensure sufficient free (Flash) memory
+exists in router to handle selected logging parameters.
 
 ## Preserving CAKE-autorate files for backup or upgrades
 
@@ -119,18 +127,18 @@ OpenWrt devices can save files across upgrades. Read the
 [Backup and Restore page on the OpenWrt wiki](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify)
 for details.
 
-Add the files below to the
+To ensure the CAKE-autorate script and configuration files are
+preserved, enter the files below to the OpenWrt router's
 [Configuration tab](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#back_up)
-so they will be saved in backups and preserved across snapshot upgrades.
 
  ```bash
 /root/cake-autorate
 /etc/init.d/cake-autorate
  ```
   
-## Multi-Wan Setups
+## Multi-WAN Setups
 
-- cake-autorate has been designed to run multiple instances simultaneously.
+- CAKE-autorate has been designed to run multiple instances simultaneously.
 - cake-autorate will run one instance per config file present
 in the _/root/cake-autorate/_ directory in the form:
 
@@ -169,7 +177,8 @@ download and upload delays, relative to multiple reflectors.
 Presently this must be compiled manually (although we can expect
 an official OpenWrt package soon).
 
-Instructions for building a `tsping` OpenWrt package are available [from github.](https://github.com/Lochnair/tsping)
+Instructions for building a `tsping` OpenWrt package are available
+[from github.](https://github.com/Lochnair/tsping)
 
 ## A Request to Testers
 
