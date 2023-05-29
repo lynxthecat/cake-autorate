@@ -1906,7 +1906,7 @@ do
 				> "${run_path}/proc_pids"
 				for proc_pid in "${!proc_pids[@]}"
 				do
-					printf "%s = %s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> "${run_path}/proc_pids"
+					printf "%s=%s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> "${run_path}/proc_pids"
 				done
 				;;
 			*)
