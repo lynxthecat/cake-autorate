@@ -568,7 +568,9 @@ parse_tsping()
 					exec {parse_preprocessor_fd}> >(parse_preprocessor)
 					parse_preprocessor_pid="${!}"
 					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
-					${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "0" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${parse_preprocessor_fd}" &
+					# accommodate present tsping interval/sleep handling to prevent ping flood with only one pinger
+					tsping_sleep_time=$(( no_pingers == 1 ? ping_response_interval_ms : 0 ))
+					${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "${tsping_sleep_time}" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
 					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
 					continue
