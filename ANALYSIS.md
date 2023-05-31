@@ -14,7 +14,7 @@ Extract a compressed log file from a running cake-autorate instance using one of
 
    ... or ...
 
-2. Send a USR1 signal to the main log file process using:
+2. Send a USR1 signal to the main log file process(es) using:
 
    ```bash
    awk -F= '/^maintain_log_file=/ {print $2}' /var/run/cake-autorate/*/proc_pids | xargs kill -USR1
@@ -34,10 +34,10 @@ Force a log file rotation on a running cake-autorate instance by using one of th
 
    ... or ...
 
-2. Send a USR2 signal to the main log file process using:
+2. Send a USR2 signal to the main log file process(es) using:
 
    ```bash
-   kill -USR2 $(cat /var/run/cake-autorate/*/proc_state | grep -E '^maintain_log_file=' | cut -d= -f2)
+   awk -F= '/^maintain_log_file=/ {print $2}' /var/run/cake-autorate/*/proc_pids | xargs kill -USR2
    ```
 
 ## Plotting the Log File
