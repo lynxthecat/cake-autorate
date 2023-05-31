@@ -86,7 +86,8 @@ cleanup_and_killall()
 	# give some time for processes to gracefully exit
 	sleep_s 1
 
-	# terminate any processes that remain, save for intercept_stderr
+	# terminate any processes that remain, save for main and intercept_stderr
+	unset proc_pids[main]
 	intercept_stderr_pid="${proc_pids[intercept_stderr]}"
 	unset proc_pids[intercept_stderr]
 	terminate "${proc_pids[@]}"
@@ -1659,9 +1660,6 @@ else
 	exit
 fi
 
-PROC_STATE_FILE="${run_path}/proc_state"
-PROC_STATE_FILE_LOCK="${run_path}/proc_state.lock"
-
 if [[ -n "${log_file_path_override-}" ]]; then 
 	if [[ ! -d ${log_file_path_override} ]]; then
 		broken_log_file_path_override=${log_file_path_override}
@@ -1687,8 +1685,9 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 # ${run_path}/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d "${run_path}" ]]; then
-	if [[ -f "${run_path}/pid" ]] && [[ -d "/proc/$(<"${run_path}/pid")" ]]; then
-		log_msg "ERROR" "${run_path} already exists and an instance may be running. Exiting script."
+	if [[ -f "${run_path}/proc_pids" ]] && running_main_pid=$(awk -F= '/^main=/ {print $2}' ${run_path}/proc_pids) && [[ -d "/proc/${running_main_pid}" ]]
+	then
+		log_msg "ERROR" "${run_path} already exists and an instance appears to be running with main process pid ${running_main_pid}. Exiting script."
 		trap - INT TERM EXIT
 		exit
 	else
@@ -1700,7 +1699,7 @@ else
 	mkdir -p "${run_path}"
 fi
 
-printf "%s" "${BASHPID}" > "${run_path}/pid"
+proc_pids['main']="${BASHPID}"
 
 no_reflectors=${#reflectors[@]} 
 
