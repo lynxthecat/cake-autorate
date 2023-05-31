@@ -39,14 +39,13 @@ Set the minimum value to the worst possible observed bufferbloat-free bandwidth.
 This is the steady state bandwidth to be maintained under no or low load. This is likely the compromise bandwidth described above, i.e. the value you would set CAKE to that is bufferbloat free most, but not necessarily all, of the time.
 
 **Setting the maximum bandwidth:**
-The maximum bandwidth should be set to the maximum bandwidth that the ISP can provide. When there is heavy traffic, the script will adjust the bandwidth up to this limit,
-and then back off if a RTT spike is detected. The script will tend to remain at that level during low latency rather than always testing whether the bandwidth can be increased (which necessarily results in allowing some excess latency through).
+The maximum bandwidth should be set to the maximum bandwdith the connection can provide or lower. When there is heavy traffic, the script will adjust the bandwidth up to this limit, and then back off if an OWD or RTT spike is detected. Since repeatedly testing for the maximum bandwidth on load necessarily involves letting some excess latency through, reducing the maximum bandwidth to a level below the maximum possible bandwidth has the benefit of reducing that excess latency associated with testing for the maximum bandwidth, and may allow for some degree of cruising along at that upper limit whilst the true conneciton capacity is higher than the set maximum bandwidth. 
 
 To elaborate on setting the minimum and maximum, a variable bandwidth connection may be most ideally divided up into a known fixed, stable component, on top of which is provided an unknown variable component:
 
 ![image of cake bandwidth adaptation](images/cake-bandwidth-adaptation.png)
 
-The minimum bandwidth is then set to (or slightly below) the fixed component, and the maximum bandwidth may be set to (or slightly above) the maximum observed bandwidth. Or, if a lower maximum bandwidth is required by the user, the maximum bandwidth is set to that lower bandwidth as explained above.
+The minimum bandwidth is then set to (or slightly below) the fixed component, and the maximum bandwidth may be set to (or slightly above) the maximum observed bandwidth (if maximum bandwidth is desired) or lower than the maximum observed bandwidth (if the user is willing to sacrifice some bandwidth in favour of reduced latency associated with always testing for the true maximum as explained above).
 
 The baseline bandwidth is likely optimally either the minimum bandwidth or somewhere close thereto (e.g. the compromise bandwidth).
 
@@ -60,7 +59,9 @@ CAKE-autorate maintains a detailed log file thats is helpful in discerning perfo
 
 Read about this in the [ANALYSIS](./ANALYSIS.md) page.
 
-## Optimizations
+## CPU load monitoring
+
+The user should verify that CPU load is kept within accpetable ranges, especially for devices with weaker CPUs.
 
 CAKE-autorate uses inter-process communication between multiple concurrent processes and incorporates various optimisations to reduce the CPU load nedded to perform its many tasks. A call to `ps |grep -e bash -e fping` reveals the presence of the multiple concurrent processes for each cake-autorate instance. This is normal and expected behaviour. 
 
@@ -77,3 +78,23 @@ root@OpenWrt-1:~/cake-autorate# ps |grep -e bash -e fping
  2840 root      3308 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
  2841 root      1928 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9
 ```
+
+Process IDs can be checked using `cat /var/run/cake-autorate/primary/proc_pids`, e.g.:
+
+```bash
+root@OpenWrt-1:~# cat /var/run/cake-autorate/primary/proc_pids
+intercept_stderr=8591
+maintain_log_file=8597
+parse_fping_preprocessor=21175
+parse_fping=8624
+monitor_achieved_rates=8618
+main=8573
+maintain_pingers=8620
+parse_fping_pinger=21176
+```
+
+It is useful to keep an htop instance running and run some speed tests to see the maximum CPU utilisation of the processes and keep an eye on the loadavg:
+
+![image](https://github.com/lynxthecat/cake-autorate/assets/10721999/732ecdc0-e847-48db-baa5-c10616c2ad1b)
+
+CPU load is proportional to the frequency of ping responses. Reducing the number of pingers or pinger interval will therefore significantly reduce CPU usage. The default ping response rate is 20 Hz (6 pingers with 0.3 seconds between pings). Reducing the number of pingers to three will give a ping resposne rate of 10 Hz and approximately half the CPU load.
