@@ -22,14 +22,14 @@ Extract a compressed log file from a running cake-autorate instance using one of
 
 Either will place a compressed log file in _/var/log_ with the date and time in its filename.
 
-## Rotating the Log File
+## Resetting the Log File
 
-Force a log file rotation on a running cake-autorate instance by using one of these methods:
+Force a log file reset on a running cake-autorate instance by using one of these methods:
 
 1. Run the auto-generated log_file_rotate script inside the run directory:
 
    ```bash
-   /var/run/cake-autorate/*/log_file_rotate
+   /var/run/cake-autorate/*/log_file_reset
    ```
 
    ... or ...
