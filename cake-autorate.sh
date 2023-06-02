@@ -172,7 +172,24 @@ rotate_log_file()
 		cat "${log_file_path}" > "${log_file_path}.old"
 		true > "${log_file_path}"
 	fi
+	
 	((output_processing_stats)) && print_headers
+	t_log_file_start_us=${EPOCHREALTIME/./}
+	get_log_file_size_bytes
+}
+
+reset_log_file()
+{
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
+	flush_log_fd
+
+	rm -f "${log_file_path}.old"
+	true > "${log_file_path}"
+
+	((output_processing_stats)) && print_headers
+	t_log_file_start_us=${EPOCHREALTIME/./}
+	get_log_file_size_bytes
 }
 
 generate_log_file_scripts()
@@ -210,19 +227,19 @@ generate_log_file_scripts()
 	printf "\${log_file_export_path}\n"
 	EOT
 
-        cat > "${run_path}/log_file_rotate" <<- EOT
+        cat > "${run_path}/log_file_reset" <<- EOT
         #!/bin/bash
 
         if kill -USR2 "${proc_pids['maintain_log_file']}"
         then
-		printf "Successfully signalled maintain_log_file process to request log file rotation.\n"
+		printf "Successfully signalled maintain_log_file process to request log file reset.\n"
 	else
                 printf "ERROR: Failed to signal maintain_log_file process.\n" >&2
                 exit 1
         fi
 	EOT
 
-	chmod +x "${run_path}/log_file_export" "${run_path}/log_file_rotate"
+	chmod +x "${run_path}/log_file_export" "${run_path}/log_file_reset"
 }
 
 export_log_file()
@@ -282,11 +299,11 @@ maintain_log_file()
 	trap '' INT
 	trap 'kill_maintain_log_file' TERM EXIT
 	trap 'export_log_file' USR1
-	trap 'rotate_log_file_signalled=1' USR2
+	trap 'reset_log_file_signalled=1' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	rotate_log_file_signalled=0
+	reset_log_file_signalled=0
 	t_log_file_start_us=${EPOCHREALTIME/./}
 
 	get_log_file_size_bytes
@@ -309,26 +326,23 @@ maintain_log_file()
 			if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us ))
 			then
 			
-				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so rotating log file"
-				break
+				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
+				flush_log_fd
+				rotate_log_file
 			elif (( log_file_size_bytes > log_file_max_size_bytes ))
 			then
 				log_file_size_KB=$((log_file_size_bytes/1024))
-				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so rotating log file"
-				break
-			elif (( rotate_log_file_signalled ))
+				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
+				flush_log_fd
+				rotate_log_file
+			elif (( reset_log_file_signalled ))
 			then
-				log_msg "DEBUG" "received log file rotation signal so rotating log file."
-				rotate_log_file_signalled=0
-				break
+				log_msg "DEBUG" "received log file reset signal so resetting log file."
+				reset_log_file_signalled=0
+				reset_log_file
 			fi
 
 		done
-
-		flush_log_fd
-		rotate_log_file
-		t_log_file_start_us=${EPOCHREALTIME/./}
-		get_log_file_size_bytes
 
 	done
 }
