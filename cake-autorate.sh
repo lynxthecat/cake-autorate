@@ -306,42 +306,38 @@ maintain_log_file()
 
 	get_log_file_size_bytes
 
-	while true
+	while read -r -u "${log_fd}" log_line
 	do
-		while read -r -u "${log_fd}" log_line
-		do
 
-			printf '%s\n' "${log_line}" >> "${log_file_path}"
+		printf '%s\n' "${log_line}" >> "${log_file_path}"
 
-			# Verify log file size < configured maximum
-			# The following two lines with costly call to 'du':
-			# 	read log_file_size_bytes< <(du -b ${log_file_path}/cake-autorate.log)
-			# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
-			# can be more efficiently handled with this line:
-			((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
+		# Verify log file size < configured maximum
+		# The following two lines with costly call to 'du':
+		# 	read log_file_size_bytes< <(du -b ${log_file_path}/cake-autorate.log)
+		# 	log_file_size_bytes=${log_file_size_bytes//[!0-9]/}
+		# can be more efficiently handled with this line:
+		((log_file_size_bytes=log_file_size_bytes+${#log_line}+1))
 
-			# Verify log file time < configured maximum
-			if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us ))
-			then
-			
-				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
-				flush_log_fd
-				rotate_log_file
-			elif (( log_file_size_bytes > log_file_max_size_bytes ))
-			then
-				log_file_size_KB=$((log_file_size_bytes/1024))
-				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
-				flush_log_fd
-				rotate_log_file
-			elif (( reset_log_file_signalled ))
-			then
-				log_msg "DEBUG" "received log file reset signal so flushing and resetting log file."
-				flush_log_fd
-				reset_log_file
-				reset_log_file_signalled=0
-			fi
-
-		done
+		# Verify log file time < configured maximum
+		if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us ))
+		then
+		
+			log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
+			flush_log_fd
+			rotate_log_file
+		elif (( log_file_size_bytes > log_file_max_size_bytes ))
+		then
+			log_file_size_KB=$((log_file_size_bytes/1024))
+			log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
+			flush_log_fd
+			rotate_log_file
+		elif (( reset_log_file_signalled ))
+		then
+			log_msg "DEBUG" "received log file reset signal so flushing and resetting log file."
+			flush_log_fd
+			reset_log_file
+			reset_log_file_signalled=0
+		fi
 
 	done
 }
