@@ -1402,14 +1402,12 @@ maintain_pingers()
 
 				for ((pinger=0; pinger < no_pingers; pinger++))
 				do
-					reflector_check_time_us="${EPOCHREALTIME/./}"
-					reflector_last_timestamp_us="${reflector_last_timestamps_us["${reflectors[pinger]}"]}"
 					# shellcheck disable=SC2178
 					declare -n reflector_offences="reflector_${pinger}_offences"
 
 					(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
 					# shellcheck disable=SC2154
-					reflector_offences[reflector_offences_idx]=$(( (((reflector_check_time_us-reflector_last_timestamp_us) > reflector_response_deadline_us)) ? 1 : 0 ))
+					reflector_offences[reflector_offences_idx]=$(( (${EPOCHREALTIME/./}-reflector_last_timestamps_us[${reflectors[pinger]}]) > reflector_response_deadline_us ? 1 : 0 ))
 
 					if (( reflector_offences[reflector_offences_idx] )); then 
 						((sum_reflector_offences[pinger]++))
