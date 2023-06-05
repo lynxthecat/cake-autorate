@@ -1143,8 +1143,12 @@ replace_pinger_reflector()
 		start_pinger "${pinger}"
 	else
 		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[pinger]}."
-		reflector_offences[pinger]=0
 	fi
+
+	log_msg "DEBUG" "Resetting reflector offences associated with reflector: ${reflectors[pinger]}."
+	declare -n reflector_offences="reflector_${pinger}_offences"
+	for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+	sum_reflector_offences[pinger]=0
 }
 
 # END OF GENERIC PINGER START AND STOP FUNCTIONS
@@ -1394,7 +1398,7 @@ maintain_pingers()
 
 				fi
 
-				enable_replace_pinger_reflector=1
+				replace_pinger_reflector_enabled=1
 
 				for ((pinger=0; pinger < no_pingers; pinger++))
 				do
@@ -1416,11 +1420,9 @@ maintain_pingers()
 					if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
 
 						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
-						if ((enable_replace_pinger_reflector)); then
+						if ((replace_pinger_reflector_enabled)); then
 							replace_pinger_reflector "${pinger}"
-							for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
-							sum_reflector_offences[pinger]=0
-							enable_replace_pinger_reflector=0
+							replace_pinger_reflector_enabled=0
 						else
 							log_msg "DEBUG" "Warning: skipping replacement of reflector: ${reflectors[pinger]} given prior replacement within this reflector health check cycle."
 						fi
