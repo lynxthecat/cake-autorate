@@ -551,10 +551,10 @@ parse_tsping()
 
 	for (( reflector=0; reflector<no_pingers; reflector++ ))
 	do
-		dl_owd_baselines_us[${reflectors[reflector]}]="${dl_owd_baselines_us[${reflectors[reflector]}]:-100000}"
-		ul_owd_baselines_us[${reflectors[reflector]}]="${ul_owd_baselines_us[${reflectors[reflector]}]:-100000}"
-		dl_owd_delta_ewmas_us[${reflectors[reflector]}]="${dl_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
-		ul_owd_delta_ewmas_us[${reflectors[reflector]}]="${ul_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
+		dl_owd_baselines_us["${reflectors[reflector]}"]=100000
+		ul_owd_baselines_us["${reflectors[reflector]}"]=100000
+		dl_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
+		ul_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
 	done
 
 	declare -A load_percent
@@ -597,13 +597,12 @@ parse_tsping()
 
 					read -r -a reflectors <<< "${command[@]:1}"
 					log_msg "DEBUG" "Read in new reflectors: ${reflectors[*]}"
-					
 					for (( reflector=0; reflector<no_pingers; reflector++ ))
 					do
-						dl_owd_baselines_us[${reflectors[reflector]}]="${dl_owd_baselines_us[${reflectors[reflector]}]:-100000}"
-						ul_owd_baselines_us[${reflectors[reflector]}]="${ul_owd_baselines_us[${reflectors[reflector]}]:-100000}"
-						dl_owd_delta_ewmas_us[${reflectors[reflector]}]="${dl_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
-						ul_owd_delta_ewmas_us[${reflectors[reflector]}]="${ul_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
+						dl_owd_baselines_us["${reflectors[reflector]}"]="${dl_owd_baselines_us[${reflectors[reflector]}]:-100000}"
+						ul_owd_baselines_us["${reflectors[reflector]}"]="${ul_owd_baselines_us[${reflectors[reflector]}]:-100000}"
+						dl_owd_delta_ewmas_us["${reflectors[reflector]}"]="${dl_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
+						ul_owd_delta_ewmas_us["${reflectors[reflector]}"]="${ul_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
 					done
 					continue
 					;;
@@ -714,14 +713,18 @@ parse_fping()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	declare -A rtt_baselines_us
-	declare -A rtt_delta_ewmas_us
+	declare -A dl_owd_baselines_us
+	declare -A ul_owd_baselines_us
+	declare -A dl_owd_delta_ewmas_us
+	declare -A ul_owd_delta_ewmas_us
 
 	for (( reflector=0; reflector<no_pingers; reflector++ ))
-	do
-		rtt_baselines_us[${reflectors[reflector]}]=100000
-		rtt_delta_ewmas_us[${reflectors[reflector]}]=0
-	done
+        do
+                dl_owd_baselines_us["${reflectors[reflector]}"]=100000
+                ul_owd_baselines_us["${reflectors[reflector]}"]=100000
+                dl_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
+                ul_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
+        done
 
 	declare -A load_percent
 	load_percent[dl]=0
@@ -765,13 +768,13 @@ parse_fping()
 
 					read -r -a reflectors <<< "${command[@]:1}"
 					log_msg "DEBUG" "Read in new reflectors: ${reflectors[*]}"
-				
 					for (( reflector=0; reflector<no_pingers; reflector++ ))
 					do
-						rtt_baselines_us[${reflectors[reflector]}]=${rtt_baselines_us[${reflectors[reflector]}]:-100000}
-						rtt_delta_ewmas_us[${reflectors[reflector]}]=${rtt_delta_ewmas_us[${reflectors[reflector]}]:-0}
+						dl_owd_baselines_us["${reflectors[reflector]}"]="${dl_owd_baselines_us[${reflectors[reflector]}]:-100000}"
+						ul_owd_baselines_us["${reflectors[reflector]}"]="${ul_owd_baselines_us[${reflectors[reflector]}]:-100000}"
+						dl_owd_delta_ewmas_us["${reflectors[reflector]}"]="${dl_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
+						ul_owd_delta_ewmas_us["${reflectors[reflector]}"]="${ul_owd_delta_ewmas_us[${reflectors[reflector]}]:-0}"
 					done
-					
 					continue
 					;;
 
@@ -814,41 +817,36 @@ parse_fping()
 
 			rtt_us="${BASH_REMATCH[3]}000"
 			rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
-
-			alpha=$(( rtt_us >= rtt_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
-
-			ewma_iteration "${rtt_us}" "${alpha}" "rtt_baselines_us[${reflector}]"
-
-			rtt_delta_us=$(( rtt_us-rtt_baselines_us[${reflector}] ))
-
-			if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent)); then
-				ewma_iteration "${rtt_delta_us}" "${alpha_delta_ewma}" "rtt_delta_ewmas_us[${reflector}]"
-			fi
-
-			dl_owd_baseline_us=$((rtt_baselines_us[${reflector}]/2))
-			ul_owd_baseline_us="${dl_owd_baseline_us}"
-
-			dl_owd_delta_ewma_us=$((rtt_delta_ewmas_us[${reflector}]/2))
-			ul_owd_delta_ewma_us="${dl_owd_delta_ewma_us}"
-
+			
 			dl_owd_us=$((rtt_us/2))
 			ul_owd_us="${dl_owd_us}"
 
-			dl_owd_delta_us=$((rtt_delta_us/2))
+			dl_alpha=$(( dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
+
+			ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
+			ul_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]}"
+
+			dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
 			ul_owd_delta_us="${dl_owd_delta_us}"
-		
+
+			if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+			then
+				ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
+				ul_owd_delta_ewmas_us["${reflector}"]="${dl_owd_delta_ewmas_us[${reflector}]}"
+			fi
+
 			timestamp="${timestamp//[\[\]]}0"
 
-			printf "REFLECTOR_RESPONSE %s %s %s %s %s %s %s %s %s %s %s\n" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" >&"${main_fd}"
+			printf "REFLECTOR_RESPONSE %s %s %s %s %s %s %s %s %s %s %s\n" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[${reflector}]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[${reflector}]}" "${dl_owd_delta_us}" "${ul_owd_baselines_us[${reflector}]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[${reflector}]} ${ul_owd_delta_us}" >&"${main_fd}"
 
 			timestamp_us="${timestamp//[.]}"
-		
-			printf "SET_ARRAY_ELEMENT dl_owd_baselines_us %s %s\n" "${reflector}" "${dl_owd_baseline_us}" >&"${maintain_pingers_fd}"
-			printf "SET_ARRAY_ELEMENT ul_owd_baselines_us %s %s\n" "${reflector}" "${ul_owd_baseline_us}" >&"${maintain_pingers_fd}"
+	
+			printf "SET_ARRAY_ELEMENT dl_owd_baselines_us %s %s\n" "${reflector}" "${dl_owd_baselines_us[${reflector}]}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT ul_owd_baselines_us %s %s\n" "${reflector}" "${ul_owd_baselines_us[${reflector}]}" >&"${maintain_pingers_fd}"
 
-			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewma_us}" >&"${maintain_pingers_fd}"
-			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewma_us}" >&"${maintain_pingers_fd}"
-
+			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
+			
 			printf "SET_ARRAY_ELEMENT reflector_last_timestamps_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
@@ -866,11 +864,15 @@ parse_ping()
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	declare -A rtt_baselines_us
-	declare -A rtt_delta_ewmas_us
+        declare -A dl_owd_baselines_us
+        declare -A ul_owd_baselines_us
+        declare -A dl_owd_delta_ewmas_us
+        declare -A ul_owd_delta_ewmas_us
 
-	rtt_baselines_us[${reflector}]=100000
-	rtt_delta_ewmas_us[${reflector}]=0
+        dl_owd_baselines_us["${reflector}"]=100000
+        ul_owd_baselines_us["${reflector}"]=100000
+        dl_owd_delta_ewmas_us["${reflector}"]=0
+        ul_owd_delta_ewmas_us["${reflector}"]=0
 
 	declare -A load_percent
 	load_percent[dl]=0
@@ -914,8 +916,10 @@ parse_ping()
 					then
 						reflector="${command[1]}"	
 						log_msg "DEBUG" "Read in new reflector: ${reflector}"
-						rtt_baselines_us[${reflector}]="${rtt_baselines_us[${reflector}]:-100000}"	
-						rtt_delta_ewmas_us[${reflector}]="${rtt_delta_ewmas_us[${reflector}]:-0}"
+						dl_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]:-100000}"
+						ul_owd_baselines_us["${reflector}"]="${ul_owd_baselines_us[${reflector}]:-100000}"
+						dl_owd_delta_ewmas_us["${reflector}"]="${dl_owd_delta_ewmas_us[${reflector}]:-0}"
+						ul_owd_delta_ewmas_us["${reflector}"]="${ul_owd_delta_ewmas_us[${reflector}]:-0}"
 						continue
 					fi
 					;;
@@ -957,47 +961,42 @@ parse_ping()
 			# If no match then skip onto the next one
 			[[ "${seq_rtt}" =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
+			reflector=${reflector//:/}
+
 			seq=${BASH_REMATCH[1]}
 
 			rtt_us=${BASH_REMATCH[3]}000
 			rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
 
-			reflector=${reflector//:/}
-
-			alpha=$(( rtt_us >= rtt_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
-
-			ewma_iteration "${rtt_us}" "${alpha}" "rtt_baselines_us[${reflector}]"
-		
-			rtt_delta_us=$(( rtt_us-rtt_baselines_us[${reflector}] ))
-
-			if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent )); then
-				ewma_iteration "${rtt_delta_us}" "${alpha_delta_ewma}" "rtt_delta_ewmas_us[${reflector}]"
-			fi
-
-			dl_owd_baseline_us=$((rtt_baselines_us[${reflector}]/2))
-			ul_owd_baseline_us=${dl_owd_baseline_us}
-
-			dl_owd_delta_ewma_us=$((rtt_delta_ewmas_us[${reflector}]/2))
-			ul_owd_delta_ewma_us=${dl_owd_delta_ewma_us}
-
 			dl_owd_us=$((rtt_us/2))
 			ul_owd_us="${dl_owd_us}"
 
-			dl_owd_delta_us=$((rtt_delta_us/2))
-			ul_owd_delta_us="${dl_owd_delta_us}"
+			dl_alpha=$(( dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
+
+                        ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
+                        ul_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]}"
+
+                        dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
+                        ul_owd_delta_us="${dl_owd_delta_us}"
+
+                        if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+                        then
+                                ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
+                                ul_owd_delta_ewmas_us["${reflector}"]="${dl_owd_delta_ewmas_us[${reflector}]}"
+                        fi
 
 			timestamp="${timestamp//[\[\]]}"
 
-			printf "REFLECTOR_RESPONSE %s %s %s %s %s %s %s %s %s %s %s\n" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" >&"${main_fd}"
-		
+			printf "REFLECTOR_RESPONSE %s %s %s %s %s %s %s %s %s %s %s\n" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[${reflector}]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[${reflector}]}" "${dl_owd_delta_us}" "${ul_owd_baselines_us[${reflector}]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[${reflector}]} ${ul_owd_delta_us}" >&"${main_fd}"
+
 			timestamp_us="${timestamp//[.]}"
 
-			printf "SET_ARRAY_ELEMENT dl_owd_baselines_us %s %s\n" "${reflector}" "${dl_owd_baseline_us}" >&"${maintain_pingers_fd}"
-			printf "SET_ARRAY_ELEMENT ul_owd_baselines_us %s %s\n" "${reflector}" "${ul_owd_baseline_us}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT dl_owd_baselines_us %s %s\n" "${reflector}" "${dl_owd_baselines_us[${reflector}]}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT ul_owd_baselines_us %s %s\n" "${reflector}" "${ul_owd_baselines_us[${reflector}]}" >&"${maintain_pingers_fd}"
 
-			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewma_us}" >&"${maintain_pingers_fd}"
-			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewma_us}" >&"${maintain_pingers_fd}"
-
+			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
+			
 			printf "SET_ARRAY_ELEMENT reflector_last_timestamps_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
