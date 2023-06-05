@@ -120,7 +120,7 @@ terminate()
 
 	kill -9 "${pids[@]}" 2> /dev/null
 
-	wait "${@:-}"
+	wait "${@:-}" 2> /dev/null
 }
 
 
