@@ -22,9 +22,17 @@ min_ul_shaper_rate_kbps=2000  # minimum bandwidth for upload (Kbit/s)
 base_ul_shaper_rate_kbps=10000 # steady state bandwidth for upload (KBit/s)
 max_ul_shaper_rate_kbps=30000  # maximum bandwidth for upload (Kbit/s)
 
+# delay threshold in ms is the extent of OWD increase to classify as a delay
+# these are automatically adjusted based on maximum on the wire packet size
+# (adjustment significant at sub 12Mbit/s rates, else negligible)  
 dl_delay_thr_ms=40 # (milliseconds)
 ul_delay_thr_ms=40 # (milliseconds)
 
+# Starlink satellite switch (sss) compensation options
 sss_compensation=1
+# satellite switch compensation start times in seconds of each minute
+# sss_times_s=("12.0" "27.0" "42.0" "57.0")
+# sss_compensation_pre_duration_ms=300
+# sss_compensation_post_duration_ms=200
 
 config_file_check="cake-autorate"
