@@ -697,7 +697,7 @@ parse_tsping()
 			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			
-			printf "SET_ARRAY_ELEMENT reflector_last_timestamps_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT last_timestamp_reflectors_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
 }
@@ -847,7 +847,7 @@ parse_fping()
 			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			
-			printf "SET_ARRAY_ELEMENT reflector_last_timestamps_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT last_timestamp_reflectors_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
 }
@@ -997,7 +997,7 @@ parse_ping()
 			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			
-			printf "SET_ARRAY_ELEMENT reflector_last_timestamps_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
+			printf "SET_ARRAY_ELEMENT last_timestamp_reflectors_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
 }
@@ -1225,7 +1225,7 @@ maintain_pingers()
 	declare -A ul_owd_baselines_us
 	declare -A dl_owd_delta_ewmas_us
 	declare -A ul_owd_delta_ewmas_us
-	declare -A reflector_last_timestamps_us
+	declare -A last_timestamp_reflectors_us
 
 	err_silence=0
 	reflector_offences_idx=0
@@ -1237,7 +1237,7 @@ maintain_pingers()
 
 	for ((reflector=0; reflector < no_reflectors; reflector++))
 	do
-		reflector_last_timestamps_us["${reflectors[reflector]}"]="${pingers_t_start_us}"
+		last_timestamp_reflectors_us["${reflectors[reflector]}"]="${pingers_t_start_us}"
 	done
 	
 	# For each pinger initialize record of offences
@@ -1419,7 +1419,7 @@ maintain_pingers()
 
 					(( reflector_offences[reflector_offences_idx] )) && ((sum_reflector_offences[pinger]--))
 					# shellcheck disable=SC2154
-					reflector_offences[reflector_offences_idx]=$(( (${EPOCHREALTIME/./}-reflector_last_timestamps_us[${reflectors[pinger]}]) > reflector_response_deadline_us ? 1 : 0 ))
+					reflector_offences[reflector_offences_idx]=$(( (${EPOCHREALTIME/./}-last_timestamp_reflectors_us[${reflectors[pinger]}]) > reflector_response_deadline_us ? 1 : 0 ))
 
 					if (( reflector_offences[reflector_offences_idx] )); then 
 						((sum_reflector_offences[pinger]++))
