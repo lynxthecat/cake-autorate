@@ -514,7 +514,7 @@ classify_load()
 		do
 			((timestamp_usecs_past_minute=${EPOCHREALTIME/./}%60000000))
 			if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) )); then
-				load_condition[direction]="${load_condition[direction]}_sss"
+				load_condition["${direction}"]="${load_condition[${direction}]}_sss"
 				break
 			fi
 		done			
