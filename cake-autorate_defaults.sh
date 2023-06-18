@@ -40,8 +40,8 @@ ul_if=wan     # upload interface
 
 # pinger selection can be any of:
 # fping - round robin pinging (rtts)
+# tsping - round robin pinging using ICMP type 13 (owds)
 # ping - (iputils-ping) individual pinging (rtts)
-# hping3 - individidual pinging (owds)
 pinger_binary=fping
 
 # list of reflectors to use and number of pingers to initiate
