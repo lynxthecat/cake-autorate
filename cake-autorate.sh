@@ -622,6 +622,7 @@ parse_tsping()
 					then
 						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 					fi
+					continue
 					;;
 
                                 TERMINATE)
@@ -630,7 +631,7 @@ parse_tsping()
                                         exit
                                         ;;
                                 *)
-                                        :
+                                        continue
                                         ;;
                         esac
 		fi
@@ -793,6 +794,7 @@ parse_fping()
                                         then
                                                 declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
                                         fi
+					continue
                                         ;;
 
                                 TERMINATE)
@@ -802,7 +804,7 @@ parse_fping()
                                         ;;
 
                                 *)
-                                        :
+                                        continue
                                         ;;
                         esac
 		fi	
@@ -939,6 +941,7 @@ parse_ping()
                                         then
                                                 declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
                                         fi
+					continue
                                         ;;
 
                                 TERMINATE)
@@ -949,7 +952,7 @@ parse_ping()
 
                                 *)
 
-                                        :
+                                        continue
                                         ;;
 
                         esac
