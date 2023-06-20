@@ -1296,8 +1296,15 @@ maintain_pingers()
 					then
 						change_state_maintain_pingers "${command[1]}"
 						# break out of reading any new IPC commands to handle next state
-						# since next state might be to start or stop pingers
-						break
+						# if pingers need to be started or stopped
+						case "${command[1]}" in
+							START|STOP)
+								break
+								;;
+							*)
+								:
+								;;
+						esac
 					fi
 					;;
 				SET_ARRAY_ELEMENT)
