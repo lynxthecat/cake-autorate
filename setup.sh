@@ -88,7 +88,7 @@ if [ -f config.primary.sh ]; then
 		mv "${tmp}/config.primary.sh" config.primary.sh.new
 	fi
 else
-	mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
+	mv "${tmp}/config.primary.sh" config.primary.sh
 fi
 
 # remove old program files from cake-autorate directory
