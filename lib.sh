@@ -1,5 +1,7 @@
 #!/bin/bash
-# cake-autorate_lib.sh -- common functions for use by cake-autorate.sh
+
+# lib.sh -- common functions for use by cake-autorate.sh
+#
 # This file is part of cake-autorate.
 
 __set_e=0
@@ -8,7 +10,9 @@ if [[ ! ${-} =~ e ]]; then
     __set_e=1
 fi
 
-exec {__sleep_fd}<> <(:) || true
+if [ -z "${__sleep_fd:-}" ]; then
+	exec {__sleep_fd}<> <(:) || true
+fi
 
 sleep_s()
 {
@@ -25,7 +29,7 @@ sleep_s()
 	# - https://github.com/lynxthecat/cake-autorate/issues/174#issuecomment-1460074498
 
 	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
-	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || : 
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 sleep_us()
@@ -105,7 +109,7 @@ terminate()
 	# and, finally, call wait on all processes to reap any zombie processes.
 
 	local pids=("${@:-}")
-	
+
 	kill "${pids[@]}" 2> /dev/null
 
 	for((i=0; i<10; i++))

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cake_instances=(/root/cake-autorate/cake-autorate_config*sh)
+cake_instances=(/root/cake-autorate/config.*.sh)
 cake_instance_pids=()
 
 trap kill_cake_instances INT TERM EXIT

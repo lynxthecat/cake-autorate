@@ -60,10 +60,10 @@ export LC_ALL=C
 # Set PREFIX
 PREFIX=/root/cake-autorate
 
-# shellcheck source=cake-autorate_lib.sh
-. "${PREFIX}/cake-autorate_lib.sh"
-# shellcheck source=cake-autorate_defaults.sh
-. "${PREFIX}/cake-autorate_defaults.sh"
+# shellcheck source=lib.sh
+. "${PREFIX}/lib.sh"
+# shellcheck source=defaults.sh
+. "${PREFIX}/defaults.sh"
 
 trap cleanup_and_killall INT TERM EXIT
 

@@ -6,7 +6,7 @@ USE_PROCD=1
 
 start_service() {
 
-        cake_instances=(/root/cake-autorate/cake-autorate_config*sh)
+        cake_instances=(/root/cake-autorate/config.*.sh)
 
         for cake_instance in "${!cake_instances[@]}"
         do
