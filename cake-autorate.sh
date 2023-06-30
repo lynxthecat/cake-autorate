@@ -1666,7 +1666,7 @@ run_path=/var/run/cake-autorate/
 if [[ -n ${1-} ]]; then
 	config_path="${1}"
 else
-	config_path="${PREFIX}/cake-autorate_config.primary.sh"
+	config_path="${PREFIX}/config.primary.sh"
 fi
 
 if [[ ! -f "${config_path}" ]]; then
@@ -1674,7 +1674,7 @@ if [[ ! -f "${config_path}" ]]; then
 	exit
 fi
 
-# shellcheck source=cake-autorate_config.primary.sh
+# shellcheck source=config.primary.sh
 . "${config_path}"
 
 if [[ ${config_file_check} != "cake-autorate" ]]; then
@@ -1686,7 +1686,7 @@ if [[ ${config_path} =~ cake-autorate_config\.(.*)\.sh ]]; then
 	instance_id=${BASH_REMATCH[1]}
 	run_path=/var/run/cake-autorate/${instance_id}
 else
-	log_msg "ERROR" "Instance identifier 'X' set by cake-autorate_config.X.sh cannot be empty. Exiting now."
+	log_msg "ERROR" "Instance identifier 'X' set by config.X.sh cannot be empty. Exiting now."
 	exit
 fi
 
