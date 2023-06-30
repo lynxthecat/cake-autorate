@@ -1682,7 +1682,7 @@ if [[ ${config_file_check} != "cake-autorate" ]]; then
 	exit
 fi
 
-if [[ ${config_path} =~ cake-autorate_config\.(.*)\.sh ]]; then
+if [[ ${config_path} =~ config\.(.*)\.sh ]]; then
 	instance_id=${BASH_REMATCH[1]}
 	run_path=/var/run/cake-autorate/${instance_id}
 else
