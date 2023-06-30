@@ -83,9 +83,15 @@ else
 	mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
 fi
 
+# remove old program files from cake-autorate directory
+old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
+for file in ${old_fnames}; do
+	rm -f "${file}"
+done
+
 # move the program files to the cake-autorate directory
 # scripts that need to be executable are already marked as such in the tarball
-files="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
+files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh"
 for file in ${files}; do
 	mv "${tmp}/${file}" "${file}"
 done
