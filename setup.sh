@@ -70,7 +70,7 @@ mv "${tmp}/cake-autorate-"*/* "${tmp}"
 
 # Migrate old configuration (and new file) files if present
 for file in cake-autorate_config.*.sh*; do
-	[ -a "${file}" ] || continue   # handle case where there are no old config files
+	[ -e "${file}" ] || continue   # handle case where there are no old config files
 	new_fname="$(printf '%s\n' "$file" | cut -c15-)"
 	mv "${file}" "${new_fname}"
 done
