@@ -73,7 +73,7 @@ as described in the
 copying and pasting each of the commands below:
 
    ```bash
-   wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/stable/cake-autorate-setup.sh
+   wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/stable/cake-autorate_setup.sh
    sh /tmp/cake-autorate_setup.sh
    ```
 
