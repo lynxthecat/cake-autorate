@@ -68,24 +68,38 @@ trap 'rm -rf "${tmp}"' EXIT INT TERM
 uclient-fetch -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
 mv "${tmp}/cake-autorate-"*/* "${tmp}"
 
+# Migrate old configuration (and new file) files if present
+for file in cake-autorate_config.*.sh*; do
+	[ -e "${file}" ] || continue   # handle case where there are no old config files
+	new_fname="$(printf '%s\n' "$file" | cut -c15-)"
+	mv "${file}" "${new_fname}"
+done
+
 # Check if a configuration file exists, and ask whether to keep it
-editmsg="\nNow edit the cake-autorate_config.primary.sh file as described in:\n   ${DOC_URL}"
-if [ -f cake-autorate_config.primary.sh ]; then
+editmsg="\nNow edit the config.primary.sh file as described in:\n   ${DOC_URL}"
+if [ -f config.primary.sh ]; then
 	printf "Previous configuration present - keep it? [Y/n] "
 	read -r keepIt
 	if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
-		mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
+		mv "${tmp}/config.primary.sh" config.primary.sh
+		rm -f config.primary.sh.new   # delete config.primary.sh.new if exists
 	else
 		editmsg="Using prior configuration"
-		mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh.new
+		mv "${tmp}/config.primary.sh" config.primary.sh.new
 	fi
 else
-	mv "${tmp}/cake-autorate_config.primary.sh" cake-autorate_config.primary.sh
+	mv "${tmp}/config.primary.sh" config.primary.sh
 fi
+
+# remove old program files from cake-autorate directory
+old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
+for file in ${old_fnames}; do
+	rm -f "${file}"
+done
 
 # move the program files to the cake-autorate directory
 # scripts that need to be executable are already marked as such in the tarball
-files="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
+files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh"
 for file in ${files}; do
 	mv "${tmp}/${file}" "${file}"
 done

@@ -15,14 +15,14 @@ CAKE-autorate provides an installation script that installs all the required too
 The commands retrieve the current version from this repo:
 
    ```bash
-   wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/master/cake-autorate_setup.sh
+   wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/master/setup.sh
    
    sh /tmp/cake-autorate_setup.sh
    ```
 
 - The installer script will detect a previous configuration file, and ask whether to preserve it. 
 - For a fresh install, you will need to undertake the following steps.
-- Edit the _cake-autorate\_config.primary.sh_ script (in the _/root/cake-autorate_ directory) using vi or nano to set the configuration parameters below (see comments in _cake-autorate\_config.primary.sh_ for details).
+- Edit the _config.primary.sh_ script (in the _/root/cake-autorate_ directory) using vi or nano to set the configuration parameters below (see comments in _config.primary.sh_ for details).
 
   - Change `dl_if` and `ul_if` to match the names of the upload and download interfaces to which CAKE is applied. These can be obtained, for example, by consulting the
   configured SQM settings in LuCI or by examining the output of `tc qdisc ls`.
@@ -32,7 +32,7 @@ The commands retrieve the current version from this repo:
       | `dl_if` | Interface that downloads data (often _ifb4-wan_)
       | `ul_if` | Interface that uploads (often _wan_) |
 
-  - Set bandwidth variables as described in _cake-autorate\_config.primary.sh_.
+  - Set bandwidth variables as described in _config.primary.sh_.
 
       | Type | Download | Upload |
       |----: |   :-------- | :------ |
@@ -47,7 +47,7 @@ The commands retrieve the current version from this repo:
       | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
       | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping |
 
-- The other configuration file - _cake-autorate\_defaults.sh_ - has sensible default settings. After CAKE-autorate has been installed and is running, you may wish to change some of these.
+- The other configuration file - _defaults.sh_ - has sensible default settings. After CAKE-autorate has been installed and is running, you may wish to change some of these.
   
   - For example, to set a different `dl_delay_thr_ms`, then add a line to the config like:
   
@@ -86,7 +86,7 @@ You can install CAKE-autorate as a service that starts up the autorate process w
 - Run these commands to enable and start the service file:
 
    ```bash
-   # the cake-autorate-setup.sh script already installed the service file
+   # the setup.sh script already installed the service file
    service cake-autorate enable
    service cake-autorate start
    ```
@@ -115,7 +115,7 @@ To ensure the CAKE-autorate script and configuration files are preserved, enter 
 - cake-autorate will run one instance per config file present in the _/root/cake-autorate/_ directory in the form:
 
 ```bash
-cake-autorate_config.interface.sh
+config.interface.sh
 ```
 
 where 'interface' is replaced with e.g. 'primary', 'secondary', etc.
