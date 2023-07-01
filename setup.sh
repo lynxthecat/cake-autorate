@@ -17,7 +17,8 @@ API_URL="https://api.github.com/repos/lynxthecat/cake-autorate/commits/${BRANCH}
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
 # Check if an instance of cake-autorate is already running and exit if so
-if [ -d /var/run/cake-autorate ]; then
+if [ -d /var/run/cake-autorate ]
+then
 	printf "cake-autorate is already running - exiting\n" >&2
 	printf "If you want to install a new version, stop the service first\n" >&2
 	printf "If you are sure cake-autorate is not running, delete the /var/run/cake-autorate directory\n" >&2
@@ -26,7 +27,8 @@ fi
 
 # Retrieve required packages if not present
 # shellcheck disable=SC2312
-if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]; then
+if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]
+then
 	printf "Running opkg update to update package lists:\n"
 	opkg update
 	printf "Installing bash, iputils-ping and fping packages:\n"
@@ -34,7 +36,8 @@ if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]; 
 fi
 
 exit_now=0
-for dep in ${DEPENDENCIES}; do
+for dep in ${DEPENDENCIES}
+do
 	if ! type "${dep}" >/dev/null 2>&1; then
 		printf >&2 "%s is required, please install it and rerun the script!\n" "${dep}"
 		exit_now=1
@@ -69,7 +72,8 @@ uclient-fetch -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
 mv "${tmp}/cake-autorate-"*/* "${tmp}"
 
 # Migrate old configuration (and new file) files if present
-for file in cake-autorate_config.*.sh*; do
+for file in cake-autorate_config.*.sh*
+do
 	[ -e "${file}" ] || continue   # handle case where there are no old config files
 	new_fname="$(printf '%s\n' "$file" | cut -c15-)"
 	mv "${file}" "${new_fname}"
@@ -77,7 +81,8 @@ done
 
 # Check if a configuration file exists, and ask whether to keep it
 editmsg="\nNow edit the config.primary.sh file as described in:\n   ${DOC_URL}"
-if [ -f config.primary.sh ]; then
+if [ -f config.primary.sh ]
+then
 	printf "Previous configuration present - keep it? [Y/n] "
 	read -r keepIt
 	if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
@@ -93,22 +98,24 @@ fi
 
 # remove old program files from cake-autorate directory
 old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
-for file in ${old_fnames}; do
+for file in ${old_fnames}
+do
 	rm -f "${file}"
 done
 
 # move the program files to the cake-autorate directory
 # scripts that need to be executable are already marked as such in the tarball
 files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh"
-for file in ${files}; do
+for file in ${files}
+do
 	mv "${tmp}/${file}" "${file}"
 done
 
 # Get version and generate a file containing version information
 version=$(grep -m 1 ^cake_autorate_version= /root/cake-autorate/cake-autorate.sh | cut -d= -f2 | cut -d'"' -f2)
 cat > version.txt <<-EOF
-	version = ${version}
-	commit = ${commit}
+	version=${version}
+	commit=${commit}
 EOF
 
 # Also copy over the service file but DO NOT ACTIVATE IT
