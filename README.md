@@ -124,17 +124,15 @@ concurrent processes for each cake-autorate instance. This is normal
 and expected behaviour.
 
 ```bash
-root@OpenWrt-1:~/cake-autorate# ps |grep -e bash -e fping
- 2492 root      2744 S    bash
- 2787 root      2356 S    {cake-autorate_l} /bin/bash /root/cake-autorate/cake-autorate_launcher.sh
- 2789 root      3228 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2817 root      3176 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2822 root      3136 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2834 root      3160 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2836 root      3256 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2839 root      3340 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2840 root      3308 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/cake-autorate_config.pri
- 2841 root      1928 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9
+root@OpenWrt-1:~# ps |grep -e bash -e fping
+ 5183 root      3396 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5192 root      3240 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5196 root      3200 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5207 root      3356 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5208 root      3468 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5212 root      3496 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5213 root      3504 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 5214 root      1928 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9
 ```
 
 Process IDs can be checked using
