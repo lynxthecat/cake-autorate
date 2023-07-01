@@ -5,12 +5,14 @@
 # This file is part of cake-autorate.
 
 __set_e=0
-if [[ ! ${-} =~ e ]]; then
+if [[ ! ${-} =~ e ]]
+then
     set -e
     __set_e=1
 fi
 
-if [ -z "${__sleep_fd:-}" ]; then
+if [ -z "${__sleep_fd:-}" ]
+then
 	exec {__sleep_fd}<> <(:) || true
 fi
 
@@ -71,6 +73,8 @@ get_remaining_tick_time()
 
 randomize_array()
 {
+	# randomize the order of the elements of an array
+
 	local -n array=${1}
 
 	subset=("${array[@]}")
@@ -86,6 +90,9 @@ randomize_array()
 
 lock()
 {
+	# obtain lock at path and if lock already present then
+	# block same or different process from obtaining lock
+
 	local path=${1}
 
 	while true; do
@@ -126,7 +133,8 @@ terminate()
 }
 
 
-if (( __set_e == 1 )); then
+if (( __set_e == 1 ))
+then
     set +e
 fi
 unset __set_e

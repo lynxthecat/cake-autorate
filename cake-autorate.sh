@@ -1,22 +1,22 @@
 #!/bin/bash
 
-# CAKE-autorate automatically adjusts CAKE bandwidth(s)
+# cake-autorate automatically adjusts CAKE bandwidth(s)
 # in dependence on: a) receive and transmit transfer rates; and b) latency
 # (or can just be used to monitor and log transfer rates and latency)
 
-# requires packages: bash; and one of the supported ping binaries
+# requires: bash; and one of the supported ping binaries
 
 # each cake-autorate instance must be configured using a corresponding config file 
 
 # Project homepage: https://github.com/lynxthecat/cake-autorate
 # Licence details:  https://github.com/lynxthecat/cake-autorate/blob/master/LICENCE.md
 
-# Author: @Lynx (OpenWrt forum)
-# Inspiration taken from: @moeller0 (OpenWrt forum)
+# Author and maintainer: lynxthecat
+# Contributors: moeller0; rany2
 
 cake_autorate_version="2.0.0"
 
-## cake-autorate uses multiple asynchronous processes including
+## cake-autorate uses multiple asynchronous processes including:
 ## main - main process
 ## monitor_achieved_rates - monitor network transfer rates
 ## maintain_pingers - manage pingers and active reflectors
@@ -26,7 +26,7 @@ cake_autorate_version="2.0.0"
 ##
 ## IPC is facilitated via FIFOs in the form of anonymous pipes
 ## accessible via fds in the form: ${process_name_fd}
-## thereby to enable transferring commands and data between processes
+## thereby to enable transferring instructions and data between processes
 
 # Initialize file descriptors
 ## -1 signifies that the log file fd will not be used and
@@ -135,7 +135,8 @@ log_msg()
 			
 	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
-	if (( log_fd >= 0 )); then
+	if (( log_fd >= 0 ))
+	then
 		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >&"${log_fd}"
 	else
 		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> "${log_file_path}"
@@ -211,7 +212,8 @@ generate_log_file_scripts()
 	while [[ ! -f "${run_path}/last_log_file_export" ]]
 	do
 		sleep 1
-		if (( ++read_try >= \${timeout_s} )); then
+		if (( ++read_try >= \${timeout_s} )) 
+		then
 			printf "ERROR: Timeout (\${timeout_s}s) reached before new log file export identified.\n" >&2
 			exit 1
 		fi
@@ -249,16 +251,19 @@ export_log_file()
 	log_msg "DEBUG" "Exporting log file with path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 
 	# Now export with or without compression to the appropriate export path
-	if ((log_file_export_compress)); then
+	if ((log_file_export_compress))
+	then
 		log_file_export_path="${log_file_export_path}.gz"
-		if [[ -f "${log_file_path}.old" ]]; then 
+		if [[ -f "${log_file_path}.old" ]]
+		then 
 			gzip -c "${log_file_path}.old" > "${log_file_export_path}"
 			gzip -c "${log_file_path}" >> "${log_file_export_path}"
 		else
 			gzip -c "${log_file_path}" > "${log_file_export_path}"
 		fi
 	else
-		if [[ -f "${log_file_path}.old" ]]; then
+		if [[ -f "${log_file_path}.old" ]]
+		then
 			cp "${log_file_path}.old" "${log_file_export_path}"
 			cat "${log_file_path}" >> "${log_file_export_path}"
 		else
@@ -358,7 +363,8 @@ get_next_shaper_rate()
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
-			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) )); then
+			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
+			then
 				adjusted_achieved_rate_kbps=$(( (achieved_rate_kbps["${direction}"]*achieved_rate_adjust_down_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_down_bufferbloat)/1000 )) 
 				shaper_rate_kbps["${direction}"]=$(( adjusted_achieved_rate_kbps > min_shaper_rate_kbps["${direction}"] && adjusted_achieved_rate_kbps < adjusted_shaper_rate_kbps ? adjusted_achieved_rate_kbps : adjusted_shaper_rate_kbps ))
@@ -367,18 +373,22 @@ get_next_shaper_rate()
 			;;
             	# high load, so increase rate providing not inside bufferbloat refractory period 
 		*high*)	
-			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) )); then
+			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
+			then
 				shaper_rate_kbps["${direction}"]=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		*low*|*idle*)
-			if (( t_start_us > (t_last_decay_us["${direction}"]+decay_refractory_period_us) )); then
+			if (( t_start_us > (t_last_decay_us["${direction}"]+decay_refractory_period_us) ))
+			then
 
-				if ((shaper_rate_kbps["${direction}"] > base_shaper_rate_kbps["${direction}"])); then
+				if ((shaper_rate_kbps["${direction}"] > base_shaper_rate_kbps["${direction}"]))
+				then
 					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_down_load_low)/1000 ))
 					shaper_rate_kbps["${direction}"]=$(( decayed_shaper_rate_kbps > base_shaper_rate_kbps["${direction}"] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps["${direction}"]))
-				elif ((shaper_rate_kbps["${direction}"] < base_shaper_rate_kbps["${direction}"])); then
+				elif ((shaper_rate_kbps["${direction}"] < base_shaper_rate_kbps["${direction}"]))
+				then
 					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_up_load_low)/1000 ))
 					shaper_rate_kbps["${direction}"]=$(( decayed_shaper_rate_kbps < base_shaper_rate_kbps["${direction}"] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps["${direction}"]))
 				fi
@@ -475,7 +485,8 @@ monitor_achieved_rates()
 			printf "SET_ARRAY_ELEMENT load_percent ul %s\n" "${load_percent[ul]}" >&"${pinger_fd}"
 		done
 
-		if ((output_load_stats)); then 
+		if ((output_load_stats))
+		then 
 
 			printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 			log_msg "LOAD" "${load_stats}"
@@ -498,9 +509,11 @@ classify_load()
 	# thus ending up with high_delayed, low_delayed, etc.
 	local direction="${1}"
 
-	if (( load_percent["${direction}"] > high_load_thr_percent )); then
+	if (( load_percent["${direction}"] > high_load_thr_percent ))
+	then
 		load_condition["${direction}"]="high"  
-	elif (( achieved_rate_kbps["${direction}"] > connection_active_thr_kbps )); then
+	elif (( achieved_rate_kbps["${direction}"] > connection_active_thr_kbps ))
+	then
 		load_condition["${direction}"]="low"
 	else 
 		load_condition["${direction}"]="idle"
@@ -508,12 +521,14 @@ classify_load()
 	
 	((bufferbloat_detected["${direction}"])) && load_condition["${direction}"]="${load_condition[${direction}]}_bb"
 
-	if ((sss_compensation)); then
+	if ((sss_compensation))
+	then
 		# shellcheck disable=SC2154
 		for sss_time_us in "${sss_times_us[@]}"
 		do
 			((timestamp_usecs_past_minute=${EPOCHREALTIME/./}%60000000))
-			if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) )); then
+			if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) ))
+			then
 				load_condition["${direction}"]="${load_condition[${direction}]}_sss"
 				break
 			fi
@@ -1121,7 +1136,8 @@ replace_pinger_reflector()
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if ((no_reflectors > no_pingers)); then
+	if ((no_reflectors > no_pingers))
+	then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
 		kill_pinger "${pinger}"
 		bad_reflector=${reflectors[pinger]}
@@ -1363,7 +1379,8 @@ maintain_pingers()
 					continue
 				fi
 
-				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) )); then
+				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) ))
+				then
 
 					t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
 
@@ -1431,16 +1448,19 @@ maintain_pingers()
 					# shellcheck disable=SC2154
 					reflector_offences[reflector_offences_idx]=$(( (${EPOCHREALTIME/./}-last_timestamp_reflectors_us[${reflectors[pinger]}]) > reflector_response_deadline_us ? 1 : 0 ))
 
-					if (( reflector_offences[reflector_offences_idx] )); then 
+					if (( reflector_offences[reflector_offences_idx] ))
+					then 
 						((sum_reflector_offences[pinger]++))
 						log_msg "DEBUG" "no ping response from reflector: ${reflectors[pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
 						log_msg "DEBUG" "reflector=${reflectors[pinger]}, sum_reflector_offences=${sum_reflector_offences[pinger]} and reflector_misbehaving_detection_thr=${reflector_misbehaving_detection_thr}"
 					fi
 
-					if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr )); then
+					if (( sum_reflector_offences[pinger] >= reflector_misbehaving_detection_thr ))
+					then
 
 						log_msg "DEBUG" "Warning: reflector: ${reflectors[pinger]} seems to be misbehaving."
-						if ((replace_pinger_reflector_enabled)); then
+						if ((replace_pinger_reflector_enabled))
+						then
 							replace_pinger_reflector "${pinger}"
 							replace_pinger_reflector_enabled=0
 						else
@@ -1470,7 +1490,8 @@ set_cake_rate()
 	
 	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
 
-	if ((adjust_shaper_rate)); then
+	if ((adjust_shaper_rate))
+	then
 
 		tc qdisc change root dev "${interface}" cake bandwidth "${shaper_rate_kbps}Kbit" 2> /dev/null
 
@@ -1481,15 +1502,18 @@ set_cake_rate()
 
 set_shaper_rates()
 {
-	if (( shaper_rate_kbps[dl] != last_shaper_rate_kbps[dl] || shaper_rate_kbps[ul] != last_shaper_rate_kbps[ul] )); then 
+	if (( shaper_rate_kbps[dl] != last_shaper_rate_kbps[dl] || shaper_rate_kbps[ul] != last_shaper_rate_kbps[ul] ))
+	then 
      	
 		# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-		if (( shaper_rate_kbps[dl] != last_shaper_rate_kbps[dl] )); then 
+		if (( shaper_rate_kbps[dl] != last_shaper_rate_kbps[dl] ))
+		then 
 			set_cake_rate "${dl_if}" "${shaper_rate_kbps[dl]}" adjust_dl_shaper_rate
 			printf "SET_ARRAY_ELEMENT shaper_rate_kbps dl %s\n" "${shaper_rate_kbps[dl]}" >&"${monitor_achieved_rates_fd}"
 		 	last_shaper_rate_kbps[dl]="${shaper_rate_kbps[dl]}"
 		fi
-		if (( shaper_rate_kbps[ul] != last_shaper_rate_kbps[ul] )); then 
+		if (( shaper_rate_kbps[ul] != last_shaper_rate_kbps[ul] ))
+		then 
 			set_cake_rate "${ul_if}" "${shaper_rate_kbps[ul]}" adjust_ul_shaper_rate
 			printf "SET_ARRAY_ELEMENT shaper_rate_kbps ul %s\n" "${shaper_rate_kbps[ul]}" >&"${monitor_achieved_rates_fd}"
 			last_shaper_rate_kbps[ul]="${shaper_rate_kbps[ul]}"
@@ -1624,7 +1648,8 @@ debug_cmd()
 
 	err_type="ERROR"
 
-	if ((err_silence)); then
+	if ((err_silence))
+	then
 		err_type="DEBUG"
 	fi
 
@@ -1633,7 +1658,8 @@ debug_cmd()
 
 	caller_id=$(caller)
 
-	if ((ret==0)); then
+	if ((ret==0))
+	then
 		log_msg "DEBUG" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=SUCCESS"
 	else
 		[[ "${err_type}" == "DEBUG" && "${debug}" == "0" ]] && return # if debug disabled, then skip on DEBUG but not on ERROR
@@ -1663,13 +1689,15 @@ log_file_path=/var/log/cake-autorate.log
 run_path=/var/run/cake-autorate/
 
 # cake-autorate first argument is config file path
-if [[ -n ${1-} ]]; then
+if [[ -n ${1-} ]]
+then
 	config_path="${1}"
 else
 	config_path="${PREFIX}/config.primary.sh"
 fi
 
-if [[ ! -f "${config_path}" ]]; then
+if [[ ! -f "${config_path}" ]]
+then
 	log_msg "ERROR" "No config file found. Exiting now."
 	exit
 fi
@@ -1677,12 +1705,14 @@ fi
 # shellcheck source=config.primary.sh
 . "${config_path}"
 
-if [[ ${config_file_check} != "cake-autorate" ]]; then
+if [[ ${config_file_check} != "cake-autorate" ]]
+then
 	log_msg "ERROR" "Config file error. Please check config file entries." 
 	exit
 fi
 
-if [[ ${config_path} =~ config\.(.*)\.sh ]]; then
+if [[ ${config_path} =~ config\.(.*)\.sh ]]
+then
 	instance_id=${BASH_REMATCH[1]}
 	run_path=/var/run/cake-autorate/${instance_id}
 else
@@ -1690,8 +1720,10 @@ else
 	exit
 fi
 
-if [[ -n "${log_file_path_override-}" ]]; then 
-	if [[ ! -d ${log_file_path_override} ]]; then
+if [[ -n "${log_file_path_override-}" ]]
+then 
+	if [[ ! -d ${log_file_path_override} ]]
+	then
 		broken_log_file_path_override=${log_file_path_override}
 		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 		log_msg "ERROR" "Log file path override: '${broken_log_file_path_override}' does not exist. Exiting now."
@@ -1714,7 +1746,8 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 
 # ${run_path}/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
-if [[ -d "${run_path}" ]]; then
+if [[ -d "${run_path}" ]]
+then
 	if [[ -f "${run_path}/proc_pids" ]] && running_main_pid=$(awk -F= '/^main=/ {print $2}' "${run_path}/proc_pids") && [[ -d "/proc/${running_main_pid}" ]]
 	then
 		log_msg "ERROR" "${run_path} already exists and an instance appears to be running with main process pid ${running_main_pid}. Exiting script."
@@ -1747,7 +1780,8 @@ command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${p
 
 # Passed error checks 
 
-if ((log_to_file)); then
+if ((log_to_file))
+then
 	log_file_max_time_us=$((log_file_max_time_mins*60000000))
 	log_file_max_size_bytes=$((log_file_max_size_KB*1024))
 	exec {log_fd}<> <(:)
@@ -1756,13 +1790,15 @@ if ((log_to_file)); then
 fi
 
 # test if stdout is a tty (terminal)
-if ! ((terminal)); then
+if ! ((terminal))
+then
 	echo "stdout not a terminal so redirecting output to: ${log_file_path}"
 	((log_to_file)) && exec 1>&"${log_fd}"
 fi
 
 # Initialize rx_bytes_path and tx_bytes_path if not set
-if [[ -z "${rx_bytes_path-}" ]]; then
+if [[ -z "${rx_bytes_path-}" ]]
+then
 	case "${dl_if}" in
 		veth*)
 			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
@@ -1775,7 +1811,8 @@ if [[ -z "${rx_bytes_path-}" ]]; then
 			;;
 	esac
 fi
-if [[ -z "${tx_bytes_path-}" ]]; then
+if [[ -z "${tx_bytes_path-}" ]]
+then
 	case "${ul_if}" in
 		veth*)
 			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
@@ -1789,7 +1826,8 @@ if [[ -z "${tx_bytes_path-}" ]]; then
 	esac
 fi
 
-if ((debug)) ; then
+if ((debug))
+then
 	log_msg "DEBUG" "CAKE-autorate version: ${cake_autorate_version}"
 	log_msg "DEBUG" "config_path: ${config_path}"
 	log_msg "DEBUG" "run_path: ${run_path}"
@@ -1899,13 +1937,16 @@ delays_idx=0
 sum_dl_delays=0
 sum_ul_delays=0
 
-if ((debug)); then
-	if (( bufferbloat_refractory_period_us < (bufferbloat_detection_window*ping_response_interval_us) )); then
+if ((debug))
+then
+	if (( bufferbloat_refractory_period_us < (bufferbloat_detection_window*ping_response_interval_us) ))
+	then
 		log_msg "DEBUG" "Warning: bufferbloat refractory period: ${bufferbloat_refractory_period_us} us."
 		log_msg "DEBUG" "Warning: but expected time to overwrite samples in bufferbloat detection window is: $((bufferbloat_detection_window*ping_response_interval_us)) us." 
 		log_msg "DEBUG" "Warning: Consider increasing bufferbloat refractory period or decreasing bufferbloat detection window."
 	fi
-	if (( reflector_response_deadline_us < 2*reflector_ping_interval_us )); then 
+	if (( reflector_response_deadline_us < 2*reflector_ping_interval_us ))
+	then 
 		log_msg "DEBUG" "Warning: reflector_response_deadline_s < 2*reflector_ping_interval_s"
 		log_msg "DEBUG" "Warning: consider setting an increased reflector_response_deadline."
 	fi
@@ -1915,7 +1956,8 @@ fi
 ((randomize_reflectors)) && randomize_array reflectors
 
 # Wait if ${startup_wait_s} > 0
-if ((startup_wait_us>0)); then
+if ((startup_wait_us>0))
+then
         log_msg "DEBUG" "Waiting ${startup_wait_s} seconds before startup."
         sleep_us "${startup_wait_us}"
 fi
@@ -2002,7 +2044,8 @@ do
 
 				reflectors_last_timestamp_us="${timestamp//[.]}"
 
-				if (( (t_start_us - 10#"${reflectors_last_timestamp_us}")>500000 )); then
+				if (( (t_start_us - 10#"${reflectors_last_timestamp_us}")>500000 ))
+				then
 					log_msg "DEBUG" "processed response from [${reflector}] that is > 500ms old. Skipping." 
 					continue
 				fi
@@ -2033,14 +2076,17 @@ do
 
 				set_shaper_rates
 
-				if (( output_processing_stats )); then 
+				if (( output_processing_stats ))
+				then 
 					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${load_percent[dl]}" "${load_percent[ul]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${compensated_dl_delay_thr_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" "${compensated_ul_delay_thr_us}" "${sum_dl_delays}" "${sum_ul_delays}" "${load_condition[dl]}" "${load_condition[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 					log_msg "DATA" "${processing_stats}"
 				fi
 
 				# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
-				if (( enable_sleep_function )); then
-					if [[ ${load_condition[dl]} == *idle* && ${load_condition[ul]} == *idle* ]]; then
+				if (( enable_sleep_function ))
+				then
+					if [[ ${load_condition[dl]} == *idle* && ${load_condition[ul]} == *idle* ]]
+					then
 						((t_sustained_connection_idle_us += (${EPOCHREALTIME/./}-t_end_us) ))
 						if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
 						then

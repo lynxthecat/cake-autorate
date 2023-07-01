@@ -1,13 +1,17 @@
 #!/bin/bash
 
+# defaults.sh -- default configuration values for cake-autorate.sh
+#
+# This file is part of cake-autorate.
+#
+# CAKE-AUTORATE IS HIGHLY CONFIGURABLE AND THIS FILE MAY BE 
+# CONSULTED IN RESPECT OF OVERRIDING VARIABLES IN A CONFIG FILE.
+#
 # DO NOT MODIFY THIS FILE. ANY CHANGES NEED TO BE MADE TO
-# THE CONFIG FILE FOR A GIVEN INSTANCE OF CAKE_AUTORATE.
+# THE CONFIG FILE FOR A GIVEN INSTANCE OF CAKE-AUTORATE.
 # MODIFYING THIS FILE WILL RESULT IN THE LOSS OF ANY CHANGES
 # DURING AN UPDATE OR UNEXPECTED BEHAVIOR AFTER AN UPDATE
 # IF THE OLD DEFAULT FILE WAS IN USE.
-#
-# THIS FILE MAY BE CONSULTED TO LEARN WHICH VARIABLES TO
-# OVERRIDE IN A CONFIG FILE.
 
 # *** OUTPUT AND LOGGING OPTIONS ***
 
@@ -22,7 +26,7 @@ log_DEBUG_messages_to_syslog=0	# enable (1) or disable (0) logging of all DEBUG 
 
 # ** Take care with these settings to ensure you won't run into OOM issues on your router ***
 # every write the cumulative write time and bytes associated with each log line are checked
-# and if either exceeds the configured values below, the log log file is rotated
+# and if either exceeds the configured values below, the log file is rotated
 log_to_file=1              # enable (1) or disable (0) output logging to file (/tmp/cake-autorate.log)
 log_file_max_time_mins=10  # maximum time between log file rotations
 log_file_max_size_KB=2000  # maximum KB (i.e. bytes/1024) worth of log lines between log file rotations
@@ -40,7 +44,7 @@ log_file_path_override=""
 dl_if=ifb-wan # download interface
 ul_if=wan     # upload interface
 
-# pinger selection can be any of:
+# pinger binary selection can be any of:
 # fping - round robin pinging (rtts)
 # tsping - round robin pinging using ICMP type 13 (owds)
 # ping - (iputils-ping) individual pinging (rtts)
