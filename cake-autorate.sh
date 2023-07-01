@@ -277,8 +277,9 @@ export_log_file()
 flush_log_fd()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -r -t 0.01 -u "${log_fd}" log_line
+	while read -r -t 0 -u "${log_fd}"
 	do
+		read -u "${log_fd}" log_line
 		printf '%s\n' "${log_line}" >> "${log_file_path}"
 	done
 }
