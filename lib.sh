@@ -88,26 +88,6 @@ randomize_array()
 	done
 }
 
-lock()
-{
-	# obtain lock at path and if lock already present then
-	# block same or different process from obtaining lock
-
-	local path=${1}
-
-	while true; do
-		( set -o noclobber; echo "$$" > "${path:?}" ) 2> /dev/null && return 0
-		sleep_us 100000
-	done
-}
-
-unlock()
-{
-	local path=${1}
-
-	rm -f "${path:?}"
-}
-
 terminate()
 {
 	# Send regular kill to processes and monitor terminations;
