@@ -1,13 +1,13 @@
-# Installing CAKE-autorate on OpenWrt
+# Installing cake-autorate on OpenWrt
 
-**CAKE-autorate** is a script that minimizes latency by adjusting CAKE
+**cake-autorate** is a script that minimizes latency by adjusting CAKE
 bandwidth settings based on traffic load and round-trip time
 measurements. See the main [README](./README.md) page for more details
 of the algorithm.
 
 ## Installation Steps
 
-CAKE-autorate provides an installation script that installs all the
+cake-autorate provides an installation script that installs all the
 required tools. To use it:
 
 - Install SQM (`luci-app-sqm`) and enable and configure `cake` Queue
@@ -28,7 +28,7 @@ required tools. To use it:
   below. The commands retrieve the current version from this repo:
 
   ```bash
-  wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/CAKE-autorate/master/setup.sh
+  wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/cake-autorate/master/setup.sh
 
   sh /tmp/cake-autorate_setup.sh
   ```
@@ -69,7 +69,7 @@ required tools. To use it:
     | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
 
 - The other configuration file - _defaults.sh_ - has sensible default
-  settings. After CAKE-autorate has been installed and is running, you
+  settings. After cake-autorate has been installed and is running, you
   may wish to change some of these.
 
   - For example, to set a different `dl_delay_thr_ms`, then add a line
@@ -84,7 +84,7 @@ required tools. To use it:
     |                  Variable | Setting                                                                                                                                                                                                                                               |
     | ------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
     | `output_processing_stats` | If non-zero, log the results of every iteration through the process                                                                                                                                                                                   |
-    |     `output_cake_changes` | If non-zero, log when changes are made to CAKE settings via `tc` - this shows when CAKE-autorate is adjusting the shaper                                                                                                                              |
+    |     `output_cake_changes` | If non-zero, log when changes are made to CAKE settings via `tc` - this shows when cake-autorate is adjusting the shaper                                                                                                                              |
     |                   `debug` | If non-zero, debug lines will be output                                                                                                                                                                                                               |
     |             `log_to_file` | If non-zero, log lines will be sent to /tmp/cake-autorate.log regardless of whether printing to console and after every write the log file will be rotated f either `log_file_max_time_mins` have elapsed or `log_file_max_size_KB` has been exceeded |
     |  `log_file_max_time_mins` | Number of minutes to elapse between log file rotaton                                                                                                                                                                                                  |
@@ -106,7 +106,7 @@ cd /root/cake-autorate     # to the cake-autorate directory
 
 ## Install as a service
 
-You can install CAKE-autorate as a service that starts up the autorate
+You can install cake-autorate as a service that starts up the autorate
 process whenever the router reboots. To do this:
 
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
@@ -130,13 +130,13 @@ name).
 WARNING: Take care to ensure sufficient free (Flash) memory exists in
 router to handle selected logging parameters.
 
-## Preserving CAKE-autorate files for backup or upgrades
+## Preserving cake-autorate files for backup or upgrades
 
 OpenWrt devices can save files across upgrades. Read the
 [Backup and Restore page on the OpenWrt wiki](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify)
 for details.
 
-To ensure the CAKE-autorate script and configuration files are
+To ensure the cake-autorate script and configuration files are
 preserved, enter the files below to the OpenWrt router's
 [Configuration tab](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#back_up)
 
@@ -147,7 +147,7 @@ preserved, enter the files below to the OpenWrt router's
 
 ## Multi-WAN Setups
 
-- CAKE-autorate has been designed to run multiple instances
+- cake-autorate has been designed to run multiple instances
   simultaneously.
 - cake-autorate will run one instance per config file present in the
   _/root/cake-autorate/_ directory in the form:
@@ -169,7 +169,7 @@ where 'interface' is replaced with e.g. 'primary', 'secondary', etc.
 
 ## Selecting a "ping binary"
 
-CAKE-autorate reads the `$pinger_binary` variable in the config file
+cake-autorate reads the `$pinger_binary` variable in the config file
 to select the ping binary. Choices include:
 
 - **fping** (DEFAULT) round robin pinging to multiple reflectors with

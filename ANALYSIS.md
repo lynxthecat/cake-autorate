@@ -1,6 +1,6 @@
-# Analyzing CAKE-autorate data
+# Analyzing cake-autorate data
 
-**CAKE-autorate** is a script that minimizes latency by adjusting CAKE
+**cake-autorate** is a script that minimizes latency by adjusting CAKE
 bandwidth settings based on traffic load and round-trip time
 measurements. See the main [README](./README.md) page for more details
 of the algorithm.

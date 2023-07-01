@@ -1,8 +1,8 @@
-# CAKE with Adaptive Bandwidth - "autorate"
+# CAKE with Adaptive Bandwidth - "cake-autorate"
 
-**CAKE-autorate** is a script that automatcially adjusts CAKE
+**cake-autorate** is a script that automatcially adjusts CAKE
 bandwidth settings based on traffic load and one-way-delay or
-round-trip-time measurements. CAKE-autorate is intended for variable
+round-trip-time measurements. cake-autorate is intended for variable
 bandwidth connections such as LTE, Starlink, and cable modems and is
 not generally required for use on connections that have a stable,
 fixed bandwidth.
@@ -36,7 +36,7 @@ bufferbloat.
 
 ## The Solution: Set CAKE parameters based on _Load_ and _RTT_
 
-The CAKE-autorate script continually measures the load and One Way
+The cake-autorate script continually measures the load and One Way
 Delay or Round-Trip-Time (RTT) to adjust the upload and download
 settings for the CAKE algorithm.
 
@@ -47,7 +47,7 @@ and ping response times from one or more reflectors (hosts on the
 internet), and adjusts the download and upload bandwidth settings for
 CAKE.
 
-CAKE-autorate uses this simple approach:
+cake-autorate uses this simple approach:
 
 - with low load, decay rate back to the configured baseline (and
   subject to refractory period)
@@ -57,7 +57,7 @@ CAKE-autorate uses this simple approach:
 
 <img src="images/cake-bandwidth-autorate-rate-control.png" width=80% height=80%>
 
-CAKE-autorate requires three configuration values for each direction,
+cake-autorate requires three configuration values for each direction,
 upload and download.
 
 **Setting the minimum bandwidth:** Set the minimum value to the worst
@@ -104,9 +104,9 @@ bandwidth or somewhere close thereto (e.g. the compromise bandwidth).
 Read the installation instructions in the separate
 [INSTALLATION](./INSTALLATION.md) page.
 
-## Analysis of the CAKE-autorate logs
+## Analysis of the cake-autorate logs
 
-CAKE-autorate maintains a detailed log file thats is helpful in
+cake-autorate maintains a detailed log file thats is helpful in
 discerning performance.
 
 Read about this in the [ANALYSIS](./ANALYSIS.md) page.
@@ -116,7 +116,7 @@ Read about this in the [ANALYSIS](./ANALYSIS.md) page.
 The user should verify that CPU load is kept within accpetable ranges,
 especially for devices with weaker CPUs.
 
-CAKE-autorate uses inter-process communication between multiple
+cake-autorate uses inter-process communication between multiple
 concurrent processes and incorporates various optimisations to reduce
 the CPU load nedded to perform its many tasks. A call to
 `ps |grep -e bash -e fping` reveals the presence of the multiple
