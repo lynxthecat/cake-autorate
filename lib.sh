@@ -58,19 +58,6 @@ sleep_remaining_tick_time()
 	fi
 }
 
-get_remaining_tick_time()
-{
-	# updates sleep_duration_s remaining to end of tick duration
-
-	local t_start_us=${1} # (microseconds)
-	local tick_duration_us=${2} # (microseconds)
-
-	sleep_duration_us=$(( t_start_us + tick_duration_us - ${EPOCHREALTIME/./} ))
-	((sleep_duration_us<0)) && sleep_duration_us=0
-	sleep_duration_s=000000${sleep_duration_us}
-	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-}
-
 randomize_array()
 {
 	# randomize the order of the elements of an array
@@ -111,7 +98,6 @@ terminate()
 
 	kill -9 "${pids[@]}" 2> /dev/null
 }
-
 
 if (( __set_e == 1 ))
 then
