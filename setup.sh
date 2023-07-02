@@ -44,7 +44,7 @@ do
 		exit_now=1
 	fi
 done
-[ ${exit_now} -ge 1 ] && exit ${exit_now}
+[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
 # Set up CAKE-autorate files
 # cd to the /root directory
@@ -76,7 +76,7 @@ mv "${tmp}/cake-autorate-"*/* "${tmp}"
 for file in cake-autorate_config.*.sh*
 do
 	[ -e "${file}" ] || continue   # handle case where there are no old config files
-	new_fname="$(printf '%s\n' "$file" | cut -c15-)"
+	new_fname="$(printf '%s\n' "${file}" | cut -c15-)"
 	mv "${file}" "${new_fname}"
 done
 
