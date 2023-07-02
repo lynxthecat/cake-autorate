@@ -1,35 +1,35 @@
 # Changelog
 
-**CAKE-autorate** is a script that minimizes latency by adjusting CAKE
+**cake-autorate** is a script that minimizes latency by adjusting CAKE
 bandwidth settings based on traffic load and one-way-delay or
 round-trip time measurements. Read the [README](./README.md) file for
-more about CAKE-autorate. This is the history of changes.
+more about cake-autorate. This is the history of changes.
 
-## 2023-05-27 - Version 2.0
+## 2023-06-02 - Version 2.0
 
 - This version incorporates a restructure of the bash code for
   improved robustness, stability and performance.
-- CAKE-autorate has even lower CPU requirements and can now run
-  successfully on older routers.
-- Many changes to catch and handle unusual error conditions
-- Introduce support for one way delays (OWDs) using the 'tsping'
-  binary developed by @Lochnair of the OpenWrt forum. This works with
-  ICMP type 13 (timestamp) requests to ascertain the delay in each
-  direction (i.e. OWDs).
-- Employ FIFOs for passing not only data, but also commands, between
+- Employ FIFOs for passing not only data, but also instructions, between
   the major processes, obviating costly reliance on temporary files. A
   side effect of this is that now /var/run/cake-autorate is mostly
   empty during runs.
-- Significantly reduced CPU consumption.
+- Significantly reduced CPU consumption - cake-autorate can now run
+  successfully on older routers.
+- Introduce support for one way delays (OWDs) using the 'tsping'
+  binary developed by @Lochnair. This works with ICMP type 13
+  (timestamp) requests to ascertain the delay in each direction (i.e. OWDs).
+- Many changes to help catch and handle or expose unusual error conditions.
 - Fixed eternal sleep issue.
 - Introduce more user-friendly config format by introducing
-  cake-autorate_defaults.sh and cake-autorate_config.X.sh with the
-  basics (interface names, whether to adjust the shaper rates and the
-  min, base and max shaper rates) and any overrides from the default.
+  defaults.sh and config.X.sh with the basics (interface names,
+  whether to adjust the shaper rates and the min, base and max
+  shaper rates) and any overrides from the defaults defined in
+  defaults.sh.
 - More intelligent check for another running instance.
 - Introduce more user-friendly log file exports by automatically
-  generating an export script for each running cake-autorate instance
-  inside /var/run/cake-autorate/\*/.
+  generating an export script and a log reset script for each running
+  cake-autorate instance inside /var/run/cake-autorate/\*/.
+- Improved installer.
 - Many more fixes and improvements.
 - Particular thanks to @rany2 for his input on this version.
 
@@ -37,7 +37,7 @@ more about CAKE-autorate. This is the history of changes.
 
 - cake-autorate now includes a sophisticated offline log file analysis
   utility written in Matlab/Octave: 'fn_parse_autorate_log.m' and
-  maintained by @moeller0 (OpenWrt forum). This utility takes in a
+  maintained by @moeller0. This utility takes in a
   cake-autorate generated log file (in compressed or uncompressed
   format), which can be generated on the fly by sending an appropriate
   signal, and presents beautiful plots that depict latency and
@@ -122,7 +122,7 @@ Implemented several new features such as:
 - At startup, display version number and interface name and configured
   speeds
 - Abort if the configured interfaces do not exist
-- Style guide: the name of the algorithm and repo is "CAKE-autorate"
+- Style guide: the name of the algorithm and repo is "cake-autorate"
 - All "cake-autorate..." filenames are lower case
 - New log_msg() function that places a simple time stamp on the each
   line
@@ -131,8 +131,7 @@ Implemented several new features such as:
 
 ## 2022-07-01
 
-- Significant testing with a Starlink connection (thanks to @gba of
-  OpenWrt)
+- Significant testing with a Starlink connection (thanks to @gba)
 - Have added code to compensate for Starlink satelite switch times to
   preemptively reduce shaper rates prior to switch thereby to help
   prevent or at least reduce the otherwise large RTT spikes associate
@@ -169,7 +168,7 @@ Implemented several new features such as:
 
 ## 2022-03-21
 
-- Huge reworking of CAKE-autorate. Now individual processes ping a
+- Huge reworking of cake-autorate. Now individual processes ping a
   reflector, maintain a baseline, and write out result lines to a
   common FIFO that is read in by a main loop and processed. Several
   optimisations have been effected to reduce CPU load. Sleep
@@ -182,13 +181,13 @@ Implemented several new features such as:
 
 ## 2022-02-18
 
-- Altered CAKE-autorate to employ inotifywait for main loop ticks
+- Altered cake-autorate to employ inotifywait for main loop ticks
 - Now main loops ticks are triggered either by a delay event or tick
   trigger (whichever comes first)
 
 ## 2022-02-17
 
-- Completed and uploaded to new CAKE-autorate branch completely new
+- Completed and uploaded to new cake-autorate branch completely new
   bash implementation
 - This will likely be the future for this project
 
@@ -229,7 +228,7 @@ Implemented several new features such as:
 - nping found to support ICMP type 13 but slow and unreliable
 - settled on hping3 as identified by @Locknair (OpenWrt forum) as ery
   efficient and timing information proves reliable
-- @Failsafe (OpenWrt forum) demonstrated awk mastery by writing awk
+- @Failsafe demonstrated awk mastery by writing awk
   parser to handle output of hping3
 
 ## 2021-12-6
