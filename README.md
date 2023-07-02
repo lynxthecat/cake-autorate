@@ -135,21 +135,6 @@ root@OpenWrt-1:~# ps |grep -e bash -e fping
  5214 root      1928 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9
 ```
 
-Process IDs can be checked using
-`cat /var/run/cake-autorate/primary/proc_pids`, e.g.:
-
-```bash
-root@OpenWrt-1:~# cat /var/run/cake-autorate/primary/proc_pids
-intercept_stderr=8591
-maintain_log_file=8597
-parse_fping_preprocessor=21175
-parse_fping=8624
-monitor_achieved_rates=8618
-main=8573
-maintain_pingers=8620
-parse_fping_pinger=21176
-```
-
 It is useful to keep an htop instance running and run some speed tests
 to see the maximum CPU utilisation of the processes and keep an eye on
 the loadavg:
