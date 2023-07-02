@@ -12,9 +12,10 @@ DEPENDENCIES="jsonfilter uclient-fetch tar grep"
 
 # Set up remote locations and branch
 BRANCH="master"
-SRC_DIR="https://github.com/lynxthecat/cake-autorate/archive/"
-API_URL="https://api.github.com/repos/lynxthecat/cake-autorate/commits/${BRANCH}"
-DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
+REPOSITORY="${CAKE_AUTORATE_REPO:-lynxthecat/cake-autorate}"
+SRC_DIR="https://github.com/${REPOSITORY}/archive/"
+API_URL="https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}"
+DOC_URL="https://github.com/${REPOSITORY}/tree/${BRANCH}#installation-on-openwrt"
 
 # Check if an instance of cake-autorate is already running and exit if so
 if [ -d /var/run/cake-autorate ]
@@ -43,7 +44,7 @@ do
 		exit_now=1
 	fi
 done
-[ ${exit_now} -ge 1 ] && exit ${exit_now}
+[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
 # Set up CAKE-autorate files
 # cd to the /root directory
@@ -75,7 +76,7 @@ mv "${tmp}/cake-autorate-"*/* "${tmp}"
 for file in cake-autorate_config.*.sh*
 do
 	[ -e "${file}" ] || continue   # handle case where there are no old config files
-	new_fname="$(printf '%s\n' "$file" | cut -c15-)"
+	new_fname="$(printf '%s\n' "${file}" | cut -c15-)"
 	mv "${file}" "${new_fname}"
 done
 
