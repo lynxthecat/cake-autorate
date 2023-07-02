@@ -31,8 +31,8 @@ ul_delay_thr_ms=40 # (milliseconds)
 # Starlink satellite switch (sss) compensation options
 sss_compensation=1
 # satellite switch compensation start times in seconds of each minute
-# sss_times_s=("12.0" "27.0" "42.0" "57.0")
-# sss_compensation_pre_duration_ms=300
-# sss_compensation_post_duration_ms=200
+#sss_times_s=("12.0" "27.0" "42.0" "57.0")
+#sss_compensation_pre_duration_ms=300
+#sss_compensation_post_duration_ms=200
 
 config_file_check="cake-autorate"
