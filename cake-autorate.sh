@@ -1050,8 +1050,8 @@ start_pinger()
 
 start_pingers()
 {
-	# Initiate pingers
-	log_msg "DEBUG" "Starting pingers."
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+	
 	case ${pinger_binary} in
 
 		tsping|fping)
@@ -1104,6 +1104,8 @@ kill_pinger()
 
 kill_pingers()
 {
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	case "${pinger_binary}" in
 
 		tsping|fping)
@@ -1589,6 +1591,8 @@ change_state_main()
 {
 	local main_next_state="${1}"
 
+	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
+
 	case ${main_next_state} in
 
 		RUNNING|IDLE|STALL)
@@ -1977,7 +1981,7 @@ case "${pinger_binary}" in
 
 		*)
 			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
-			kill $$ 2>/dev/null
+			exit
 		;;
 esac
 
@@ -2171,7 +2175,7 @@ do
 		*)
 				
 			log_msg "ERROR" "Unrecognized main state: ${main_state}. Exiting now."
-			kill $$ 2>/dev/null
+			exit
 			;;
 	esac
 	
