@@ -34,7 +34,7 @@ bufferbloat.
 
 <img src="images/bandwidth-compromise.png" width=75% height=75%>
 
-## The Solution: Set CAKE parameters based on _Load_ and _RTT_
+## The Solution: Set CAKE parameters based on load and latency
 
 The cake-autorate script continually measures the load and One Way
 Delay or Round-Trip-Time (RTT) to adjust the upload and download
