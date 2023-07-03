@@ -1485,15 +1485,15 @@ maintain_pingers()
 set_cake_rate()
 {
 	local interface="${1}"
-	local shaper_rate_kbps="${2}"
+	local new_shaper_rate_kbps="${2}"
 	local adjust_shaper_rate="${3}"
 	
-	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${shaper_rate_kbps}Kbit"
+	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${new_shaper_rate_kbps}Kbit"
 
 	if ((adjust_shaper_rate))
 	then
 
-		tc qdisc change root dev "${interface}" cake bandwidth "${shaper_rate_kbps}Kbit" 2> /dev/null
+		tc qdisc change root dev "${interface}" cake bandwidth "${new_shaper_rate_kbps}Kbit" 2> /dev/null
 
 	else
 		((output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
