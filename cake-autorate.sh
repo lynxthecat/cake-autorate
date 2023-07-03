@@ -1915,6 +1915,8 @@ shaper_rate_kbps[ul]="${base_ul_shaper_rate_kbps}"
 last_shaper_rate_kbps[dl]=0
 last_shaper_rate_kbps[ul]=0
 
+dl_max_wire_packet_size_bits=0
+ul_max_wire_packet_size_bits=0
 get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits  
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 
