@@ -1,0 +1,24 @@
+
+# Double quote to prevent globbing and word splitting.
+disable=SC2086
+
+# Remove exec if script should continue after this command.
+disable=SC2093
+
+# This {/} is literal. Check if ; is missing or quote the expression.
+disable=SC1083
+
+# Prefer explicit -n to check non-empty string (or use =/-ne to check boolean/integer).
+disable=SC2244
+
+# Multiple redirections compete for stdout. Use cat, tee, or pass filenames instead.
+disable=SC2261
+
+# Consider invoking this command separately to avoid masking its return value (or use '|| true' to ignore).
+disable=SC2312
+
+# Enable all other optional checks
+enable=all
+
+# Allow shellcheck to access arbitrary files
+external-sources=true

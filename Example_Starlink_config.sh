@@ -35,4 +35,13 @@ sss_compensation=1
 #sss_compensation_pre_duration_ms=300
 #sss_compensation_post_duration_ms=200
 
+# *** OVERRIDES ***
+
+### See defaults.sh for additional configuration options
+### that can be set in this configuration file to override the defaults.
+### Place any such overrides below this line.
+
+
+# *** DO NOT EDIT BELOW THIS LINE ***
+
 config_file_check="cake-autorate"
