@@ -1,6 +1,6 @@
 # CAKE with Adaptive Bandwidth - "cake-autorate"
 
-**cake-autorate** is a script that automatcially adjusts CAKE
+**cake-autorate** is a script that automatically adjusts CAKE
 bandwidth settings based on traffic load and one-way-delay or
 round-trip-time measurements. cake-autorate is intended for variable
 bandwidth connections such as LTE, Starlink, and cable modems and is
@@ -37,7 +37,7 @@ bufferbloat.
 ## The Solution: Set CAKE parameters based on load and latency
 
 The cake-autorate script continually measures the load and One Way
-Delay or Round-Trip-Time (RTT) to adjust the upload and download
+Delay (OWD) or Round-Trip-Time (RTT) to adjust the upload and download
 settings for the CAKE algorithm.
 
 ### Theory of Operation
@@ -60,7 +60,7 @@ cake-autorate uses this simple approach:
 cake-autorate requires three configuration values for each direction,
 upload and download.
 
-**Setting the minimum bandwidth:** Set the minimum value to the worst
+**Setting the minimum bandwidth:** Set the minimum value to the lowest
 possible observed bufferbloat-free bandwidth. Ideally this setting
 should never result in bufferbloat even under the worst conditions.
 This is a hard minimum - the script will never reduce the bandwidth
@@ -80,7 +80,7 @@ involves letting some excess latency through, reducing the maximum
 bandwidth to a level below the maximum possible bandwidth has the
 benefit of reducing that excess latency associated with testing for
 the maximum bandwidth, and may allow for some degree of cruising along
-at that upper limit whilst the true conneciton capacity is higher than
+at that upper limit whilst the true connection capacity is higher than
 the set maximum bandwidth.
 
 To elaborate on setting the minimum and maximum, a variable bandwidth
@@ -113,12 +113,12 @@ Read about this in the [ANALYSIS](./ANALYSIS.md) page.
 
 ## CPU load monitoring
 
-The user should verify that CPU load is kept within accpetable ranges,
+The user should verify that CPU load is kept within acceptable ranges,
 especially for devices with weaker CPUs.
 
 cake-autorate uses inter-process communication between multiple
 concurrent processes and incorporates various optimisations to reduce
-the CPU load nedded to perform its many tasks. A call to
+the CPU load needed to perform its many tasks. A call to
 `ps |grep -e bash -e fping` reveals the presence of the multiple
 concurrent processes for each cake-autorate instance. This is normal
 and expected behaviour.
@@ -160,5 +160,5 @@ CPU load is proportional to the frequency of ping responses. Reducing
 the number of pingers or pinger interval will therefore significantly
 reduce CPU usage. The default ping response rate is 20 Hz (6 pingers
 with 0.3 seconds between pings). Reducing the number of pingers to
-three will give a ping resposne rate of 10 Hz and approximately half
+three will give a ping response rate of 10 Hz and approximately half
 the CPU load.
