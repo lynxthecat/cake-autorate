@@ -11,7 +11,7 @@ then
     __set_e=1
 fi
 
-if [ -z "${__sleep_fd:-}" ]
+if [[ -z "${__sleep_fd:-}" ]]
 then
 	exec {__sleep_fd}<> <(:) || true
 fi
