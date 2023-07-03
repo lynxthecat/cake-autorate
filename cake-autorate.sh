@@ -114,7 +114,7 @@ log_msg()
 	case ${type} in
 
 		DEBUG)
-			[[ "${debug}" == "0" ]] && return # skip over DEBUG messages where debug disabled 
+			((debug == 0)) && return # skip over DEBUG messages where debug disabled 
 			((log_DEBUG_messages_to_syslog)) && ((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 
@@ -138,7 +138,7 @@ log_msg()
 	else
 		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> "${log_file_path}"
 	fi
-        
+
 	((terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
 }
 
@@ -170,7 +170,7 @@ rotate_log_file()
 		cat "${log_file_path}" > "${log_file_path}.old"
 		true > "${log_file_path}"
 	fi
-	
+
 	((output_processing_stats)) && print_headers
 	t_log_file_start_us=${EPOCHREALTIME/./}
 	get_log_file_size_bytes
@@ -209,7 +209,7 @@ generate_log_file_scripts()
 	while [[ ! -f "${run_path}/last_log_file_export" ]]
 	do
 		sleep 1
-		if (( ++read_try >= \${timeout_s} )) 
+		if (( ++read_try >= \${timeout_s} ))
 		then
 			printf "ERROR: Timeout (\${timeout_s}s) reached before new log file export identified.\n" >&2
 			exit 1
@@ -217,7 +217,7 @@ generate_log_file_scripts()
 	done
 
 	read -r log_file_export_path < "${run_path}/last_log_file_export"
-		
+
 	printf "Log file export complete.\n"
 
 	printf "Log file available at location: "
@@ -252,7 +252,7 @@ export_log_file()
 	then
 		log_file_export_path="${log_file_export_path}.gz"
 		if [[ -f "${log_file_path}.old" ]]
-		then 
+		then
 			gzip -c "${log_file_path}.old" > "${log_file_export_path}"
 			gzip -c "${log_file_path}" >> "${log_file_export_path}"
 		else
@@ -267,7 +267,7 @@ export_log_file()
 			cp "${log_file_path}" "${log_file_export_path}"
 		fi
 	fi
-	
+
 	printf '%s' "${log_file_export_path}" > "${run_path}/last_log_file_export"
 }
 
@@ -324,7 +324,7 @@ maintain_log_file()
 		# Verify log file time < configured maximum
 		if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us ))
 		then
-		
+
 			log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
 			flush_log_fd
 			rotate_log_file
@@ -345,7 +345,7 @@ maintain_log_file()
 	done
 }
 
-get_next_shaper_rate() 
+get_next_shaper_rate()
 {
 	local direction="${1}" # 'dl' or 'ul'
 
@@ -370,7 +370,7 @@ get_next_shaper_rate()
 			fi
 			;;
             	# high load, so increase rate providing not inside bufferbloat refractory period 
-		*high*)	
+		*high*)
 			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
 			then
 				shaper_rate_kbps["${direction}"]=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_up_load_high)/1000 ))
@@ -476,7 +476,7 @@ monitor_achieved_rates()
 
 		load_percent[dl]=$(( (100*achieved_rate_kbps[dl])/shaper_rate_kbps[dl] ))
 		load_percent[ul]=$(( (100*achieved_rate_kbps[ul])/shaper_rate_kbps[ul] ))
-		
+
 		for pinger_fd in "${pinger_fds[@]:?}"
 		do
 			printf "SET_ARRAY_ELEMENT load_percent dl %s\n" "${load_percent[dl]}" >&"${pinger_fd}"
@@ -484,7 +484,7 @@ monitor_achieved_rates()
 		done
 
 		if ((output_load_stats))
-		then 
+		then
 
 			printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 			log_msg "LOAD" "${load_stats}"
@@ -494,7 +494,7 @@ monitor_achieved_rates()
 		prev_tx_bytes="${tx_bytes}"
 
 		compensated_monitor_achieved_rates_interval_us=$(( monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us ))
-		
+
 		sleep_remaining_tick_time "${t_start_us}" "${compensated_monitor_achieved_rates_interval_us}"
 
 	done
@@ -509,14 +509,14 @@ classify_load()
 
 	if (( load_percent["${direction}"] > high_load_thr_percent ))
 	then
-		load_condition["${direction}"]="high"  
+		load_condition["${direction}"]="high"
 	elif (( achieved_rate_kbps["${direction}"] > connection_active_thr_kbps ))
 	then
 		load_condition["${direction}"]="low"
-	else 
+	else
 		load_condition["${direction}"]="idle"
 	fi
-	
+
 	((bufferbloat_detected["${direction}"])) && load_condition["${direction}"]="${load_condition[${direction}]}_bb"
 
 	if ((sss_compensation))
@@ -530,7 +530,7 @@ classify_load()
 				load_condition["${direction}"]="${load_condition[${direction}]}_sss"
 				break
 			fi
-		done			
+		done
 	fi
 
 	load_condition["${direction}"]="${direction}_${load_condition[${direction}]}"
@@ -543,14 +543,14 @@ parse_preprocessor()
 	# prepend REFLECTOR_RESPONSE and append timestamp as a checksum
 	while read -r timestamp remainder
 	do
-		printf "REFLECTOR_RESPONSE %s %s %s\n" "${timestamp}" "${remainder}" "${timestamp}" >&"${pinger_fds[pinger]}" 
+		printf "REFLECTOR_RESPONSE %s %s %s\n" "${timestamp}" "${remainder}" "${timestamp}" >&"${pinger_fds[pinger]}"
 	done
 }
 
 parse_tsping()
 {
 	trap '' INT
-	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT		
+	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT
 
 	local parse_id="${1}"
 	local reflectors=("${@:2}")
@@ -573,7 +573,7 @@ parse_tsping()
 	declare -A load_percent
 	load_percent[dl]=0
 	load_percent[ul]=0
-	
+
 	while true
 	do
 		unset command
@@ -587,7 +587,7 @@ parse_tsping()
 					;;
 
 				START_PINGER)
-				
+
 					exec {parse_preprocessor_fd}> >(parse_preprocessor)
 					parse_preprocessor_pid="${!}"
 					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
@@ -630,7 +630,7 @@ parse_tsping()
                                         ;;
 
 				SET_ARRAY_ELEMENT)
-					
+
 					if [[ "${#command[@]}" -eq 4 ]]
 					then
 						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
@@ -710,7 +710,7 @@ parse_tsping()
 
 			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
-			
+
 			printf "SET_ARRAY_ELEMENT last_timestamp_reflectors_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
@@ -719,7 +719,7 @@ parse_tsping()
 parse_fping()
 {
 	trap '' INT
-	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT		
+	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT
 
 	local parse_id="${1}"
 
@@ -745,7 +745,7 @@ parse_fping()
 	load_percent[ul]=0
 
 	t_start_us="${EPOCHREALTIME/./}"
-					
+
 	while true
 	do
 		unset command
@@ -1053,17 +1053,17 @@ start_pingers()
 
 		tsping|fping)
 			start_pinger 0
-		;;
+			;;
 		ping)
 			for ((pinger=0; pinger < no_pingers; pinger++))
 			do
 				start_pinger "${pinger}"
 			done
-		;;
+			;;
 		*)
 			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
 			kill $$ 2>/dev/null
-		;;
+			;;
 	esac
 }
 
@@ -1092,7 +1092,6 @@ kill_pinger()
 			;;
 
 		*)
-			:
 			;;
 	esac
 
@@ -1238,7 +1237,7 @@ maintain_pingers()
 
  	trap '' INT
 	trap 'kill_maintain_pingers' TERM EXIT
-	
+
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	declare -A dl_owd_baselines_us
@@ -1251,9 +1250,9 @@ maintain_pingers()
 	reflector_offences_idx=0
 	pingers_active=0
 
-	pingers_t_start_us="${EPOCHREALTIME/./}"	
-	t_last_reflector_replacement_us="${EPOCHREALTIME/./}"	
-	t_last_reflector_comparison_us="${EPOCHREALTIME/./}"	
+	pingers_t_start_us="${EPOCHREALTIME/./}"
+	t_last_reflector_replacement_us="${EPOCHREALTIME/./}"
+	t_last_reflector_comparison_us="${EPOCHREALTIME/./}"
 
 	for ((reflector=0; reflector < no_reflectors; reflector++))
 	do
@@ -1309,7 +1308,7 @@ maintain_pingers()
 			case "${command[0]:-}" in
 
 				CHANGE_STATE)
-					if [[ "${command[1]:-}" ]] 
+					if [[ "${#command[@]}" -eq 2 ]]
 					then
 						change_state_maintain_pingers "${command[1]}"
 						# break out of reading any new IPC commands to handle next state
@@ -1325,13 +1324,13 @@ maintain_pingers()
 					fi
 					;;
 				SET_ARRAY_ELEMENT)
-					if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+					if [[ "${#command[@]}" -eq 4 ]]
 					then
 						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 					fi
 					;;
 				SET_VAR)
-					if [[ "${command[1]:-}" && "${command[2]:-}" ]]
+					if [[ "${#command[@]}" -eq 3 ]]
 					then
 						export -n "${command[1]}=${command[2]}"
 					fi
@@ -1344,8 +1343,8 @@ maintain_pingers()
 					:
 					;;
 				esac
-		done	
-		
+		done
+
 		case "${maintain_pingers_state}" in
 
 			START)
@@ -1365,25 +1364,25 @@ maintain_pingers()
 				fi
 				change_state_maintain_pingers "PAUSED"
 				;;
-			
+
 			PAUSED)
 				;;
-			
+
 			RUNNING)
 
 				if (( t_start_us>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) ))
 				then
-					pinger=$((RANDOM%no_pingers))	
+					pinger=$((RANDOM%no_pingers))
 					log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
 					replace_pinger_reflector "${pinger}"
-					t_last_reflector_replacement_us=${EPOCHREALTIME/./}	
+					t_last_reflector_replacement_us=${EPOCHREALTIME/./}
 					continue
 				fi
 
 				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) ))
 				then
 
-					t_last_reflector_comparison_us=${EPOCHREALTIME/./}	
+					t_last_reflector_comparison_us=${EPOCHREALTIME/./}
 
 					[[ "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" ]] || continue
 
@@ -1692,7 +1691,7 @@ log_file_path=/var/log/cake-autorate.log
 run_path=/var/run/cake-autorate/
 
 # cake-autorate first argument is config file path
-if [[ -n ${1-} ]]
+if [[ -n "${1-}" ]]
 then
 	config_path="${1}"
 else
@@ -1702,29 +1701,29 @@ fi
 if [[ ! -f "${config_path}" ]]
 then
 	log_msg "ERROR" "No config file found. Exiting now."
-	exit
+	exit 1
 fi
 
 # shellcheck source=config.primary.sh
 . "${config_path}"
 
-if [[ ${config_file_check} != "cake-autorate" ]]
+if [[ "${config_file_check}" != "cake-autorate" ]]
 then
-	log_msg "ERROR" "Config file error. Please check config file entries." 
-	exit
+	log_msg "ERROR" "Config file error. Please check config file entries."
+	exit 1
 fi
 
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then
-	instance_id=${BASH_REMATCH[1]}
-	run_path=/var/run/cake-autorate/${instance_id}
+	instance_id="${BASH_REMATCH[1]}"
+	run_path="/var/run/cake-autorate/${instance_id}"
 else
 	log_msg "ERROR" "Instance identifier 'X' set by config.X.sh cannot be empty. Exiting now."
-	exit
+	exit 1
 fi
 
 if [[ -n "${log_file_path_override-}" ]]
-then 
+then
 	if [[ ! -d ${log_file_path_override} ]]
 	then
 		broken_log_file_path_override=${log_file_path_override}
@@ -1767,7 +1766,7 @@ fi
 
 proc_pids['main']="${BASHPID}"
 
-no_reflectors=${#reflectors[@]} 
+no_reflectors=${#reflectors[@]}
 
 # Check ping binary exists
 command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${pinger_binary} does not exist. Exiting script."; exit; }
@@ -1781,7 +1780,7 @@ command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${p
 # Check bufferbloat detection threshold not greater than window length
 (( bufferbloat_detection_thr > bufferbloat_detection_window )) && { log_msg "ERROR" "bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit; }
 
-# Passed error checks 
+# Passed error checks
 
 if ((log_to_file))
 then
@@ -1971,7 +1970,8 @@ case "${pinger_binary}" in
 
 	tsping|fping)
 		exec {pinger_fds[0]}<> <(:)
-		;;	
+		;;
+
 	ping)
 		for ((pinger=0; pinger<=no_pingers; pinger++))
 		do
@@ -1979,9 +1979,9 @@ case "${pinger_binary}" in
 		done
 		;;
 
-		*)
-			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
-			exit
+	*)
+		log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+		exit
 		;;
 esac
 
@@ -2175,7 +2175,7 @@ do
 		*)
 				
 			log_msg "ERROR" "Unrecognized main state: ${main_state}. Exiting now."
-			exit
+			exit 1
 			;;
 	esac
 	
