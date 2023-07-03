@@ -109,30 +109,27 @@ log_msg()
 	local type="${1}"
 	local msg="${2}"
 	local instance_id="${instance_id:-"unknown"}"
+	local log_timestamp=${EPOCHREALTIME}
 
 	case ${type} in
 
 		DEBUG)
 			[[ "${debug}" == "0" ]] && return # skip over DEBUG messages where debug disabled 
-			log_timestamp=${EPOCHREALTIME}
 			((log_DEBUG_messages_to_syslog)) && ((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
-	
+
 		ERROR)
-			log_timestamp=${EPOCHREALTIME}
 			((use_logger)) && logger -t "cake-autorate.${instance_id}" "${type}: ${log_timestamp} ${msg}"
 			;;
 
 		SYSLOG)
-			log_timestamp=${EPOCHREALTIME}
 			((use_logger)) && logger -t "cake-autorate.${instance_id}" "INFO: ${log_timestamp} ${msg}"
 			;;
 
 		*)
-			log_timestamp=${EPOCHREALTIME}
 			;;
 	esac
-			
+
 	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
 	if (( log_fd >= 0 ))
