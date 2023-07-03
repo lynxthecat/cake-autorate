@@ -442,17 +442,17 @@ monitor_achieved_rates()
 			case "${command[0]:-}" in
 
 				SET_VAR)
-					if [[ "${command[1]:-}" && "${command[2]:-}" ]]
+					if [[ "${#command[@]}" -eq 3 ]]
 					then
 						export -n "${command[1]}=${command[2]}"
 					fi
 					;;
 				SET_ARRAY_ELEMENT)
-				if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
-				then
-					declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
-				fi
-				;;
+					if [[ "${#command[@]}" -eq 4 ]]
+					then
+						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
+					fi
+					;;
 				TERMINATE)
 					log_msg "DEBUG" "Terminating monitor_achieved_rates."
 					exit
@@ -625,7 +625,7 @@ parse_tsping()
 
                                 SET_VAR)
 
-                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
+                                        if [[ "${#command[@]}" -eq 3 ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -634,7 +634,7 @@ parse_tsping()
 
 				SET_ARRAY_ELEMENT)
 					
-					if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+					if [[ "${#command[@]}" -eq 4 ]]
 					then
 						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 					fi
@@ -797,7 +797,7 @@ parse_fping()
 
                                 SET_VAR)
 
-                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
+                                        if [[ "${#command[@]}" -eq 3 ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -806,7 +806,7 @@ parse_fping()
 
                                 SET_ARRAY_ELEMENT)
 
-                                        if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+                                        if [[ "${#command[@]}" -eq 4 ]]
                                         then
                                                 declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
                                         fi
@@ -823,7 +823,7 @@ parse_fping()
                                         continue
                                         ;;
                         esac
-		fi	
+		fi
 
 		if [[ "${timestamp:-}" && "${reflector:-}" && "${seq_rtt:-}" && "${checksum:-}" ]]
 		then
@@ -835,7 +835,7 @@ parse_fping()
 
 			rtt_us="${BASH_REMATCH[3]}000"
 			rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
-			
+
 			dl_owd_us=$((rtt_us/2))
 			ul_owd_us="${dl_owd_us}"
 
@@ -858,28 +858,28 @@ parse_fping()
 			printf "REFLECTOR_RESPONSE %s %s %s %s %s %s %s %s %s %s %s\n" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[${reflector}]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[${reflector}]}" "${dl_owd_delta_us}" "${ul_owd_baselines_us[${reflector}]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[${reflector}]}" "${ul_owd_delta_us}" >&"${main_fd}"
 
 			timestamp_us="${timestamp//[.]}"
-	
+
 			printf "SET_ARRAY_ELEMENT dl_owd_baselines_us %s %s\n" "${reflector}" "${dl_owd_baselines_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			printf "SET_ARRAY_ELEMENT ul_owd_baselines_us %s %s\n" "${reflector}" "${ul_owd_baselines_us[${reflector}]}" >&"${maintain_pingers_fd}"
 
 			printf "SET_ARRAY_ELEMENT dl_owd_delta_ewmas_us %s %s\n" "${reflector}" "${dl_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
 			printf "SET_ARRAY_ELEMENT ul_owd_delta_ewmas_us %s %s\n" "${reflector}" "${ul_owd_delta_ewmas_us[${reflector}]}" >&"${maintain_pingers_fd}"
-			
+
 			printf "SET_ARRAY_ELEMENT last_timestamp_reflectors_us %s %s\n" "${reflector}" "${timestamp_us}" >&"${maintain_pingers_fd}"
 		fi
 	done
 }
 # IPUTILS-PING FUNCTIONS
-parse_ping() 
+parse_ping()
 {
 	trap '' INT
-	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT		
+	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT
 
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
 	local parse_id="${1}"
 	local reflector="${2}"
-	
+
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
         declare -A dl_owd_baselines_us
@@ -895,7 +895,7 @@ parse_ping()
 	declare -A load_percent
 	load_percent[dl]=0
 	load_percent[ul]=0
-	
+
 	while true
 	do
 		unset command
@@ -930,9 +930,9 @@ parse_ping()
 
 				SET_REFLECTOR)
 
-                                        if [[ "${command[1]:-}" ]]
+					if [[ "${#command[@]}" -eq 2 ]]
 					then
-						reflector="${command[1]}"	
+						reflector="${command[1]}"
 						log_msg "DEBUG" "Read in new reflector: ${reflector}"
 						dl_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]:-100000}"
 						ul_owd_baselines_us["${reflector}"]="${ul_owd_baselines_us[${reflector}]:-100000}"
@@ -944,7 +944,7 @@ parse_ping()
 
                                 SET_VAR)
 
-                                        if [[ "${command[1]:-}" && "${command[2]:-}" ]]
+                                        if [[ "${#command[@]}" -eq 3 ]]
                                         then
                                                 export -n "${command[1]}=${command[2]}"
                                         fi
@@ -953,7 +953,7 @@ parse_ping()
 
                                 SET_ARRAY_ELEMENT)
 
-                                        if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+                                        if [[ "${#command[@]}" -eq 4 ]]
                                         then
                                                 declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
                                         fi
@@ -1051,7 +1051,7 @@ start_pinger()
 start_pingers()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	
+
 	case ${pinger_binary} in
 
 		tsping|fping)
@@ -1077,7 +1077,7 @@ sleep_until_next_pinger_time_slot()
 	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
 
 	local pinger="${1}"
-	
+
 	t_start_us=${EPOCHREALTIME/./}
 	time_to_next_time_slot_us=$(( (reflector_ping_interval_us-(t_start_us-pingers_t_start_us)%reflector_ping_interval_us) + pinger*ping_response_interval_us ))
 	sleep_remaining_tick_time "${t_start_us}" "${time_to_next_time_slot_us}"
@@ -1086,7 +1086,7 @@ sleep_until_next_pinger_time_slot()
 kill_pinger()
 {
 	local pinger="${1}"
-	
+
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case "${pinger_binary}" in
@@ -1134,9 +1134,9 @@ replace_pinger_reflector()
 	# ${reflectors[no_pingers]} is then unset
 	# and the the bad reflector moved to the back of the queue (last element in ${reflectors[]})
 	# and finally the indices for ${reflectors} are updated to reflect the new order
-	
+
 	local pinger="${1}"
-	
+
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	if ((no_reflectors > no_pingers))
@@ -1152,19 +1152,19 @@ replace_pinger_reflector()
 		reflectors+=("${bad_reflector}")
 		# reset array indices
 		mapfile -t reflectors < <(for i in "${reflectors[@]}"; do printf '%s\n' "${i}"; done)
-		# set up the new pinger with the new reflector and retain pid	
+		# set up the new pinger with the new reflector and retain pid
 		case ${pinger_binary} in
 
 			tsping|fping)
 				printf "SET_REFLECTORS %s\n" "${reflectors[*]:0:${no_pingers}}" >&"${pinger_fds[0]}"
-			;;
+				;;
 			ping)
 				printf "SET_REFLECTOR %s\n" "${reflectors[pinger]}" >&"${pinger_fds[pinger]}"
-			;;
+				;;
 			*)
 				log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
 				kill $$ 2>/dev/null
-			;;
+				;;
 		esac
 		start_pinger "${pinger}"
 	else
@@ -1202,7 +1202,7 @@ kill_maintain_pingers()
 			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
 			kill $$ 2>/dev/null
 			;;
-        esac	
+        esac
 
 	exit
 }
@@ -1216,18 +1216,19 @@ change_state_maintain_pingers()
 	case "${maintain_pingers_next_state}" in
 
 		START|STOP|PAUSED|RUNNING)
-		
-			if [[ "${maintain_pingers_state}" != "${maintain_pingers_next_state}" ]]
+
+			if [[ "${maintain_pingers_state}" == "${maintain_pingers_next_state}" ]]
 			then
-				log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${maintain_pingers_next_state}"
-				maintain_pingers_state=${maintain_pingers_next_state}
-			else
 				log_msg "ERROR" "Received request to change maintain_pingers state to existing state."
+				return
 			fi
+
+			log_msg "DEBUG" "Changing maintain_pingers state from: ${maintain_pingers_state} to: ${maintain_pingers_next_state}"
+			maintain_pingers_state=${maintain_pingers_next_state}
 			;;
 
 		*)
-	
+
 			log_msg "ERROR" "Received unrecognized state change request: ${maintain_pingers_next_state}. Exiting now."
 			kill $$ 2>/dev/null
 			;;
@@ -2013,19 +2014,19 @@ do
 				;;
 
 			SET_VAR)
-				if [[ ${command[1]:-} && ${command[2]:-} ]]
+				if [[ "${#command[@]}" -eq 3 ]]
 				then
 					export -n "${command[1]}=${command[2]}"
 				fi
 				;;
 			SET_ARRAY_ELEMENT)
-				if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+				if [[ "${#command[@]}" -eq 4 ]]
 				then
 					declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 				fi
 				;;
 			SET_PROC_PID)
-				if [[ "${command[1]:-}" && "${command[2]:-}" && "${command[3]:-}" ]]
+				if [[ "${#command[@]}" -eq 4 ]]
 				then
 					declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 				fi
