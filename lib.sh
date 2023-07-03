@@ -13,7 +13,7 @@ fi
 
 if [[ -z "${__sleep_fd:-}" ]]
 then
-	exec {__sleep_fd}<> <(:) || true
+	exec {__sleep_fd}<> <(:)
 fi
 
 sleep_s()
