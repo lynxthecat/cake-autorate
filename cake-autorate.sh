@@ -1747,7 +1747,7 @@ fi
 
 # validate config entries before loading
 mapfile -t user_config < <(grep -E '^[^(#| )].*=' "${config_path}" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
-invalid_config=0
+config_error_count=0
 for key in "${user_config[@]}"
 do
 	# Despite the fact that config_file_check is no longer required,
@@ -1759,7 +1759,7 @@ do
 	# shellcheck disable=SC2076
 	if [[ ! " ${valid_config_entries[*]} " =~ " ${key} " ]]
 	then
-		invalid_config=1
+		((config_error_count++))
 		log_msg "ERROR" "The key: '${key}' in config file: '${config_path}' is not a valid config entry."
 	else
 		# shellcheck disable=SC2311
@@ -1777,17 +1777,17 @@ do
 			log_msg "ERROR" "${error_msg}"
 			unset error_msg
 
-			invalid_config=1
+			((config_error_count++))
 		fi
 		unset user supposed
 	fi
 done
-if ((invalid_config))
+if ((config_error_count))
 then
-	log_msg "ERROR" "The config file: '${config_path}' contains one or more errors. Exiting now."
+	log_msg "ERROR" "The config file: '${config_path}' contains ${config_error_count} error(s). Exiting now."
 	exit 1
 fi
-unset valid_config_entries user_config invalid_config key
+unset valid_config_entries user_config config_error_count key
 
 # shellcheck source=config.primary.sh
 . "${config_path}"
