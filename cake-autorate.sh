@@ -1709,6 +1709,8 @@ validate_config_entry() {
 	if [[ -z "${user_value}" && -n "${default_value}" ]]
 	then
 		printf "${user_type} ${valid_type}"
+	else
+		printf "${valid_type}"
 	fi
 }
 
