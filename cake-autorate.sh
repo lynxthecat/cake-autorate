@@ -1673,6 +1673,7 @@ debug_cmd()
 	fi
 }
 
+# shellcheck disable=SC1090,SC2311
 validate_config_entry() {
 	# Must be called before loading config_path into the global scope.
 	#
@@ -1688,29 +1689,33 @@ validate_config_entry() {
 
 	local config_path="${1}"
 
-	local user_type=$(. "${config_path}" && typeof "${2}")
-	local valid_type=$(typeof "${2}")
+	local user_type
+	local valid_type
+
+	user_type=$(. "${config_path}" && typeof "${2}")
+	valid_type=$(typeof "${2}")
 
 	if [[ "${user_type}" != "${valid_type}" ]]
 	then
-		printf "${user_type} ${valid_type}"
+		printf '%s' "${user_type} ${valid_type}"
 		return
 	elif [[ "${user_type}" != "string" ]]
 	then
-		printf "${valid_type}"
+		printf '%s' "${valid_type}"
 		return
 	fi
 
 	# extra validation for string, check for empty string
 	local -n default_value=${2}
-	local user_value=$(. "${config_path}" && local -n x="${2}" && printf '%s' "${x}")
+	local user_value
+	user_value=$(. "${config_path}" && local -n x="${2}" && printf '%s' "${x}")
 
 	# if user is empty but default is not, invalid entry
 	if [[ -z "${user_value}" && -n "${default_value}" ]]
 	then
-		printf "${user_type} ${valid_type}"
+		printf '%s' "${user_type} ${valid_type}"
 	else
-		printf "${valid_type}"
+		printf '%s' "${valid_type}"
 	fi
 }
 
@@ -1757,7 +1762,8 @@ do
 		invalid_config=1
 		log_msg "ERROR" "The value: '${value}' in config file: '${config_path}' is not a valid config entry."
 	else
-		read -r user supposed <<< $(validate_config_entry "${config_path}" "${value}")
+		# shellcheck disable=SC2311
+		read -r user supposed <<< "$(validate_config_entry "${config_path}" "${value}")"
 		if [[ -n "${supposed}" ]]
 		then
 			error_msg="The value: '${value}' in config file: '${config_path}' is not a valid ${supposed} value."

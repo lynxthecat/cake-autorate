@@ -19,7 +19,8 @@ fi
 typeof() {
 	# typeof -- returns the type of a variable
 
-	local type_sig=$(declare -p "${1}" 2>/dev/null)
+	local type_sig
+	type_sig=$(declare -p "${1}" 2>/dev/null)
 	if [[ "${type_sig}" =~ "declare --" ]]
 	then
 		str_type "${1}"
