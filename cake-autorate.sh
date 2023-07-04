@@ -1704,7 +1704,12 @@ mapfile -t user_config < <(grep -E '^[^(#| )].*=' "${config_path}" | sed -e 's/[
 invalid_config=0
 for value in "${user_config[@]}"
 do
+	# Despite the fact that config_file_check is no longer required,
+	# we make an exemption just in this case as that variable in
+	# particular does not have any real impact to the operation
+	# of the script.
 	[[ "${value}" == "config_file_check" ]] && continue
+
 	# shellcheck disable=SC2076
 	if [[ ! " ${valid_config_entries[*]} " =~ " ${value} " ]]
 	then
@@ -1721,12 +1726,6 @@ unset invalid_config
 
 # shellcheck source=config.primary.sh
 . "${config_path}"
-
-if [[ "${config_file_check}" != "cake-autorate" ]]
-then
-	log_msg "ERROR" "Config file error. Please check config file entries."
-	exit 1
-fi
 
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then
