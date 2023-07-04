@@ -1719,7 +1719,7 @@ do
 done
 if ((invalid_config))
 then
-	log_msg "ERROR" "The config file: '${config_path}' contains errors. Please address them. Exiting now."
+	log_msg "ERROR" "The config file: '${config_path}' contains one or more errors. Exiting now."
 	exit 1
 fi
 unset invalid_config
