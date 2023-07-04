@@ -1677,7 +1677,7 @@ debug_cmd()
 validate_config_entry() {
 	# Must be called before loading config_path into the global scope.
 	#
-	# When the entry is valid, two types are returned with the first type
+	# When the entry is invalid, two types are returned with the first type
 	# being the invalid user type and second type is the default type with
 	# the user needing to adapt the config file so that the entry uses the
 	# default type.
