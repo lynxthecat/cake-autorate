@@ -69,6 +69,9 @@ trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
 {	
+	# Do not fail on error for this critical cleanup code
+	set +e
+
 	trap true INT TERM EXIT
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
