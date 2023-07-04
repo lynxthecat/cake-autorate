@@ -45,10 +45,10 @@ str_type() {
 		printf "float"
 	elif [[ "${str}" =~ ^-[0-9]+$ ]]
 	then
-		printf "negative number"
+		printf "negative-number"
 	elif [[ "${str}" =~ ^-[0-9]*\.[0-9]+$ ]]
 	then
-		printf "negative float"
+		printf "negative-float"
 	else
 		printf "string"
 	fi

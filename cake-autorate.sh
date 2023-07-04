@@ -1760,7 +1760,15 @@ do
 		read -r user supposed <<< $(validate_config_entry "${config_path}" "${value}")
 		if [[ -n "${supposed}" ]]
 		then
-			log_msg "ERROR" "The value: '${value}' in config file: '${config_path}' is not a valid ${supposed} value."
+			error_msg="The value: '${value}' in config file: '${config_path}' is not a valid ${supposed} value."
+
+			case "${user}" in 
+				*float) error_msg="${error_msg} Also, floats are not supported." ;;
+				negative-number) error_msg="${error_msg} Also, negative numbers are not supported." ;;
+				*) ;;
+			esac
+
+			log_msg "ERROR" "${error_msg}"
 			invalid_config=1
 		fi
 	fi
