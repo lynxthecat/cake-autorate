@@ -1687,22 +1687,6 @@ str_type() {
 	fi
 }
 
-typeof() {
-	local type_sig=$(declare -p "${1}" 2>/dev/null)
-    if [[ "${type_sig}" =~ "declare --" ]]
-	then
-        str_type "${1}"
-    elif [[ "${type_sig}" =~ "declare -a" ]]
-	then
-        printf "array"
-    elif [[ "${type_sig}" =~ "declare -A" ]]
-	then
-        printf "map"
-    else
-        printf "none"
-    fi
-}
-
 validate_config_entry() {
 	# Must be called before loading config_path into the global scope.
 	#
