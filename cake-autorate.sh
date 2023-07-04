@@ -345,7 +345,7 @@ maintain_log_file()
 	done
 }
 
-get_next_shaper_rate()
+update_shaper_rate()
 {
 	local direction="${1}" # 'dl' or 'ul'
 
@@ -395,7 +395,7 @@ get_next_shaper_rate()
 			fi
 			;;
 		*)
-			log_msg "ERROR" "unknown load condition: ${load_condition[${direction}]} in get_next_shaper_rate"
+			log_msg "ERROR" "unknown load condition: ${load_condition[${direction}]} in update_shaper_rate"
 			kill $$ 2>/dev/null
 			;;
 	esac
@@ -1482,42 +1482,25 @@ maintain_pingers()
 	done
 }
 
-set_cake_rate()
+set_shaper_rate()
 {
-	local interface="${1}"
-	local new_shaper_rate_kbps="${2}"
-	local adjust_shaper_rate="${3}"
-	
-	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface} cake bandwidth ${new_shaper_rate_kbps}Kbit"
+	# fire up tc and update max_wire_packet_compensation if there are rates to change for the given direction
 
-	if ((adjust_shaper_rate))
-	then
+	local direction="${1}" # 'dl' or 'ul'
 
-		tc qdisc change root dev "${interface}" cake bandwidth "${new_shaper_rate_kbps}Kbit" 2> /dev/null
-
-	else
-		((output_cake_changes)) && log_msg "DEBUG" "adjust_shaper_rate set to 0 in config, so skipping the tc qdisc change call"
-	fi
-}
-
-set_shaper_rates()
-{
-	if (( shaper_rate_kbps[dl] != last_shaper_rate_kbps[dl] || shaper_rate_kbps[ul] != last_shaper_rate_kbps[ul] ))
+	if (( shaper_rate_kbps["${direction}"] != last_shaper_rate_kbps["${direction}"] ))
 	then 
-     	
-		# fire up tc in each direction if there are rates to change, and if rates change in either direction then update max wire calcs
-		if (( shaper_rate_kbps[dl] != last_shaper_rate_kbps[dl] ))
-		then 
-			set_cake_rate "${dl_if}" "${shaper_rate_kbps[dl]}" adjust_dl_shaper_rate
-			printf "SET_ARRAY_ELEMENT shaper_rate_kbps dl %s\n" "${shaper_rate_kbps[dl]}" >&"${monitor_achieved_rates_fd}"
-		 	last_shaper_rate_kbps[dl]="${shaper_rate_kbps[dl]}"
+		((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
+
+		if ((adjust_shaper_rate["${direction}"]))
+		then
+			tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
+		else
+			((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 		fi
-		if (( shaper_rate_kbps[ul] != last_shaper_rate_kbps[ul] ))
-		then 
-			set_cake_rate "${ul_if}" "${shaper_rate_kbps[ul]}" adjust_ul_shaper_rate
-			printf "SET_ARRAY_ELEMENT shaper_rate_kbps ul %s\n" "${shaper_rate_kbps[ul]}" >&"${monitor_achieved_rates_fd}"
-			last_shaper_rate_kbps[ul]="${shaper_rate_kbps[ul]}"
-		fi
+
+		printf "SET_ARRAY_ELEMENT shaper_rate_kbps ${direction} %s\n" "${shaper_rate_kbps[${direction}]}" >&"${monitor_achieved_rates_fd}"
+		last_shaper_rate_kbps["${direction}"]="${shaper_rate_kbps[${direction}]}"
 
 		update_max_wire_packet_compensation
 	fi
@@ -1528,7 +1511,8 @@ set_min_shaper_rates()
 	log_msg "DEBUG" "Enforcing minimum shaper rates."
 	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps}
 	shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-	set_shaper_rates
+	set_shaper_rate "dl"
+	set_shaper_rate "ul"
 }
 
 get_max_wire_packet_size_bits()
@@ -1896,6 +1880,8 @@ declare -A last_shaper_rate_kbps
 declare -A base_shaper_rate_kbps
 declare -A min_shaper_rate_kbps
 declare -A max_shaper_rate_kbps
+declare -A interface
+declare -A adjust_shaper_rate
 
 base_shaper_rate_kbps[dl]="${base_dl_shaper_rate_kbps}"
 base_shaper_rate_kbps[ul]="${base_ul_shaper_rate_kbps}"
@@ -1912,12 +1898,19 @@ shaper_rate_kbps[ul]="${base_ul_shaper_rate_kbps}"
 last_shaper_rate_kbps[dl]=0
 last_shaper_rate_kbps[ul]=0
 
+interface[dl]="${dl_if}"
+interface[ul]="${ul_if}"
+
+adjust_shaper_rate[dl]="${adjust_dl_shaper_rate}"
+adjust_shaper_rate[ul]="${adjust_ul_shaper_rate}"
+
 dl_max_wire_packet_size_bits=0
 ul_max_wire_packet_size_bits=0
 get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits  
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 
-set_shaper_rates
+set_shaper_rate "dl"
+set_shaper_rate "ul"
 
 update_max_wire_packet_compensation
 
@@ -2076,10 +2069,11 @@ do
 				classify_load "dl"
 				classify_load "ul"
 
-				get_next_shaper_rate "dl"
-				get_next_shaper_rate "ul"
+				update_shaper_rate "dl"
+				update_shaper_rate "ul"
 
-				set_shaper_rates
+				set_shaper_rate "dl"
+				set_shaper_rate "ul"
 
 				if (( output_processing_stats ))
 				then 
