@@ -1714,8 +1714,21 @@ validate_config_entry() {
 	if [[ "${user_type}" != "${valid_type}" ]]
 	then
 		printf "${user_type} ${valid_type}"
-	else
+		return
+	elif [[ "${user_type}" != "string" ]]
+	then
 		printf "${valid_type}"
+		return
+	fi
+
+	# extra validation for string, check for empty string
+	local -n default_value=${2}
+	local user_value=$(. "${config_path}" && local -n x="${2}" && printf '%s' "${x}")
+
+	# if user is empty but default is not, invalid entry
+	if [[ -z "${user_value}" && -n "${default_value}" ]]
+	then
+		printf "${user_type} ${valid_type}"
 	fi
 }
 
