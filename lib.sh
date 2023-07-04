@@ -34,6 +34,20 @@ typeof() {
 	fi
 }
 
+str_type() {
+	local -n str="${1}"
+
+	if [[ "${str}" =~ ^[0-9]+$ ]]
+	then
+		printf "number"
+	elif [[ "${str}" =~ ^[0-9]+\.[0-9]+$ ]]
+	then
+		printf "float"
+	else
+		printf "string"
+	fi
+}
+
 sleep_s()
 {
 	# Calling the external sleep binary could be rather slow,

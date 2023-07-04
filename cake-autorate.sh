@@ -1673,20 +1673,6 @@ debug_cmd()
 	fi
 }
 
-str_type() {
-	local -n str="${1}"
-
-	if [[ "${str}" =~ ^[0-9]+$ ]]
-	then
-		printf "number"
-	elif [[ "${str}" =~ ^[0-9]+\.[0-9]+$ ]]
-	then
-		printf "float"
-	else
-		printf "string"
-	fi
-}
-
 validate_config_entry() {
 	# Must be called before loading config_path into the global scope.
 	#
