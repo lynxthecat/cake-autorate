@@ -1748,27 +1748,27 @@ fi
 # validate config entries before loading
 mapfile -t user_config < <(grep -E '^[^(#| )].*=' "${config_path}" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
 invalid_config=0
-for value in "${user_config[@]}"
+for key in "${user_config[@]}"
 do
 	# Despite the fact that config_file_check is no longer required,
 	# we make an exemption just in this case as that variable in
 	# particular does not have any real impact to the operation
 	# of the script.
-	[[ "${value}" == "config_file_check" ]] && continue
+	[[ "${key}" == "config_file_check" ]] && continue
 
 	# shellcheck disable=SC2076
-	if [[ ! " ${valid_config_entries[*]} " =~ " ${value} " ]]
+	if [[ ! " ${valid_config_entries[*]} " =~ " ${key} " ]]
 	then
 		invalid_config=1
-		log_msg "ERROR" "The value: '${value}' in config file: '${config_path}' is not a valid config entry."
+		log_msg "ERROR" "The key: '${key}' in config file: '${config_path}' is not a valid config entry."
 	else
 		# shellcheck disable=SC2311
-		read -r user supposed <<< "$(validate_config_entry "${config_path}" "${value}")"
+		read -r user supposed <<< "$(validate_config_entry "${config_path}" "${key}")"
 		if [[ -n "${supposed}" ]]
 		then
-			error_msg="The value: '${value}' in config file: '${config_path}' is not a valid ${supposed} value."
+			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid ${supposed} value."
 
-			case "${user}" in 
+			case "${user}" in
 				*float) error_msg="${error_msg} Also, floats are not supported." ;;
 				negative-number) error_msg="${error_msg} Also, negative numbers are not supported." ;;
 				*) ;;
