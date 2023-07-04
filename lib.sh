@@ -36,6 +36,8 @@ typeof() {
 }
 
 str_type() {
+	# str_type -- returns the type of a string
+
 	local -n str="${1}"
 
 	if [[ "${str}" =~ ^[0-9]+$ ]]
@@ -51,6 +53,8 @@ str_type() {
 	then
 		printf "negative-float"
 	else
+		# technically not validated, user is just trusted to call
+		# this function with valid strings
 		printf "string"
 	fi
 }
