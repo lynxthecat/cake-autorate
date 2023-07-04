@@ -1673,6 +1673,52 @@ debug_cmd()
 	fi
 }
 
+str_type() {
+	local -n str="${1}"
+
+	if [[ "${str}" =~ ^[0-9]+$ ]]
+	then
+		printf "number"
+	elif [[ "${str}" =~ ^[0-9]+\.[0-9]+$ ]]
+	then
+		printf "float"
+	else
+		printf "string"
+	fi
+}
+
+typeof() {
+	local type_sig=$(declare -p "${1}" 2>/dev/null)
+    if [[ "${type_sig}" =~ "declare --" ]]
+	then
+        str_type "${1}"
+    elif [[ "${type_sig}" =~ "declare -a" ]]
+	then
+        printf "array"
+    elif [[ "${type_sig}" =~ "declare -A" ]]
+	then
+        printf "map"
+    else
+        printf "none"
+    fi
+}
+
+validate_config_entry() {
+	# Must be called before loading config_path into the global scope
+
+	local config_path="${1}"
+
+	local user_type=$(. "${config_path}" && typeof "${2}")
+	local valid_type=$(typeof "${2}")
+
+	if [[ "${user_type}" != "${valid_type}" ]]
+	then
+		printf "${user_type} ${valid_type}"
+	else
+		printf "${valid_type}"
+	fi
+}
+
 # ======= Start of the Main Routine ========
 
 [[ -t 1 ]] && terminal=1 || terminal=0
@@ -1715,6 +1761,13 @@ do
 	then
 		invalid_config=1
 		log_msg "ERROR" "The value: '${value}' in config file: '${config_path}' is not a valid config entry."
+	else
+		read -r user supposed <<< $(validate_config_entry "${config_path}" "${value}")
+		if [[ -n "${supposed}" ]]
+		then
+			log_msg "ERROR" "The value: '${value}' in config file: '${config_path}' is not a valid ${supposed} value."
+			invalid_config=1
+		fi
 	fi
 done
 if ((invalid_config))
