@@ -88,13 +88,19 @@ cleanup_and_killall()
 
 	# terminate any processes that remain, save for main and intercept_stderr
 	unset "proc_pids[main]"
-	intercept_stderr_pid="${proc_pids[intercept_stderr]}"
-	unset "proc_pids[intercept_stderr]"
+	intercept_stderr_pid="${proc_pids[intercept_stderr]:-}"
+	if [[ -n "${intercept_stderr_pid}" ]]
+	then
+		unset "proc_pids[intercept_stderr]"
+	fi
 	terminate "${proc_pids[@]}"
 
 	# restore original stderr, and terminate intercept_stderr
-	exec 2>&"${original_stderr_fd}"
-	terminate "${intercept_stderr_pid}"
+	if [[ -n "${intercept_stderr_pid}" ]]
+	then
+		exec 2>&"${original_stderr_fd}"
+		terminate "${intercept_stderr_pid}"
+	fi
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
