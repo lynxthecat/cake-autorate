@@ -1769,14 +1769,17 @@ do
 			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid ${supposed} value."
 
 			case "${user}" in
-				*float) error_msg="${error_msg} Also, floats are not supported." ;;
+				*float)          error_msg="${error_msg} Also, floats are not supported." ;;
 				negative-number) error_msg="${error_msg} Also, negative numbers are not supported." ;;
 				*) ;;
 			esac
 
 			log_msg "ERROR" "${error_msg}"
+			unset error_msg
+
 			invalid_config=1
 		fi
+		unset user supposed
 	fi
 done
 if ((invalid_config))
@@ -1784,7 +1787,7 @@ then
 	log_msg "ERROR" "The config file: '${config_path}' contains one or more errors. Exiting now."
 	exit 1
 fi
-unset invalid_config
+unset valid_config_entries user_config invalid_config key
 
 # shellcheck source=config.primary.sh
 . "${config_path}"
