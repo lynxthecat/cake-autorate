@@ -64,6 +64,8 @@ PREFIX=/root/cake-autorate
 . "${PREFIX}/lib.sh"
 # shellcheck source=defaults.sh
 . "${PREFIX}/defaults.sh"
+# get valid config overrides
+mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${PREFIX}/defaults.sh" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
 
 trap cleanup_and_killall INT TERM EXIT
 
@@ -1696,6 +1698,26 @@ then
 	log_msg "ERROR" "No config file found. Exiting now."
 	exit 1
 fi
+
+# validate config entries before loading
+mapfile -t user_config < <(grep -E '^[^(#| )].*=' "${config_path}" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
+invalid_config=0
+for value in "${user_config[@]}"
+do
+	[[ "${value}" == "config_file_check" ]] && continue
+	# shellcheck disable=SC2076
+	if [[ ! " ${valid_config_entries[*]} " =~ " ${value} " ]]
+	then
+		invalid_config=1
+		log_msg "ERROR" "The value: '${value}' in config file: '${config_path}' is not a valid config entry."
+	fi
+done
+if ((invalid_config))
+then
+	log_msg "ERROR" "The config file: '${config_path}' contains errors. Please address them. Exiting now."
+	exit 1
+fi
+unset invalid_config
 
 # shellcheck source=config.primary.sh
 . "${config_path}"
