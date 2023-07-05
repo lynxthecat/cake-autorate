@@ -13,6 +13,21 @@ main() {
 	# Set correctness options
 	set -eu
 
+	# Check if OS is OpenWRT
+	unset ID_LIKE
+	. /etc/os-release 2>/dev/null || true
+	tainted=1
+	for x in ${ID_LIKE:-}
+	do
+		[ "${x}" = "openwrt" ] && tainted=0
+	done
+	if [ "${tainted}" -eq 1 ]
+	then
+		printf "This script requires OpenWrt.\n" >&2
+		return 1
+	fi
+	unset tainted
+
 	# Setup dependencies to check for
 	DEPENDENCIES="jsonfilter uclient-fetch tar grep"
 
