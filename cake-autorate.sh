@@ -12,7 +12,7 @@
 # Licence details:  https://github.com/lynxthecat/cake-autorate/blob/master/LICENCE.md
 
 # Author and maintainer: lynxthecat
-# Contributors: moeller0; rany2
+# Contributors:  rany2; moeller0; richb-hanover
 
 cake_autorate_version="2.0.0"
 
