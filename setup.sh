@@ -39,6 +39,16 @@ main() {
 	DOC_URL="https://github.com/${REPOSITORY}/tree/${BRANCH}#installation-on-openwrt"
 	CURRENT_SETUP_SH="https://raw.githubusercontent.com/${REPOSITORY}/${BRANCH}/setup.sh"
 
+	exit_now=0
+	for dep in ${DEPENDENCIES}
+	do
+		if ! type "${dep}" >/dev/null 2>&1; then
+			printf >&2 "%s is required, please install it and rerun the script!\n" "${dep}"
+			exit_now=1
+		fi
+	done
+	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
+
 	# Get the current setup.sh script and execute it
 	if [ -z "${__CAKE_AUTORATE_URL_LOADED:-}" ]
 	then
@@ -63,16 +73,6 @@ main() {
 		printf "Installing bash, iputils-ping and fping packages:\n"
 		opkg install bash iputils-ping fping
 	fi
-
-	exit_now=0
-	for dep in ${DEPENDENCIES}
-	do
-		if ! type "${dep}" >/dev/null 2>&1; then
-			printf >&2 "%s is required, please install it and rerun the script!\n" "${dep}"
-			exit_now=1
-		fi
-	done
-	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
 	# Set up CAKE-autorate files
 	# cd to the /root directory
