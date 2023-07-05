@@ -48,13 +48,16 @@ done
 
 # Set up CAKE-autorate files
 # cd to the /root directory
-cd /root/ || exit
+cd /root/ || exit 1
 
 # create the cake-autorate directory if it's not present
-[ -d cake-autorate ] || mkdir cake-autorate
+if ! [ -d cake-autorate ]
+then
+	mkdir cake-autorate || exit 1
+fi
 
 # cd into it
-cd cake-autorate/ || exit
+cd cake-autorate/ || exit 1
 
 # Get the latest commit to download
 commit=$(uclient-fetch -qO- "${API_URL}" | jsonfilter -e @.sha)
