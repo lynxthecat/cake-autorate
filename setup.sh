@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Installation script for cake-autorate.sh
+# Installation script for cake-autorate
 #
 # See https://github.com/lynxthecat/cake-autorate for more details
 
