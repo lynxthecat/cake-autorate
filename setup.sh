@@ -26,9 +26,9 @@ main() {
 	# Check if an instance of cake-autorate is already running and exit if so
 	if [ -d /var/run/cake-autorate ]
 	then
-		printf "cake-autorate is already running - exiting\n" >&2
-		printf "If you want to install a new version, stop the service first\n" >&2
-		printf "If you are sure cake-autorate is not running, delete the /var/run/cake-autorate directory\n" >&2
+		printf "At least one instance of cake-autorate appears to be running - exiting\n" >&2
+		printf "If you want to install a new version, first stop any running instance of cake-autorate\n" >&2
+		printf "If you are sure that no instance of cake-autorate is running, delete the /var/run/cake-autorate directory\n" >&2
 		exit 1
 	fi
 
