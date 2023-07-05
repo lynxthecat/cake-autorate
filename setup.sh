@@ -37,6 +37,13 @@ main() {
 	SRC_DIR="https://github.com/${REPOSITORY}/archive/"
 	API_URL="https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}"
 	DOC_URL="https://github.com/${REPOSITORY}/tree/${BRANCH}#installation-on-openwrt"
+	CURRENT_SETUP_SH="https://raw.githubusercontent.com/${REPOSITORY}/${BRANCH}/setup.sh"
+
+	# Get the current setup.sh script and execute it
+	if [ -z "${__CAKE_AUTORATE_URL_LOADED:-}" ]
+	then
+		exec uclient-fetch -qO- "${CURRENT_SETUP_SH}" | __CAKE_AUTORATE_URL_LOADED=1 sh -s -- "${@}"
+	fi
 
 	# Check if an instance of cake-autorate is already running and exit if so
 	if [ -d /var/run/cake-autorate ]
