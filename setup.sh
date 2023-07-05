@@ -115,7 +115,7 @@ main() {
 
 	# move the program files to the cake-autorate directory
 	# scripts that need to be executable are already marked as such in the tarball
-	files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh"
+	files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh uninstall.sh"
 	for file in ${files}
 	do
 		mv "${tmp}/${file}" "${file}"
