@@ -1692,7 +1692,7 @@ validate_config_entry() {
 	local user_type
 	local valid_type
 
-	user_type=$(. "${config_path}" && typeof "${2}")
+	user_type=$(unset "${2}" && . "${config_path}" && typeof "${2}")
 	valid_type=$(typeof "${2}")
 
 	if [[ "${user_type}" != "${valid_type}" ]]
