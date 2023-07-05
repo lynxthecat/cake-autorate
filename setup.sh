@@ -144,4 +144,4 @@ main() {
 }
 
 # Now that we are sure all code is loaded, we could execute the function
-main
+main "${@}"
