@@ -1769,8 +1769,7 @@ do
 			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid ${supposed} value."
 
 			case "${user}" in
-				*float)          error_msg="${error_msg} Also, floats are not supported." ;;
-				negative-number) error_msg="${error_msg} Also, negative numbers are not supported." ;;
+				negative-*) error_msg="${error_msg} Also, negative numbers are not supported." ;;
 				*) ;;
 			esac
 
