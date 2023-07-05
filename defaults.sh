@@ -192,8 +192,8 @@ reflector_misbehaving_detection_thr=3
 reflector_replacement_interval_mins=60 # how often to replace a random reflector from the present list
 
 reflector_comparison_interval_mins=1		# how often to compare reflectors
-reflector_sum_owd_baselines_delta_thr_ms=20	# max increase from min sum owd baselines before reflector rotated
-reflector_owd_delta_ewma_delta_thr_ms=10	# max increase from min delta ewma before reflector rotated
+reflector_sum_owd_baselines_delta_thr_ms=20.0	# max increase from min sum owd baselines before reflector rotated
+reflector_owd_delta_ewma_delta_thr_ms=10.0	# max increase from min delta ewma before reflector rotated
 
 # stall is detected when the following two conditions are met:
 # 1) no reflector responses within $stall_detection_thr*$ping_response_interval_us; and
