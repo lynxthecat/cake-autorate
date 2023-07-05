@@ -42,13 +42,13 @@ str_type() {
 
 	if [[ "${str}" =~ ^[0-9]+$ ]]
 	then
-		printf "number"
+		printf "integer"
 	elif [[ "${str}" =~ ^[0-9]*\.[0-9]+$ ]]
 	then
 		printf "float"
 	elif [[ "${str}" =~ ^-[0-9]+$ ]]
 	then
-		printf "negative-number"
+		printf "negative-integer"
 	elif [[ "${str}" =~ ^-[0-9]*\.[0-9]+$ ]]
 	then
 		printf "negative-float"

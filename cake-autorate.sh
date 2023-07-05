@@ -1766,7 +1766,7 @@ do
 		read -r user supposed <<< "$(validate_config_entry "${config_path}" "${key}")"
 		if [[ -n "${supposed}" ]]
 		then
-			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid ${supposed} value."
+			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid value of type: '${supposed}'."
 
 			case "${user}" in
 				negative-*) error_msg="${error_msg} Also, negative numbers are not supported." ;;
