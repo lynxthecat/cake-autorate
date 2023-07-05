@@ -16,6 +16,49 @@ then
 	exec {__sleep_fd}<> <(:)
 fi
 
+typeof() {
+	# typeof -- returns the type of a variable
+
+	local type_sig
+	type_sig=$(declare -p "${1}" 2>/dev/null)
+	if [[ "${type_sig}" =~ "declare --" ]]
+	then
+		str_type "${1}"
+	elif [[ "${type_sig}" =~ "declare -a" ]]
+	then
+		printf "array"
+	elif [[ "${type_sig}" =~ "declare -A" ]]
+	then
+		printf "map"
+	else
+		printf "none"
+	fi
+}
+
+str_type() {
+	# str_type -- returns the type of a string
+
+	local -n str="${1}"
+
+	if [[ "${str}" =~ ^[0-9]+$ ]]
+	then
+		printf "integer"
+	elif [[ "${str}" =~ ^[0-9]*\.[0-9]+$ ]]
+	then
+		printf "float"
+	elif [[ "${str}" =~ ^-[0-9]+$ ]]
+	then
+		printf "negative-integer"
+	elif [[ "${str}" =~ ^-[0-9]*\.[0-9]+$ ]]
+	then
+		printf "negative-float"
+	else
+		# technically not validated, user is just trusted to call
+		# this function with valid strings
+		printf "string"
+	fi
+}
+
 sleep_s()
 {
 	# Calling the external sleep binary could be rather slow,

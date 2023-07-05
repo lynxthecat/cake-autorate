@@ -64,11 +64,16 @@ PREFIX=/root/cake-autorate
 . "${PREFIX}/lib.sh"
 # shellcheck source=defaults.sh
 . "${PREFIX}/defaults.sh"
+# get valid config overrides
+mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${PREFIX}/defaults.sh" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
 
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
 {	
+	# Do not fail on error for this critical cleanup code
+	set +e
+
 	trap true INT TERM EXIT
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
@@ -88,13 +93,19 @@ cleanup_and_killall()
 
 	# terminate any processes that remain, save for main and intercept_stderr
 	unset "proc_pids[main]"
-	intercept_stderr_pid="${proc_pids[intercept_stderr]}"
-	unset "proc_pids[intercept_stderr]"
+	intercept_stderr_pid="${proc_pids[intercept_stderr]:-}"
+	if [[ -n "${intercept_stderr_pid}" ]]
+	then
+		unset "proc_pids[intercept_stderr]"
+	fi
 	terminate "${proc_pids[@]}"
 
 	# restore original stderr, and terminate intercept_stderr
-	exec 2>&"${original_stderr_fd}"
-	terminate "${intercept_stderr_pid}"
+	if [[ -n "${intercept_stderr_pid}" ]]
+	then
+		exec 2>&"${original_stderr_fd}"
+		terminate "${intercept_stderr_pid}"
+	fi
 
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
@@ -1662,6 +1673,52 @@ debug_cmd()
 	fi
 }
 
+# shellcheck disable=SC1090,SC2311
+validate_config_entry() {
+	# Must be called before loading config_path into the global scope.
+	#
+	# When the entry is invalid, two types are returned with the first type
+	# being the invalid user type and second type is the default type with
+	# the user needing to adapt the config file so that the entry uses the
+	# default type.
+	#
+	# When the entry is valid, one type is returned and it will be the
+	# the type of either the default or user type. However because in that
+	# case they are both valid. It doesn't matter as they'd both have the
+	# same type.
+
+	local config_path="${1}"
+
+	local user_type
+	local valid_type
+
+	user_type=$(unset "${2}" && . "${config_path}" && typeof "${2}")
+	valid_type=$(typeof "${2}")
+
+	if [[ "${user_type}" != "${valid_type}" ]]
+	then
+		printf '%s' "${user_type} ${valid_type}"
+		return
+	elif [[ "${user_type}" != "string" ]]
+	then
+		printf '%s' "${valid_type}"
+		return
+	fi
+
+	# extra validation for string, check for empty string
+	local -n default_value=${2}
+	local user_value
+	user_value=$(. "${config_path}" && local -n x="${2}" && printf '%s' "${x}")
+
+	# if user is empty but default is not, invalid entry
+	if [[ -z "${user_value}" && -n "${default_value}" ]]
+	then
+		printf '%s' "${user_type} ${valid_type}"
+	else
+		printf '%s' "${valid_type}"
+	fi
+}
+
 # ======= Start of the Main Routine ========
 
 [[ -t 1 ]] && terminal=1 || terminal=0
@@ -1688,14 +1745,51 @@ then
 	exit 1
 fi
 
-# shellcheck source=config.primary.sh
-. "${config_path}"
+# validate config entries before loading
+mapfile -t user_config < <(grep -E '^[^(#| )].*=' "${config_path}" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
+config_error_count=0
+for key in "${user_config[@]}"
+do
+	# Despite the fact that config_file_check is no longer required,
+	# we make an exemption just in this case as that variable in
+	# particular does not have any real impact to the operation
+	# of the script.
+	[[ "${key}" == "config_file_check" ]] && continue
 
-if [[ "${config_file_check}" != "cake-autorate" ]]
+	# shellcheck disable=SC2076
+	if [[ ! " ${valid_config_entries[*]} " =~ " ${key} " ]]
+	then
+		((config_error_count++))
+		log_msg "ERROR" "The key: '${key}' in config file: '${config_path}' is not a valid config entry."
+	else
+		# shellcheck disable=SC2311
+		read -r user supposed <<< "$(validate_config_entry "${config_path}" "${key}")"
+		if [[ -n "${supposed}" ]]
+		then
+			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid value of type: '${supposed}'."
+
+			case "${user}" in
+				negative-*) error_msg="${error_msg} Also, negative numbers are not supported." ;;
+				*) ;;
+			esac
+
+			log_msg "ERROR" "${error_msg}"
+			unset error_msg
+
+			((config_error_count++))
+		fi
+		unset user supposed
+	fi
+done
+if ((config_error_count))
 then
-	log_msg "ERROR" "Config file error. Please check config file entries."
+	log_msg "ERROR" "The config file: '${config_path}' contains ${config_error_count} error(s). Exiting now."
 	exit 1
 fi
+unset valid_config_entries user_config config_error_count key
+
+# shellcheck source=config.primary.sh
+. "${config_path}"
 
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then

@@ -27,8 +27,3 @@ max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 ### See defaults.sh for additional configuration options
 ### that can be set in this configuration file to override the defaults.
 ### Place any such overrides below this line.
-
-
-# *** DO NOT EDIT BELOW THIS LINE ***
-
-config_file_check="cake-autorate"
