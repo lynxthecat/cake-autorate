@@ -1,0 +1,17 @@
+on: pull_request
+
+jobs:
+  setup_sh_instruct:
+    name: Provide instructions to install cake-autorate for PR branch
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment PR with message
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: |
+            To test this branch, run:
+            ```sh
+            sh setup.sh ${{ github.event.pull_request.user.login }}/${{ github. }} ${{ github.head_ref }}`
+            ```
