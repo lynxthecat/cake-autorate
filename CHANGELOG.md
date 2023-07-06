@@ -30,7 +30,7 @@ more about cake-autorate. This is the history of changes.
   generating an export script and a log reset script for each running
   cake-autorate instance inside /var/run/cake-autorate/\*/.
 - Added config file validation that checks all config
-  file entries against those provided in defaults.sh. Firstly, validation
+  file entries against those provided in defaults.sh. Firstly, the validation
   checks that the config file key finds a corresponding key in
   defaults.sh. And secondly, it checks that the value is of the
   same type out of array, integer, float, string, etc. Any identified
