@@ -7,7 +7,7 @@ more about cake-autorate. This is the history of changes.
 
 ## 2023-07-05 - Version 2.0
 
-- This version incorporates a restructure of the bash code for
+- This version restructures the bash code for
   improved robustness, stability and performance.
 - Employ FIFOs for passing not only data, but also instructions, between
   the major processes, obviating costly reliance on temporary files. A
@@ -29,14 +29,14 @@ more about cake-autorate. This is the history of changes.
 - Introduce more user-friendly log file exports by automatically
   generating an export script and a log reset script for each running
   cake-autorate instance inside /var/run/cake-autorate/\*/.
-- Added sophisticated config file entry validation that checks all config
-  file entries against those provided in defaults.sh. Firstly, it is
-  checked that the config file key finds a corresponding key in
-  defaults.sh. And secondly, it is checked that the value is of the
+- Added config file validation that checks all config
+  file entries against those provided in defaults.sh. Firstly, the validation
+  checks that the config file key finds a corresponding key in
+  defaults.sh. And secondly, it checks that the value is of the
   same type out of array, integer, float, string, etc. Any identified
   problematic keys or values are reported to the user to assist with
   resolving any bad entries.
-- Improved installer and provided uninstaller.
+- Improved installer and new uninstaller.
 - Many more fixes and improvements.
 - Particular thanks to @rany2 for his input on this version.
 
