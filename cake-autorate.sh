@@ -14,7 +14,7 @@
 # Author and maintainer: lynxthecat
 # Contributors:  rany2; moeller0; richb-hanover
 
-cake_autorate_version="3.0.0"
+cake_autorate_version="3.1.0-PRERELEASE"
 
 ## cake-autorate uses multiple asynchronous processes including:
 ## main - main process
