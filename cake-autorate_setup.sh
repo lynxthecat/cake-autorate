@@ -3,7 +3,7 @@
 # See https://github.com/lynxthecat/sqm-autorate for details
 # https://www.shellcheck.net/ is your friend
 
-SRC_DIR="https://raw.githubusercontent.com/lynxthecat/cake-autorate/stable/"
+SRC_DIR="https://raw.githubusercontent.com/lynxthecat/cake-autorate/v1.2/"
 DOC_URL="https://github.com/lynxthecat/CAKE-autorate#installation-on-openwrt"
 
 # Retrieve required packages if not present
