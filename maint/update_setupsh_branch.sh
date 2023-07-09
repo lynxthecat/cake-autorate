@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 asker() {
 	read -r -p "$1" yn
 	case ${yn} in
@@ -12,7 +14,7 @@ asker() {
 asker "Would you like to proceed? This script will erase all your work. (y/n) " || exit 1
 git reset --hard
 
-branch=${1:-}
+branch=${1:?}
 
 sed -E 's|(BRANCH=\"\$\{CAKE_AUTORATE_BRANCH:-\$\{2-)[^\}]+(\}\})\"|\1'"${branch}"'\2|' -i setup.sh
 git add setup.sh
