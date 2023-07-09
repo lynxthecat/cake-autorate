@@ -1,3 +1,5 @@
+#!/bin/bash
+
 asker() {
 	read -r -p "$1" yn
 	case ${yn} in
