@@ -20,5 +20,4 @@ if sed -E 's|(BRANCH=\"\$\{CAKE_AUTORATE_BRANCH:-\$\{2-)[^\}]+(\}\})\"|\1'"${bra
 then
 	git add setup.sh
 	git commit -sm "Update setup.sh branch for release"
-	git push -u origin "${branch}"
 fi

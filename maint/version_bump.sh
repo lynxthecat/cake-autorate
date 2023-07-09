@@ -42,5 +42,3 @@ then
 	( git add README.md
 	git commit -sm "Updated latest version in README.md to ${version}"; ) || true
 fi
-
-git push origin
