@@ -20,20 +20,20 @@ EDITOR=${EDITOR:-nano}
 if asker "Would you like to create a new changelog entry? (y/n) "
 then
 	cur_date=$(date -I)
-	sed -e '/Zep7RkGZ52/a\' -e '\n\n\#\# '"${cur_date}"' - Version '"${cur_version}"'\n\n**Release notes here**' -i CHANGELOG.md
+	sed -e '/Zep7RkGZ52/a\' -e '\n\n\#\# '"${cur_date}"' - Version '"${version}"'\n\n**Release notes here**' -i CHANGELOG.md
 	${EDITOR} CHANGELOG.md
 fi
 git add CHANGELOG.md
-git commit -sm 'Updated CHANGELOG for '"${cur_version}"
+git commit -sm 'Updated CHANGELOG for '"${version}"
 
-if sed -E 's/(^cake_autorate_version=\")[^\"]+(\"$)/\1'"${cur_version}"'\2/' -i cake-autorate.sh
+if sed -E 's/(^cake_autorate_version=\")[^\"]+(\"$)/\1'"${version}"'\2/' -i cake-autorate.sh
 then
 	echo Cake autorate version updated in cake-autorate.sh
 fi
 git add cake-autorate.sh
 git commit -sm "Updated cake-autorate.sh version"
 
-if sed -E 's|(<span id=\"cur_version\">)[^\<]+(</span>)|\1'"${cur_version}"'\2|' -i README.md
+if sed -E 's|(<span id=\"version\">)[^\<]+(</span>)|\1'"${version}"'\2|' -i README.md
 then
 	echo Latest cake autorate version updated in README.md
 fi
