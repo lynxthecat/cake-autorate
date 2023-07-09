@@ -5,6 +5,9 @@ bandwidth settings based on traffic load and one-way-delay or
 round-trip time measurements. Read the [README](./README.md) file for
 more about cake-autorate. This is the history of changes.
 
+<!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
+
+
 ## 2023-07-08 - Version 3.0.0
 
 - Version 3.0.0 of cake-autorate is the culmination of dozens of experiments,
