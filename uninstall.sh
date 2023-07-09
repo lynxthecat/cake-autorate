@@ -51,7 +51,7 @@ main() {
 	# cd into it
 	cd cake-autorate/ || exit 1
 
-	# Migrate old configuration (and new file) files if present
+	# remove configuration files if user does not want to keep them
 	keepIt=''
 	for file in *config.*.sh*
 	do
