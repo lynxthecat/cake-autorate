@@ -7,42 +7,44 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
-
 ## 2023-07-08 - Version 3.0.0
 
-- Version 3.0.0 of cake-autorate is the culmination of dozens of experiments,
-  iterative improvements, and testing that are described in the 2.0.0 section below.
-  To indicate that the current code contains significant enhancements (and avoid confusion), we decided to release this code with a new version number.
+- Version 3.0.0 of cake-autorate is the culmination of dozens of
+  experiments, iterative improvements, and testing that are described
+  in the 2.0.0 section below. To indicate that the current code
+  contains significant enhancements (and avoid confusion), we decided
+  to release this code with a new version number.
 
 ## 2023-07-05 - Version 2.0.0
 
-- This version restructures the bash code for
-  improved robustness, stability and performance.
-- Employ FIFOs for passing not only data, but also instructions, between
-  the major processes, obviating costly reliance on temporary files. A
-  side effect of this is that now /var/run/cake-autorate is mostly
-  empty during runs.
+- This version restructures the bash code for improved robustness,
+  stability and performance.
+- Employ FIFOs for passing not only data, but also instructions,
+  between the major processes, obviating costly reliance on temporary
+  files. A side effect of this is that now /var/run/cake-autorate is
+  mostly empty during runs.
 - Significantly reduced CPU consumption - cake-autorate can now run
   successfully on older routers.
 - Introduce support for one way delays (OWDs) using the 'tsping'
   binary developed by @Lochnair. This works with ICMP type 13
-  (timestamp) requests to ascertain the delay in each direction (i.e. OWDs).
-- Many changes to help catch and handle or expose unusual error conditions.
+  (timestamp) requests to ascertain the delay in each direction (i.e.
+  OWDs).
+- Many changes to help catch and handle or expose unusual error
+  conditions.
 - Fixed eternal sleep issue.
 - Introduce more user-friendly config format by introducing
   defaults.sh and config.X.sh with the basics (interface names,
-  whether to adjust the shaper rates and the min, base and max
-  shaper rates) and any overrides from the defaults defined in
-  defaults.sh.
+  whether to adjust the shaper rates and the min, base and max shaper
+  rates) and any overrides from the defaults defined in defaults.sh.
 - More intelligent check for another running instance.
 - Introduce more user-friendly log file exports by automatically
   generating an export script and a log reset script for each running
   cake-autorate instance inside /var/run/cake-autorate/\*/.
-- Added config file validation that checks all config
-  file entries against those provided in defaults.sh. Firstly, the validation
+- Added config file validation that checks all config file entries
+  against those provided in defaults.sh. Firstly, the validation
   checks that the config file key finds a corresponding key in
-  defaults.sh. And secondly, it checks that the value is of the
-  same type out of array, integer, float, string, etc. Any identified
+  defaults.sh. And secondly, it checks that the value is of the same
+  type out of array, integer, float, string, etc. Any identified
   problematic keys or values are reported to the user to assist with
   resolving any bad entries.
 - Improved installer and new uninstaller.
@@ -53,13 +55,13 @@ more about cake-autorate. This is the history of changes.
 
 - cake-autorate now includes a sophisticated offline log file analysis
   utility written in Matlab/Octave: 'fn_parse_autorate_log.m' and
-  maintained by @moeller0. This utility takes in a
-  cake-autorate generated log file (in compressed or uncompressed
-  format), which can be generated on the fly by sending an appropriate
-  signal, and presents beautiful plots that depict latency and
-  bandwidth over time together with many important cake-autorate
-  vitals. This gratly simplifies assessing the efficacy of
-  cake-autorate and associated settings on a given connection.
+  maintained by @moeller0. This utility takes in a cake-autorate
+  generated log file (in compressed or uncompressed format), which can
+  be generated on the fly by sending an appropriate signal, and
+  presents beautiful plots that depict latency and bandwidth over time
+  together with many important cake-autorate vitals. This gratly
+  simplifies assessing the efficacy of cake-autorate and associated
+  settings on a given connection.
 - Multiple instances of cake-autorate is now supported. cake-autorate
   can now be run on multiple interfaces such as in the case of mwan3
   failover. The interface is assigned by designating an appropaite
@@ -244,8 +246,8 @@ Implemented several new features such as:
 - nping found to support ICMP type 13 but slow and unreliable
 - settled on hping3 as identified by @Locknair (OpenWrt forum) as ery
   efficient and timing information proves reliable
-- @Failsafe demonstrated awk mastery by writing awk
-  parser to handle output of hping3
+- @Failsafe demonstrated awk mastery by writing awk parser to handle
+  output of hping3
 
 ## 2021-12-6
 
