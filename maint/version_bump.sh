@@ -22,10 +22,10 @@ if asker "Would you like to create a new changelog entry? (y/n) "
 then
 	cur_date=$(date -I)
 	sed -e '/Zep7RkGZ52/a\' -e '\n\n\#\# '"${cur_date}"' - Version '"${version}"'\n\n**Release notes here**' -i CHANGELOG.md
-	${EDITOR} CHANGELOG.md
-	git add CHANGELOG.md
-	git commit -sm "Updated CHANGELOG for ${version}"
 fi
+${EDITOR} CHANGELOG.md
+git add CHANGELOG.md && git commit -sm "Updated CHANGELOG for ${version}"
+
 if sed -E 's/(^cake_autorate_version=\")[^\"]+(\"$)/\1'"${version}"'\2/' -i cake-autorate.sh
 then
 	echo Cake autorate version updated in cake-autorate.sh
