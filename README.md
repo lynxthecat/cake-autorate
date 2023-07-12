@@ -13,8 +13,11 @@ by a device such as an [OpenWrt router](https://openwrt.org) so that
 no more data is queued than is necessary, minimizing the latency
 ("bufferbloat") and improving the responsiveness of a network.
 
-Present version is <span id="version">3.0.1</span> - please see
-[the changelog](CHANGELOG.md) for details.
+### Status
+
+This is the **Development** (`master`) branch. New work on cake-autorate appears here. It is not guaranteed to be stable.
+
+The **Stable Version** for production/every day use is 3.0.1 available from the [v3.0 branch](https://github.com/lynxthecat/cake-autorate/tree/v3.0)
 
 ## The Problem: CAKE on variable speed connections forces an unpalatable compromise
 
