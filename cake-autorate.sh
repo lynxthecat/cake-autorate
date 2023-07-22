@@ -12,7 +12,7 @@
 # Licence details:  https://github.com/lynxthecat/cake-autorate/blob/master/LICENCE.md
 
 # Author and maintainer: lynxthecat
-# Contributors:  rany2; moeller0; richb-hanover
+# Contributors: rany2; moeller0; richb-hanover
 
 cake_autorate_version="3.1.0-PRERELEASE"
 
@@ -157,11 +157,11 @@ print_headers()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; DL_ACHIEVED_RATE_EWMA_KBPS; UL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_EWMA_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; RTT_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; SUM_DL_DELAYS; SUM_UL_DELAYS; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	((log_to_file)) && printf '%s\n' "${header}" >> "${log_file_path}"
  	((terminal)) && printf '%s\n' "${header}"
 
-	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
+	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; DL_ACHIEVED_RATE_EWMA_KBPS; UL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_EWMA_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
  	((log_to_file)) && printf '%s\n' "${header}" >> "${log_file_path}"
  	((terminal)) && printf '%s\n' "${header}"
 
@@ -374,9 +374,9 @@ update_shaper_rate()
 		*bb*)
 			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
 			then
-				adjusted_achieved_rate_kbps=$(( (achieved_rate_kbps["${direction}"]*achieved_rate_adjust_down_bufferbloat)/1000 )) 
+				adjusted_achieved_rate_ewma_kbps=$(( (achieved_rate_ewma_kbps["${direction}"]*achieved_rate_ewma_adjust_down_bufferbloat)/1000 )) 
 				adjusted_shaper_rate_kbps=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_down_bufferbloat)/1000 )) 
-				shaper_rate_kbps["${direction}"]=$(( adjusted_achieved_rate_kbps > min_shaper_rate_kbps["${direction}"] && adjusted_achieved_rate_kbps < adjusted_shaper_rate_kbps ? adjusted_achieved_rate_kbps : adjusted_shaper_rate_kbps ))
+				shaper_rate_kbps["${direction}"]=$(( adjusted_achieved_rate_ewma_kbps > min_shaper_rate_kbps["${direction}"] && adjusted_achieved_rate_ewma_kbps < adjusted_shaper_rate_kbps ? adjusted_achieved_rate_ewma_kbps : adjusted_shaper_rate_kbps ))
 				t_last_bufferbloat_us["${direction}"]="${EPOCHREALTIME/./}"
 			fi
 			;;
@@ -437,7 +437,11 @@ monitor_achieved_rates()
 	t_start_us=0
 
 	declare -A achieved_rate_kbps
+	declare -A achieved_rate_ewma_kbps
 	declare -A load_percent
+
+	achieved_rate_ewma_kbps[dl]=0
+	achieved_rate_ewma_kbps[ul]=0
 
 	while true
 	do
@@ -482,11 +486,17 @@ monitor_achieved_rates()
 		((achieved_rate_kbps[dl]<0)) && achieved_rate_kbps[dl]=0
 		((achieved_rate_kbps[ul]<0)) && achieved_rate_kbps[ul]=0
 
+		ewma_iteration "${achieved_rate_kbps[dl]}" "${alpha_achieved_rate}" "achieved_rate_ewma_kbps[dl]"
+		ewma_iteration "${achieved_rate_kbps[ul]}" "${alpha_achieved_rate}" "achieved_rate_ewma_kbps[ul]"
+
 		printf "SET_ARRAY_ELEMENT achieved_rate_kbps dl %s\n" "${achieved_rate_kbps[dl]}" >&"${main_fd}"
 		printf "SET_ARRAY_ELEMENT achieved_rate_kbps ul %s\n" "${achieved_rate_kbps[ul]}" >&"${main_fd}"
 
-		load_percent[dl]=$(( (100*achieved_rate_kbps[dl])/shaper_rate_kbps[dl] ))
-		load_percent[ul]=$(( (100*achieved_rate_kbps[ul])/shaper_rate_kbps[ul] ))
+		printf "SET_ARRAY_ELEMENT achieved_rate_ewma_kbps dl %s\n" "${achieved_rate_ewma_kbps[dl]}" >&"${main_fd}"
+		printf "SET_ARRAY_ELEMENT achieved_rate_ewma_kbps ul %s\n" "${achieved_rate_ewma_kbps[ul]}" >&"${main_fd}"
+
+		load_percent[dl]=$(( (100*achieved_rate_ewma_kbps[dl])/shaper_rate_kbps[dl] ))
+		load_percent[ul]=$(( (100*achieved_rate_ewma_kbps[ul])/shaper_rate_kbps[ul] ))
 
 		for pinger_fd in "${pinger_fds[@]:?}"
 		do
@@ -497,7 +507,7 @@ monitor_achieved_rates()
 		if ((output_load_stats))
 		then
 
-			printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
+			printf -v load_stats '%s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_ewma_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${achieved_rate_ewma_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 			log_msg "LOAD" "${load_stats}"
 		fi
 
@@ -1931,7 +1941,8 @@ printf -v ul_delay_thr_us %.0f "${ul_delay_thr_ms}e3"
 printf -v alpha_baseline_increase %.0f "${alpha_baseline_increase}e6"
 printf -v alpha_baseline_decrease %.0f "${alpha_baseline_decrease}e6"   
 printf -v alpha_delta_ewma %.0f "${alpha_delta_ewma}e6"   
-printf -v achieved_rate_adjust_down_bufferbloat %.0f "${achieved_rate_adjust_down_bufferbloat}e3"
+printf -v alpha_achieved_rate %.0f "${alpha_achieved_rate}e6"   
+printf -v achieved_rate_ewma_adjust_down_bufferbloat %.0f "${achieved_rate_ewma_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_down_bufferbloat %.0f "${shaper_rate_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_up_load_high %.0f "${shaper_rate_adjust_up_load_high}e3"
 printf -v shaper_rate_adjust_down_load_low %.0f "${shaper_rate_adjust_down_load_low}e3"
@@ -2157,8 +2168,8 @@ do
 				bufferbloat_detected[dl]=$(( sum_dl_delays >= bufferbloat_detection_thr ? 1 : 0 ))
 				bufferbloat_detected[ul]=$(( sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0 ))
 
-				load_percent[dl]=$(( (100*achieved_rate_kbps[dl])/shaper_rate_kbps[dl] ))
-				load_percent[ul]=$(( (100*achieved_rate_kbps[ul])/shaper_rate_kbps[ul] ))
+				load_percent[dl]=$(( (100*achieved_rate_ewma_kbps[dl])/shaper_rate_kbps[dl] ))
+				load_percent[ul]=$(( (100*achieved_rate_ewma_kbps[ul])/shaper_rate_kbps[ul] ))
 
 				classify_load "dl"
 				classify_load "ul"
@@ -2171,7 +2182,7 @@ do
 
 				if (( output_processing_stats ))
 				then 
-					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${load_percent[dl]}" "${load_percent[ul]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${compensated_dl_delay_thr_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" "${compensated_ul_delay_thr_us}" "${sum_dl_delays}" "${sum_ul_delays}" "${load_condition[dl]}" "${load_condition[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
+					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_ewma_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${achieved_rate_ewma_kbps[ul]}" "${load_percent[dl]}" "${load_percent[ul]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${compensated_dl_delay_thr_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" "${compensated_ul_delay_thr_us}" "${sum_dl_delays}" "${sum_ul_delays}" "${load_condition[dl]}" "${load_condition[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 					log_msg "DATA" "${processing_stats}"
 				fi
 
@@ -2204,11 +2215,11 @@ do
 
 				log_msg "DEBUG" "Warning: no reflector response within: ${stall_detection_timeout_s} seconds. Checking loads."
 
-				log_msg "DEBUG" "load check is: (( ${achieved_rate_kbps[dl]} kbps > ${connection_stall_thr_kbps} kbps for download && ${achieved_rate_kbps[ul]} kbps > ${connection_stall_thr_kbps} kbps for upload ))"
+				log_msg "DEBUG" "load check is: (( ${achieved_rate_ewma_kbps[dl]} kbps > ${connection_stall_thr_kbps} kbps for download && ${achieved_rate_ewma_kbps[ul]} kbps > ${connection_stall_thr_kbps} kbps for upload ))"
 
 				# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 				# and therefore resume normal operation
-				if (( achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
+				if (( achieved_rate_ewma_kbps[dl] > connection_stall_thr_kbps && achieved_rate_ewma_kbps[ul] > connection_stall_thr_kbps ))
 				then
 
 					log_msg "DEBUG" "load above connection stall threshold so resuming normal operation."
@@ -2227,9 +2238,9 @@ do
 
 			;;
 		IDLE)
-			if (( achieved_rate_kbps[dl] > connection_active_thr_kbps || achieved_rate_kbps[ul] > connection_active_thr_kbps ))
+			if (( achieved_rate_ewma_kbps[dl] > connection_active_thr_kbps || achieved_rate_ewma_kbps[ul] > connection_active_thr_kbps ))
 			then
-				log_msg "DEBUG" "dl achieved rate: ${achieved_rate_kbps[dl]} kbps or ul achieved rate: ${achieved_rate_kbps[ul]} kbps exceeded connection active threshold: ${connection_active_thr_kbps} kbps. Resuming normal operation."
+				log_msg "DEBUG" "dl achieved rate ewma: ${achieved_rate_ewma_kbps[dl]} kbps or ul achieved rate ewma: ${achieved_rate_ewma_kbps[ul]} kbps exceeded connection active threshold: ${connection_active_thr_kbps} kbps. Resuming normal operation."
 				change_state_main "RUNNING"
 				printf "CHANGE_STATE START\n" >&"${maintain_pingers_fd}"
 				t_sustained_connection_idle_us=0
@@ -2241,7 +2252,7 @@ do
 			
 			[[ "${command[0]}" == "REFLECTOR_RESPONSE" && "${timestamp-}" ]] && reflectors_last_timestamp_us=${timestamp//[.]}
 
-			if [[ "${command[0]}" == "REFLECTOR_RESPONSE" ]] || (( achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
+			if [[ "${command[0]}" == "REFLECTOR_RESPONSE" ]] || (( achieved_rate_ewma_kbps[dl] > connection_stall_thr_kbps && achieved_rate_ewma_kbps[ul] > connection_stall_thr_kbps ))
 			then
 
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."

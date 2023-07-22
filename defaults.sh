@@ -15,7 +15,7 @@
 
 # *** OUTPUT AND LOGGING OPTIONS ***
 
-output_processing_stats=1 	# enable (1) or disable (0) output monitoring lines showing processing stats
+output_processing_stats=1	# enable (1) or disable (0) output monitoring lines showing processing stats
 output_load_stats=1       	# enable (1) or disable (0) output monitoring lines showing achieved loads
 output_reflector_stats=1  	# enable (1) or disable (0) output monitoring lines showing reflector stats
 output_cake_changes=0     	# enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
@@ -86,13 +86,13 @@ ul_delay_thr_ms=30.0 # (milliseconds)
 adjust_dl_shaper_rate=1 # enable (1) or disable (0) actually changing the dl shaper rate
 adjust_ul_shaper_rate=1 # enable (1) or disable (0) actually changing the ul shaper rate
 
-min_dl_shaper_rate_kbps=5000  # minimum bandwidth for download (Kbit/s)
-base_dl_shaper_rate_kbps=20000 # steady state bandwidth for download (Kbit/s)
-max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
+min_dl_shaper_rate_kbps=5000	# minimum bandwidth for download (Kbit/s)
+base_dl_shaper_rate_kbps=20000	# steady state bandwidth for download (Kbit/s)
+max_dl_shaper_rate_kbps=80000	# maximum bandwidth for download (Kbit/s)
 
-min_ul_shaper_rate_kbps=5000  # minimum bandwidth for upload (Kbit/s)
-base_ul_shaper_rate_kbps=20000 # steady state bandwidth for upload (KBit/s)
-max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
+min_ul_shaper_rate_kbps=5000	# minimum bandwidth for upload (Kbit/s)
+base_ul_shaper_rate_kbps=20000	# steady state bandwidth for upload (KBit/s)
+max_ul_shaper_rate_kbps=35000	# maximum bandwidth for upload (Kbit/s)
 
 # sleep functionality saves unecessary pings and CPU cycles by
 # pausing all active pingers when connection is not in active use
@@ -141,6 +141,7 @@ ping_prefix_string=""
 # this is automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)
 monitor_achieved_rates_interval_ms=200 # (milliseconds)
+alpha_achieved_rate=0.2 # EWMA alpha for achieved rate ewma
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
@@ -161,11 +162,11 @@ alpha_delta_ewma=0.095
 # bufferbloat adjustment works with the lower of the adjusted achieved rate and adjusted shaper rate
 # to exploit that transfer rates during bufferbloat provide an indication of line capacity
 # otherwise shaper rate is adjusted up on load high, and down on load idle or low
-achieved_rate_adjust_down_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat
-shaper_rate_adjust_down_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat
-shaper_rate_adjust_up_load_high=1.01      # how rapidly to increase shaper rate upon high load detected
-shaper_rate_adjust_down_load_low=0.99     # how rapidly to return down to base shaper rate upon idle or low load detected
-shaper_rate_adjust_up_load_low=1.01       # how rapidly to return up to base shaper rate upon idle or low load detected
+achieved_rate_ewma_adjust_down_bufferbloat=0.9	# how rapidly to reduce the shaper rate based on achieved rate ewma upon detection of bufferbloat
+shaper_rate_adjust_down_bufferbloat=0.9		# how rapidly to reduce shaper rate upon detection of bufferbloat
+shaper_rate_adjust_up_load_high=1.01		# how rapidly to increase shaper rate upon high load detected
+shaper_rate_adjust_down_load_low=0.99		# how rapidly to return down to base shaper rate upon idle or low load detected
+shaper_rate_adjust_up_load_low=1.01		# how rapidly to return up to base shaper rate upon idle or low load detected
 
 # the load is categoried as low if < high_load_thr and high if > high_load_thr relative to the current shaper rate
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
