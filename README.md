@@ -15,10 +15,10 @@ no more data is queued than is necessary, minimizing the latency
 
 ### Status
 
-This is the **Stable Version <span id="version">3.0.1</span>**
+This is the **stable version <span id="version">3.0.1</span>**
 suitable for production/every day use.
 
-The **Development** (`master`) branch is available at
+The **development** (`master`) branch is available at
 https://github.com/lynxthecat/cake-autorate/tree/master
 
 ## The Problem: CAKE on variable speed connections forces an unpalatable compromise
