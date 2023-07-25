@@ -15,10 +15,10 @@ no more data is queued than is necessary, minimizing the latency
 
 ### Status
 
-This is the **Development** (`master`) branch. New work on
+This is the **development** (`master`) branch. New work on
 cake-autorate appears here. It is not guaranteed to be stable.
 
-The **Stable Version** for production/every day use is
+The **stable version** for production/every day use is
 <span id="version">3.0.1</span> available from the
 [v3.0 branch](https://github.com/lynxthecat/cake-autorate/tree/v3.0)
 
