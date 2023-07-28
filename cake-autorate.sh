@@ -374,7 +374,10 @@ update_shaper_rate()
 		*bb*)
 			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
 			then
-				if (( avg_owd_delta_us["${direction}"] > 0 ))
+				if (( avg_owd_delta_thr_us["${direction}"] == 0 ))
+				then
+					shaper_rate_adjust_down_bufferbloat_factor=1000
+				elif (( avg_owd_delta_us["${direction}"] > 0 ))
 				then
 					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*avg_owd_delta_us["${direction}"])/avg_owd_delta_thr_us["${direction}"] ))
 					(( shaper_rate_adjust_down_bufferbloat_factor > 1000 )) && shaper_rate_adjust_down_bufferbloat_factor=1000
