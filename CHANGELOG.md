@@ -7,6 +7,16 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## 2023-07-29 - Version 3.1.0
+
+- Removed consulting the achieved rate when setting the new shaper 
+rate on detection of bufferbloat. Whilst the achieved transfer rate
+on bufferbloat detection can give insight into the connection capacity,
+leveraging this effectively proved troublesome.
+- Introduced scaling of shaper rate reduction on bufferbloat based on
+the average OWD delta taken across the bufferbloat detection window
+as a portion of a user configurable average OWD delta threshold. 
+
 ## 2023-07-08 - Version 3.0.0
 
 - Version 3.0.0 of cake-autorate is the culmination of dozens of
