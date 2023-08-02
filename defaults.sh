@@ -18,6 +18,7 @@
 output_processing_stats=1 	# enable (1) or disable (0) output monitoring lines showing processing stats
 output_load_stats=1       	# enable (1) or disable (0) output monitoring lines showing achieved loads
 output_reflector_stats=1  	# enable (1) or disable (0) output monitoring lines showing reflector stats
+output_summary_stats=1          # enable (1) or disable (0) output monitoring lines showing summary stats
 output_cake_changes=0     	# enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
 debug=1 		  	# enable (1) or disable (0) out of debug lines
 
