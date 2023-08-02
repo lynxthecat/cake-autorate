@@ -379,7 +379,7 @@ update_shaper_rate()
 					shaper_rate_adjust_down_bufferbloat_factor=1000
 				elif (( avg_owd_delta_us["${direction}"] > 0 ))
 				then
-					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*avg_owd_delta_us["${direction}"])/avg_owd_delta_thr_us["${direction}"] ))
+					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*avg_owd_delta_us["${direction}"])/compensated_avg_owd_delta_thr_us["${direction}"] ))
 					(( shaper_rate_adjust_down_bufferbloat_factor > 1000 )) && shaper_rate_adjust_down_bufferbloat_factor=1000
 				else
 					shaper_rate_adjust_down_bufferbloat_factor=0
@@ -1552,9 +1552,14 @@ update_max_wire_packet_compensation()
 	# Compensate for delays imposed by active traffic shaper
 	# This will serve to increase the delay thr at rates below around 12Mbit/s
 
-	# compensated OWD delay thresholds in microseconds
-	compensated_dl_owd_delta_thr_us=$(( dl_owd_delta_thr_us + (1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] ))
-	compensated_ul_owd_delta_thr_us=$(( ul_owd_delta_thr_us + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul] ))
+	dl_compensation_us=$(( (1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] ))
+	ul_compensation_us=$(( (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul] ))
+
+	compensated_owd_delta_thr_us[dl]=$(( dl_owd_delta_thr_us + dl_compensation_us ))
+	compensated_owd_delta_thr_us[ul]=$(( ul_owd_delta_thr_us + ul_compensation_us ))
+	
+	compensated_avg_owd_delta_thr_us[dl]=$(( dl_avg_owd_delta_thr_us + dl_compensation_us ))
+	compensated_avg_owd_delta_thr_us[ul]=$(( ul_avg_owd_delta_thr_us + ul_compensation_us ))
 
 	max_wire_packet_rtt_us=$(( (1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul] ))
 	
@@ -1985,6 +1990,8 @@ declare -A interface
 declare -A adjust_shaper_rate
 declare -A avg_owd_delta_us
 declare -A avg_owd_delta_thr_us
+declare -A compensated_owd_delta_thr_us
+declare -A compensated_avg_owd_delta_thr_us
 
 base_shaper_rate_kbps[dl]="${base_dl_shaper_rate_kbps}"
 base_shaper_rate_kbps[ul]="${base_ul_shaper_rate_kbps}"
@@ -2165,7 +2172,7 @@ do
 				
 				# .. for download:
 				(( dl_delays[delays_idx] )) && ((sum_dl_delays--))
-				dl_delays[delays_idx]=$(( dl_owd_delta_us > compensated_dl_owd_delta_thr_us ? 1 : 0 ))
+				dl_delays[delays_idx]=$(( dl_owd_delta_us > compensated_owd_delta_thr_us[dl] ? 1 : 0 ))
 				((dl_delays[delays_idx])) && ((sum_dl_delays++))
 			
 				(( sum_dl_owd_deltas_us -= dl_owd_deltas_us[delays_idx] ))
@@ -2174,7 +2181,7 @@ do
 
 				# .. for upload
 				(( ul_delays[delays_idx] )) && ((sum_ul_delays--))
-				ul_delays[delays_idx]=$(( ul_owd_delta_us > compensated_ul_owd_delta_thr_us ? 1 : 0 ))
+				ul_delays[delays_idx]=$(( ul_owd_delta_us > compensated_owd_delta_thr_us[ul] ? 1 : 0 ))
 				((ul_delays[delays_idx])) && ((sum_ul_delays++))
 				
 				(( sum_ul_owd_deltas_us -= ul_owd_deltas_us[delays_idx] ))
@@ -2204,7 +2211,7 @@ do
 
 				if (( output_processing_stats ))
 				then 
-					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${load_percent[dl]}" "${load_percent[ul]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${compensated_dl_owd_delta_thr_us}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" "${compensated_ul_owd_delta_thr_us}" "${sum_dl_delays}" "${sum_ul_delays}" "${load_condition[dl]}" "${load_condition[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
+					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${load_percent[dl]}" "${load_percent[ul]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baseline_us}" "${dl_owd_us}" "${dl_owd_delta_ewma_us}" "${dl_owd_delta_us}" "${compensated_owd_delta_thr_us[dl]}" "${ul_owd_baseline_us}" "${ul_owd_us}" "${ul_owd_delta_ewma_us}" "${ul_owd_delta_us}" "${compensated_owd_delta_thr_us[ul]}" "${sum_dl_delays}" "${sum_ul_delays}" "${load_condition[dl]}" "${load_condition[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 					log_msg "DATA" "${processing_stats}"
 				fi
 
