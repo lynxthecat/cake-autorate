@@ -15,7 +15,13 @@ on bufferbloat detection can give insight into the connection capacity,
 leveraging this effectively proved troublesome.
 - Introduced scaling of shaper rate reduction on bufferbloat based on
 the average OWD delta taken across the bufferbloat detection window
-as a portion of a user configurable average OWD delta threshold. 
+as a portion of a user configurable average OWD delta threshold.
+- Amended existing DATA log lines for more consistency and to incorporate 
+the average OWD deltas and compensated thresholds.
+- Introduced new SUMMARY log lines to offer a simple way to see a 
+summary of key statistics using: `grep -e SUMMARY`.
+- Utilities that read from log file(s) will need to be updated to 
+take into account the changes to the logging. 
 
 ## 2023-07-08 - Version 3.0.0
 
