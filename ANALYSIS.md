@@ -5,6 +5,16 @@ bandwidth settings based on traffic load and round-trip time
 measurements. See the main [README](./README.md) page for more details
 of the algorithm.
 
+## Viewing a simple summary of key statistics on the command line
+
+A simple summary of the key statistics can be generated on the 
+command line so long as `output_reflector_stats` is enabled
+using e.g.:
+
+```bash
+tail -f /var/log/cake-autorate.primary.log | grep -e SUMMARY
+```
+
 ## Exporting a Log File
 
 Extract a compressed log file from a running cake-autorate instance
