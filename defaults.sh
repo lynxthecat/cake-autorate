@@ -18,6 +18,7 @@
 output_processing_stats=1 	# enable (1) or disable (0) output monitoring lines showing processing stats
 output_load_stats=1       	# enable (1) or disable (0) output monitoring lines showing achieved loads
 output_reflector_stats=1  	# enable (1) or disable (0) output monitoring lines showing reflector stats
+output_summary_stats=1          # enable (1) or disable (0) output monitoring lines showing summary stats
 output_cake_changes=0     	# enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
 debug=1 		  	# enable (1) or disable (0) out of debug lines
 
@@ -75,11 +76,16 @@ randomize_reflectors=1 # enable (1) or disable (0) randomization of reflectors o
 no_pingers=6 # number of pingers to maintain
 reflector_ping_interval_s=0.3 # (seconds, e.g. 0.2s or 2s)
 
-# delay threshold in ms is the extent of OWD increase to classify as a delay
+# owd delta threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)
-dl_delay_thr_ms=30.0 # (milliseconds)
-ul_delay_thr_ms=30.0 # (milliseconds)
+dl_owd_delta_thr_ms=30.0 # (milliseconds)
+ul_owd_delta_thr_ms=30.0 # (milliseconds)
+
+# average owd delta threshold in ms at which maximum adjust_down_bufferbloat is applied
+# set value(s) to 0 to disable and always apply maximum adjust_down_bufferbloat
+dl_avg_owd_delta_thr_ms=60.0 # (milliseconds)
+ul_avg_owd_delta_thr_ms=60.0 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -158,14 +164,13 @@ alpha_baseline_decrease=0.9  # how rapidly baseline RTT is allowed to decrease
 alpha_delta_ewma=0.095
 
 # rate adjustment parameters
-# bufferbloat adjustment works with the lower of the adjusted achieved rate and adjusted shaper rate
-# to exploit that transfer rates during bufferbloat provide an indication of line capacity
+# shaper rate is adjusted by a maximum of shaper_rate_max_adjust_down_bufferbloat on detection of bufferbloat
+# and this is scaled by the average delta owd / average owd delta threshold
 # otherwise shaper rate is adjusted up on load high, and down on load idle or low
-achieved_rate_adjust_down_bufferbloat=0.9 # how rapidly to reduce achieved rate upon detection of bufferbloat
-shaper_rate_adjust_down_bufferbloat=0.9   # how rapidly to reduce shaper rate upon detection of bufferbloat
-shaper_rate_adjust_up_load_high=1.01      # how rapidly to increase shaper rate upon high load detected
-shaper_rate_adjust_down_load_low=0.99     # how rapidly to return down to base shaper rate upon idle or low load detected
-shaper_rate_adjust_up_load_low=1.01       # how rapidly to return up to base shaper rate upon idle or low load detected
+shaper_rate_max_adjust_down_bufferbloat=0.75	# how rapidly to reduce shaper rate upon detection of bufferbloat
+shaper_rate_adjust_up_load_high=1.01		# how rapidly to increase shaper rate upon high load detected
+shaper_rate_adjust_down_load_low=0.99		# how rapidly to return down to base shaper rate upon idle or low load detected
+shaper_rate_adjust_up_load_low=1.01		# how rapidly to return up to base shaper rate upon idle or low load detected
 
 # the load is categoried as low if < high_load_thr and high if > high_load_thr relative to the current shaper rate
 high_load_thr=0.75   # % of currently set bandwidth for detecting high load
