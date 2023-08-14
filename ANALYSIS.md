@@ -81,3 +81,9 @@ machine:
 log_file=$(ssh root@192.168.1.1 '/var/run/cake-autorate/primary/log_file_export 1>/dev/null && cat /var/run/cake-autorate/primary/last_log_file_export') && scp root@192.168.1.1:${log_file} . && ssh root@192.168.1.1 "rm ${log_file}"
 octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 ```
+
+### Prometheus cake-autorate exporter
+
+Check out [bairhys](https://github.com/bairhys)' [prometheus-cake-autorate-exporter](https://github.com/bairhys/prometheus-cake-autorate-exporter) for beautiful, continuous plotting of cake-autorate statistics:
+
+<img src="https://user-images.githubusercontent.com/33058425/258621455-724c213d-8a0b-4aa3-ae87-ae786c4cd2a2.png" width=100% height=100%>
