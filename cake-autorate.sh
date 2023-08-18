@@ -381,14 +381,14 @@ update_shaper_rate()
 				if (( avg_owd_delta_thr_us["${direction}"] == 0 ))
 				then
 					shaper_rate_adjust_down_bufferbloat_factor=1000
-				elif (( avg_owd_delta_us["${direction}"] > 0 ))
+				elif (( (avg_owd_delta_us["${direction}"]-compensated_owd_delta_thr_us["${direction}"]) > 0 ))
 				then
-					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*avg_owd_delta_us["${direction}"])/compensated_avg_owd_delta_thr_us["${direction}"] ))
+					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*(avg_owd_delta_us["${direction}"]-compensated_owd_delta_thr_us["${direction}"]))/(compensated_avg_owd_delta_thr_us["${direction}"]-compensated_owd_delta_thr_us["${direction}"]) ))
 					(( shaper_rate_adjust_down_bufferbloat_factor > 1000 )) && shaper_rate_adjust_down_bufferbloat_factor=1000
 				else
 					shaper_rate_adjust_down_bufferbloat_factor=0
 				fi
-				shaper_rate_adjust_down_bufferbloat=$(( 1000000-shaper_rate_adjust_down_bufferbloat_factor*(1000-shaper_rate_max_adjust_down_bufferbloat) ))
+				shaper_rate_adjust_down_bufferbloat=$(( 1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_bufferbloat_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat) ))
 				shaper_rate_kbps["${direction}"]=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_down_bufferbloat)/1000000 )) 
 				t_last_bufferbloat_us["${direction}"]="${EPOCHREALTIME/./}"
 			fi
@@ -1948,6 +1948,7 @@ printf -v ul_avg_owd_delta_thr_us %.0f "${ul_avg_owd_delta_thr_ms}e3"
 printf -v alpha_baseline_increase %.0f "${alpha_baseline_increase}e6"
 printf -v alpha_baseline_decrease %.0f "${alpha_baseline_decrease}e6"   
 printf -v alpha_delta_ewma %.0f "${alpha_delta_ewma}e6"   
+printf -v shaper_rate_min_adjust_down_bufferbloat %.0f "${shaper_rate_min_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_max_adjust_down_bufferbloat %.0f "${shaper_rate_max_adjust_down_bufferbloat}e3"
 printf -v shaper_rate_adjust_up_load_high %.0f "${shaper_rate_adjust_up_load_high}e3"
 printf -v shaper_rate_adjust_down_load_low %.0f "${shaper_rate_adjust_down_load_low}e3"
