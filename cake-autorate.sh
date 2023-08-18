@@ -28,6 +28,9 @@ cake_autorate_version="3.1.0-PRERELEASE"
 ## accessible via fds in the form: ${process_name_fd}
 ## thereby to enable transferring instructions and data between processes
 
+# Set the IFS to space and comma
+IFS=" ,"
+
 # Initialize file descriptors
 ## -1 signifies that the log file fd will not be used and
 ## that the log file will be written to directly
