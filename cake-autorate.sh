@@ -28,6 +28,9 @@ cake_autorate_version="3.1.0-PRERELEASE"
 ## accessible via fds in the form: ${process_name_fd}
 ## thereby to enable transferring instructions and data between processes
 
+# Set the IFS to space and comma
+IFS=" ,"
+
 # Initialize file descriptors
 ## -1 signifies that the log file fd will not be used and
 ## that the log file will be written to directly
@@ -617,7 +620,7 @@ parse_tsping()
 					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_preprocessor" "${parse_preprocessor_pid}" >&"${main_fd}"
 					# accommodate present tsping interval/sleep handling to prevent ping flood with only one pinger
 					tsping_sleep_time=$(( no_pingers == 1 ? ping_response_interval_ms : 0 ))
-					${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=' ' --sleep-time "${tsping_sleep_time}" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${parse_preprocessor_fd}" &
+					${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=, --sleep-time "${tsping_sleep_time}" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${parse_preprocessor_fd}" &
 					pinger_pid="${!}"
 					printf "SET_PROC_PID proc_pids %s %s\n" "${parse_id}_pinger" "${pinger_pid}" >&"${main_fd}"
 					continue
