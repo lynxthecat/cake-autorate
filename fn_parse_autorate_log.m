@@ -299,15 +299,15 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			delays.DATA.linestyle_list{end+1} = '-';
 			delays.DATA.sign_list{end+1} = 1;
 		end
-		
+
 		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_US')
 			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_US';
 			delays.DATA.color_list{end+1} = [53, 151, 143]/254;
 			delays.DATA.linestyle_list{end+1} = '-';
 			delays.DATA.sign_list{end+1} = -1;
 		end
-		
-		
+
+
 		if isfield(autorate_log.DATA.LISTS, 'DL_AVG_OWD_DELTA_US')
 			delays.DATA.fields_to_plot_list{end+1} = 'DL_AVG_OWD_DELTA_US';
 			delays.DATA.color_list{end+1} = [0.33, 0 , 0]; %[191, 129, 45]/254;
@@ -325,8 +325,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 
 		% to allow old (single ADJ_DELAY_THR) and new log files
-		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_OWD_DELTA_THR_US')
-			delays.DATA.fields_to_plot_list{end +1} = 'DL_ADJ_OWD_DELTA_THR_US';
+		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_AVG_OWD_DELTA_THR_US')
+			delays.DATA.fields_to_plot_list{end +1} = 'DL_ADJ_AVG_OWD_DELTA_THR_US';
 			delays.DATA.color_list{end+1} = [0.5, 0.0, 0.0];
 			delays.DATA.linestyle_list{end+1} = '-';
 			delays.DATA.sign_list{end+1} = 1;
@@ -334,8 +334,8 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 
 		% to allow old (single ADJ_DELAY_THR) and new log files
-		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_OWD_DELTA_THR_US')
-			delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_OWD_DELTA_THR_US';
+		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_AVG_OWD_DELTA_THR_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_AVG_OWD_DELTA_THR_US';
 			delays.DATA.color_list{end+1} = [0.5, 0.0, 0.0];
 			delays.DATA.linestyle_list{end+1} = '-';
 			delays.DATA.sign_list{end+1} = -1;
