@@ -186,7 +186,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		min_sequence_number = 1;
 
 		align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
-		output_format_extension = '.pdf'; % '.pdf', '.png', '.tif', '.ps',...
+		output_format_extension = '.png'; % '.pdf', '.png', '.tif', '.ps',...
 		line_width = 1.0;
 		figure_opts.line_width = line_width;
 		figure_opts.output_format_extension = output_format_extension;
@@ -216,20 +216,20 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		rates.LOAD.linestyle_list = {};
 		rates.LOAD.sign_list = {};
 		if (n_LOAD_samples > 0)
-%			% these two should only be shown during sleep periods?
-%			% otherwise LOAD and higher resolution DATA plots will "overlap'
-%			if isfield(autorate_log.DATA.LISTS, 'CAKE_DL_RATE_KBPS')
-%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_DL_RATE_KBPS';
-%				rates.LOAD.color_list{end+1} = [241,182,218]/254;
-%				rates.LOAD.linestyle_list{end+1} = '-';
-%				rates.LOAD.sign_list{end+1} = 1;
-%			end
-%			if isfield(autorate_log.DATA.LISTS, 'CAKE_UL_RATE_KBPS')
-%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_UL_RATE_KBPS';
-%				rates.LOAD.color_list{end+1} = [184,225,134]/254;
-%				rates.LOAD.linestyle_list{end+1} = '-';
-%				rates.LOAD.sign_list{end+1} = -1;
-%			end
+			%			% these two should only be shown during sleep periods?
+			%			% otherwise LOAD and higher resolution DATA plots will "overlap'
+			%			if isfield(autorate_log.DATA.LISTS, 'CAKE_DL_RATE_KBPS')
+			%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_DL_RATE_KBPS';
+			%				rates.LOAD.color_list{end+1} = [241,182,218]/254;
+			%				rates.LOAD.linestyle_list{end+1} = '-';
+			%				rates.LOAD.sign_list{end+1} = 1;
+			%			end
+			%			if isfield(autorate_log.DATA.LISTS, 'CAKE_UL_RATE_KBPS')
+			%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_UL_RATE_KBPS';
+			%				rates.LOAD.color_list{end+1} = [184,225,134]/254;
+			%				rates.LOAD.linestyle_list{end+1} = '-';
+			%				rates.LOAD.sign_list{end+1} = -1;
+			%			end
 
 			% these can be replaced...
 			if isfield(autorate_log.LOAD.LISTS, 'DL_ACHIEVED_RATE_KBPS')
@@ -299,13 +299,49 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			delays.DATA.linestyle_list{end+1} = '-';
 			delays.DATA.sign_list{end+1} = 1;
 		end
-
+		
 		if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_US')
 			delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_US';
 			delays.DATA.color_list{end+1} = [53, 151, 143]/254;
 			delays.DATA.linestyle_list{end+1} = '-';
 			delays.DATA.sign_list{end+1} = -1;
 		end
+		
+		
+		if isfield(autorate_log.DATA.LISTS, 'DL_AVG_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'DL_AVG_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [0.33, 0 , 0]; %[191, 129, 45]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		end
+
+		if isfield(autorate_log.DATA.LISTS, 'UL_AVG_OWD_DELTA_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_AVG_OWD_DELTA_US';
+			delays.DATA.color_list{end+1} = [0.33, 0 , 0]; %[53, 151, 143]/254;
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		end
+
+
+
+		% to allow old (single ADJ_DELAY_THR) and new log files
+		if isfield(autorate_log.DATA.LISTS, 'DL_ADJ_OWD_DELTA_THR_US')
+			delays.DATA.fields_to_plot_list{end +1} = 'DL_ADJ_OWD_DELTA_THR_US';
+			delays.DATA.color_list{end+1} = [0.5, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = 1;
+		endif
+
+
+		% to allow old (single ADJ_DELAY_THR) and new log files
+		if isfield(autorate_log.DATA.LISTS, 'UL_ADJ_OWD_DELTA_THR_US')
+			delays.DATA.fields_to_plot_list{end+1} = 'UL_ADJ_OWD_DELTA_THR_US';
+			delays.DATA.color_list{end+1} = [0.5, 0.0, 0.0];
+			delays.DATA.linestyle_list{end+1} = '-';
+			delays.DATA.sign_list{end+1} = -1;
+		endif
+
+
 
 
 		% to allow old (single ADJ_DELAY_THR) and new log files
@@ -476,7 +512,6 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			% directly classify based on delay, hence load it is.
 			sample_idx_by_load = fn_get_samples_by_load(autorate_log.DATA.LISTS, 'LOAD_PERCENT', {'UL', 'DL'}, {'UL_LOAD_PERCENT', 'DL_LOAD_PERCENT'}, CDF.LowLoad_threshold_percent, CDF.HighLoad_threshold_percent);
 
-
 			if ismember('rawCDFs', plot_list);
 				% measures for raw RTT/OWD data
 				[raw_CDF, CDF_x_vec, unique_reflector_list] = fn_get_XDF_by_load('CDF', 'RAW', autorate_log.DATA.LISTS.UL_OWD_US, autorate_log.DATA.LISTS.DL_OWD_US, delays.DATA.scale_factor, ...
@@ -499,9 +534,9 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				if isempty(plot_FQN)
 					cur_plot_FQN = fullfile(log_dir, [log_name, log_ext, '.rawPDFs', range_string, reflector_string, figure_opts.output_format_extension]);
 				else
-					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawCPFs', range_string, reflector_string, plot_ext]);
+					cur_plot_FQN = fullfile(plot_path, [plot_name, '.rawPDFs', range_string, reflector_string, plot_ext]);
 				endif
-				autorate_rawCDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, PDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
+				autorate_rawPDF_fh = fn_plot_CDF_by_measure_and_load_condition('PDF', figure_opts, raw_PDF, PDF.cumulative_range_percent, 'raw delay [ms]', 'probability density [%]', cur_plot_FQN);
 				% these can be pretty large, so make this somewhat lighter
 				clear raw_PDF;
 				clear PDF_x_vec;
@@ -836,7 +871,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	autorate_log = log_struct;
 
 	% save autorate_log as mat file...
-	disp(['INFO: Saving parsed data fie as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
+	disp(['INFO: Saving parsed data file as: ', fullfile(log_dir, [log_name, log_ext, '.mat'])]);
 	save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
 
 	if ~exist(fullfile(log_dir, [log_name, log_ext, '.gz']), 'file')
@@ -1193,7 +1228,7 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 	field_cell_array = textscan(current_line, log_struct.(cur_record_type).format_string, "Delimiter", delimiter_string);
 
 	if isempty(field_cell_array) || length(field_cell_array) < length(log_struct.(cur_record_type).listnames)
-		disp('This should not happen!');
+		disp('ERROR: This should not happen!');
 	endif
 
 	for i_list = 1 : length(log_struct.(cur_record_type).listnames)
@@ -1328,10 +1363,13 @@ function [ ret_val ] = write_out_figure(img_fh, outfile_fqn, verbosity_str, prin
 			% tiff creates a figure
 			%print(img_fh, '-dpng', outfile_fqn);
 			device_str = '-dpng';
-			resolution_str = ', ''-r1200''';
+			resolution_str = ', ''-r600''';
 		case 'eps'
 			%print(img_fh, '-depsc', '-r300', outfile_fqn);
 			device_str = '-depsc';
+		case 'svg'
+			%print(img_fh, '-depsc', '-r300', outfile_fqn);
+			device_str = '-dsvg';
 		case 'fig'
 			%sm: allows to save figures for further refinements
 			saveas(img_fh, outfile_fqn, 'fig');
