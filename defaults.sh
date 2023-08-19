@@ -83,7 +83,6 @@ dl_owd_delta_thr_ms=30.0 # (milliseconds)
 ul_owd_delta_thr_ms=30.0 # (milliseconds)
 
 # average owd delta threshold in ms at which maximum adjust_down_bufferbloat is applied
-# set value(s) to 0 to disable and always apply maximum adjust_down_bufferbloat
 dl_avg_owd_delta_thr_ms=60.0 # (milliseconds)
 ul_avg_owd_delta_thr_ms=60.0 # (milliseconds)
 
