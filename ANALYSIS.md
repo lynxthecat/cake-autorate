@@ -7,9 +7,8 @@ of the algorithm.
 
 ## Viewing a simple summary of key statistics on the command line
 
-A simple summary of the key statistics can be generated on the 
-command line so long as `output_reflector_stats` is enabled
-using e.g.:
+A simple summary of the key statistics can be generated on the command
+line so long as `output_reflector_stats` is enabled using e.g.:
 
 ```bash
 tail -f /var/log/cake-autorate.primary.log | grep -e SUMMARY
@@ -84,6 +83,8 @@ octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
 
 ### Prometheus cake-autorate exporter
 
-Check out [bairhys](https://github.com/bairhys)' [prometheus-cake-autorate-exporter](https://github.com/bairhys/prometheus-cake-autorate-exporter) for beautiful, continuous plotting of cake-autorate statistics:
+Check out [bairhys](https://github.com/bairhys)'
+[prometheus-cake-autorate-exporter](https://github.com/bairhys/prometheus-cake-autorate-exporter)
+for beautiful, continuous plotting of cake-autorate statistics:
 
 <img src="https://user-images.githubusercontent.com/33058425/258621455-724c213d-8a0b-4aa3-ae87-ae786c4cd2a2.png" width=100% height=100%>
