@@ -2110,7 +2110,7 @@ proc_pids['monitor_achieved_rates']="${!}"
 maintain_pingers &
 proc_pids['maintain_pingers']="${!}"
 
-generate_log_file_scripts
+((log_to_file)) && generate_log_file_scripts
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
