@@ -7,6 +7,7 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+
 ## 2023-09-18 - Version 3.1.0
 
 - Removed consulting the achieved rate when setting the new shaper
