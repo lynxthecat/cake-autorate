@@ -19,8 +19,8 @@ This is the **development** (`master`) branch. New work on
 cake-autorate appears here. It is not guaranteed to be stable.
 
 The **stable version** for production/every day use is
-<span id="version">3.0.1</span> available from the
-[v3.0 branch](https://github.com/lynxthecat/cake-autorate/tree/v3.0)
+<span id="version">3.1.0</span> available from the
+[v3.1 branch](https://github.com/lynxthecat/cake-autorate/tree/v3.1)
 
 ## The Problem: CAKE on variable speed connections forces an unpalatable compromise
 
