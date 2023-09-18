@@ -580,7 +580,7 @@ parse_preprocessor()
 parse_tsping()
 {
 	trap '' INT
-	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT
+	trap 'terminate "${pinger_pid:-}" "${parse_preprocessor_pid:-}"' TERM EXIT
 
 	local parse_id="${1}"
 	local reflectors=("${@:2}")
@@ -746,7 +746,7 @@ parse_tsping()
 parse_fping()
 {
 	trap '' INT
-	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT
+	trap 'terminate "${pinger_pid:-}" "${parse_preprocessor_pid:-}"' TERM EXIT
 
 	local parse_id="${1}"
 
@@ -895,7 +895,7 @@ parse_fping()
 parse_ping()
 {
 	trap '' INT
-	trap 'terminate "${pinger_pid}" "${parse_preprocessor_pid}"' TERM EXIT
+	trap 'terminate "${pinger_pid:-}" "${parse_preprocessor_pid:-}"' TERM EXIT
 
 	# ping reflector, maintain baseline and output deltas to a common fifo
 
