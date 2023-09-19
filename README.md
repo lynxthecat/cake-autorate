@@ -15,7 +15,7 @@ no more data is queued than is necessary, minimizing the latency
 
 ### Status
 
-This is the **stable version <span id="version">3.1.0</span>**
+This is the **stable version <span id="version">3.1.1</span>**
 suitable for production/every day use.
 
 The **development** (`master`) branch is available at
