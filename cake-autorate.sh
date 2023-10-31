@@ -2036,6 +2036,13 @@ set_shaper_rate "ul"
 
 update_max_wire_packet_compensation
 
+# Wait if ${startup_wait_s} > 0
+if ((startup_wait_us>0))
+then
+	log_msg "DEBUG" "Waiting ${startup_wait_s} seconds before startup."
+	sleep_us "${startup_wait_us}"
+fi
+
 main_state="RUNNING"
 
 t_start_us="${EPOCHREALTIME/./}"
@@ -2077,13 +2084,6 @@ fi
 
 # Randomize reflectors array providing randomize_reflectors set to 1
 ((randomize_reflectors)) && randomize_array reflectors
-
-# Wait if ${startup_wait_s} > 0
-if ((startup_wait_us>0))
-then
-	log_msg "DEBUG" "Waiting ${startup_wait_s} seconds before startup."
-	sleep_us "${startup_wait_us}"
-fi
 
 case "${pinger_binary}" in
 
