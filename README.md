@@ -78,7 +78,7 @@ bandwidth described above, i.e. the value you would set CAKE to that
 is bufferbloat free most, but not necessarily all, of the time.
 
 **Setting the maximum bandwidth:** The maximum bandwidth should be set
-to the maximum bandwdith the connection can provide or lower. When
+to the maximum bandwidth the connection can provide or lower. When
 there is heavy traffic, the script will adjust the bandwidth up to
 this limit, and then back off if an OWD or RTT spike is detected.
 Since repeatedly testing for the maximum bandwidth on load necessarily
