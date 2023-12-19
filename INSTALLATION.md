@@ -28,7 +28,7 @@ required tools. To use it:
   below. The commands retrieve the current version from this repo:
 
   ```bash
-  wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/cake-autorate/master/setup.sh
+  wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/cake-autorate/v3.1/setup.sh
 
   sh /tmp/cake-autorate_setup.sh
   ```
