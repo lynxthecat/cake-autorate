@@ -16,7 +16,7 @@ git reset --hard
 
 branch=${1:?}
 
-if sed -E 's|(BRANCH=\"\$\{CAKE_AUTORATE_BRANCH:-\$\{2-)[^\}]+(\}\})\"|\1'"${branch}"'\2|' -i setup.sh
+if sed -E 's|(BRANCH=\"\$\{CAKE_AUTORATE_BRANCH:-\$\{2-)[^\}]+(\}\}\")|\1'"${branch}"'\2|' -i setup.sh
 then
 	git add setup.sh
 	git commit -sm "Update setup.sh branch for release"
