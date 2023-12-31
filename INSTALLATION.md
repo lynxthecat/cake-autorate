@@ -47,27 +47,26 @@ required tools. To use it:
     obtained, for example, by consulting the configured SQM settings
     in LuCI or by examining the output of `tc qdisc ls`.
 
-    | Variable | Setting | | -------: |
-    :----------------------------------------------- | | `dl_if` |
-    Interface that downloads data (often _ifb4-wan_) | | `ul_if` |
-    Interface that uploads (often _wan_) |
+    | Variable | Setting |
+    | -------: | :----------------------------------------------- |
+    | `dl_if` | Interface that downloads data (often _ifb4-wan_) |
+    | `ul_if` | Interface that uploads (often _wan_) |
 
   - Set bandwidth variables as described in _config.primary.sh_.
 
-    | Type | Download | Upload | | ---: | :------------------------- |
-    :------------------------- | | Min. | `min_dl_shaper_rate_kbps` |
-    `min_ul_shaper_rate_kbps` | | Base | `base_dl_shaper_rate_kbps` |
-    `base_ul_shaper_rate_kbps` | | Max. | `max_dl_shaper_rate_kbps` |
-    `max_ul_shaper_rate_kbps` |
+    | Type | Download | Upload |
+    | ---: | :------------------------- | :------------------------- |
+    | Min. | `min_dl_shaper_rate_kbps` | `min_ul_shaper_rate_kbps` |
+    | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
+    | Max. | `max_dl_shaper_rate_kbps` | `max_ul_shaper_rate_kbps` |
 
   - Choose whether cake-autorate should adjust the shaper rates
     (disable for monitoring only):
 
-    | Variable | Setting | | ----------------------: |
-    :----------------------------------------- | |
-    `adjust_dl_shaper_rate` | enable (1) or disable (0) download
-    shaping | | `adjust_ul_shaper_rate` | enable (1) or disable (0)
-    upload shaping |
+    | Variable | Setting |
+    | ----------------------: | :----------------------------------------- |
+    | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
+    | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping |
 
 - The other configuration file - _defaults.sh_ - has sensible default
   settings. After cake-autorate has been installed and is running, you
@@ -82,27 +81,18 @@ required tools. To use it:
 
   - The following variables control logging:
 
-    | Variable | Setting | | -----------------------------: |
-    :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    | | `output_processing_stats` | If non-zero, log the results of
-    every iteration through the process | | `output_load_stats` | If
-    non-zero, log the log the measured achieved rates of upload and
-    download | | `output_reflector_stats` | If non-zero, log the
-    statistics generated in respect of reflector health monitoring | |
-    `output_summary_stats` | If non-zero, log a summary with the key
-    statistics | | `output_cake_changes` | If non-zero, log when
-    changes are made to CAKE settings via `tc` - this shows when
-    cake-autorate is adjusting the shaper | | `debug` | If non-zero,
-    debug lines will be output | | `log_DEBUG_messages_to_syslog` | If
-    non-zero, log lines will also get sent to the system log | |
-    `log_to_file` | If non-zero, log lines will be sent to
-    /tmp/cake-autorate.log regardless of whether printing to console
-    and after every write the log file will be rotated f either
-    `log_file_max_time_mins` have elapsed or `log_file_max_size_KB`
-    has been exceeded | | `log_file_max_time_mins` | Number of minutes
-    to elapse between log file rotaton | | `log_file_max_size_KB` |
-    Number of KB (i.e. bytes/1024) worth of log lines between log file
-    rotations |
+    | Variable | Setting |
+    | -----------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `output_processing_stats` | If non-zero, log the results of every iteration through the process |
+    | `output_load_stats` | If non-zero, log the log the measured achieved rates of upload and download |
+    | `output_reflector_stats` | If non-zero, log the statistics generated in respect of reflector health monitoring |
+    | `output_summary_stats` | If non-zero, log a summary with the key statistics |
+    | `output_cake_changes` | If non-zero, log when changes are made to CAKE settings via `tc` - this shows when cake-autorate is adjusting the shaper |
+    | `debug` | If non-zero, debug lines will be output |
+    | `log_DEBUG_messages_to_syslog` | If non-zero, log lines will also get sent to the system log |
+    | `log_to_file` | If non-zero, log lines will be sent to /tmp/cake-autorate.log regardless of whether printing to console `log_file_max_time_mins` have elapsed or `log_file_max_size_KB` has been exceeded |
+    | `log_file_max_time_mins` | Number of minutes to elapse between log file rotaton |
+    | `log_file_max_size_KB` | Number of KB (i.e. bytes/1024) worth of log lines between log file rotations |
 
 ## Manual testing
 
