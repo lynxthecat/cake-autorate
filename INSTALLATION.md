@@ -69,14 +69,34 @@ required tools. To use it:
     | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
 
 - The other configuration file - _defaults.sh_ - has sensible default
-  settings. After cake-autorate has been installed and is running, you
-  may wish to change some of these.
+  settings. After cake-autorate has been installed, you may wish to
+  override some of these by providing corresponding entries inside
+  _config.primary.sh_.
 
-  - For example, to set a different `dl_delay_thr_ms`, then add a line
+  - At least the following variables may warrant overriding depending on
+    the connection particulars. 
+
+    |                Variable | Setting                                      |
+    | ------------------------: | :----------------------------------------- |
+    |     `dl_owd_delta_thr_ms` | extent of download OWD increase to classify as a delay                                                       |
+    |     `ul_owd_delta_thr_ms` | extent of upload OWD increase to classify as a delay                                                         |
+    | `dl_avg_owd_delta_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
+    | `ul_avg_owd_delta_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
+
+    An OWD measurement to an individual reflector that exceeds
+    `xl_owd_delta_thr_ms` from its baseline is classified as a delay.
+    Bufferbloat is detected when there are `bufferbloat_detection_thr`
+    delays out of the last`bufferbloat_detection_window` reflector
+    responses. Upon bufferbloat detection, the extent of the average
+    OWD delta taken across the reflectors governs how much the
+    shaper rate is adjusted down (scaled by average delta OWD /
+    `xl_avg_owd_delta_thr_ms`).
+
+  - For example, to set a different `dl_owd_delta_thr_ms`, then add a line
     to the config like:
 
     ```bash
-    dl_delay_thr_ms=100
+    dl_owd_delta_thr_ms=100
     ```
 
   - The following variables control logging:
