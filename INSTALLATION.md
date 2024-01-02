@@ -68,13 +68,29 @@ required tools. To use it:
     | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
     | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
 
-- The other configuration file - _defaults.sh_ - has sensible default
+## Configuration of cake-autorate
+
+  cake-autorate is highly configurable and almost every aspect of it
+  can be (and is ideally) fine-tuned. 
+
+- The file _defaults.sh_ has sensible default
   settings. After cake-autorate has been installed, you may wish to
   override some of these by providing corresponding entries inside
   _config.primary.sh_.
 
-  - At least the following variables may warrant overriding depending on
-    the connection particulars. 
+  - For example, to set a different `dl_owd_delta_thr_ms`, then add a line
+    to the config file _config.primary.sh_ like:
+
+    ```bash
+    dl_owd_delta_thr_ms=100
+    ```
+- Users are encouraged to look at  _defaults.sh_, which documents
+  the many configurable parameters of cake-autorate.
+   
+    ## Delay thresholds
+
+  - At least the following variables relating to the delay thresholds
+    may warrant overriding depending on the connection particulars. 
 
     |                Variable | Setting                                      |
     | ------------------------: | :----------------------------------------- |
@@ -91,13 +107,52 @@ required tools. To use it:
     OWD delta taken across the reflectors governs how much the
     shaper rate is adjusted down (scaled by average delta OWD /
     `xl_avg_owd_delta_thr_ms`).
+ 
+    Avoiding bufferbloat requires throttling the connection,
+    and thus there is a trade-off between bandwidth and latency. 
 
-  - For example, to set a different `dl_owd_delta_thr_ms`, then add a line
-    to the config like:
+    The delay thresholds affect how much the shaper rate is
+    punished responsive to latency increase. Users that want
+    very low latency at all times (at the expense of bandwidth)
+    will want lower values. Users that can tolerate higher
+    latency excursions (facilitating greater bandwidth).
 
-    ```bash
-    dl_owd_delta_thr_ms=100
-    ```
+    Although the default parameters have been designed
+    to offer something that might work out of the box
+    for certain connections, some analysis is likely required
+    to optimize cake-autorate for the specific use-case.
+
+    Read about this in the [ANALYSIS](./ANALYSIS.md) page.
+
+    ## Reflectors
+
+  - Additionally, the following variables relating to reflectors
+    may also warrant overriding:
+
+    |                Variable | Setting                                      |
+    | ------------------------: | :----------------------------------------- |
+    |              `reflectors` | list of reflectors                      |
+    |              `no_pingers` | number of reflectors to ping            |
+    | `reflector_ping_interval` | interval between pinging each reflector |
+ 
+    Reflector choice is a crucial parameter for cake-autorate.
+
+    By default, cake-autorate sends ICMPs to various large anycast
+    DNS hosts (Cloudflare, Google, Quad9, etc.).
+
+    It is the responsibility of the user to ensure that the
+    configured reflectors provide stable, low-latency responses.
+ 
+    Some governments appear to block DNS hosts like Google.
+    Users affected by the same will need to determine
+    appropriate alternative reflectors. 
+ 
+    cake-autorate monitors the responses from reflectors
+    and automatically kicks out bad reflectors. The
+    parameters governing the same are configurable
+    in the config file (see _defaults.sh_).
+    
+    ## Logging
 
   - The following variables control logging:
 
