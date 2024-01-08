@@ -97,7 +97,7 @@ required tools. To use it:
     |     `dl_owd_delta_thr_ms` | extent of download OWD increase to classify as a delay                                                       |
     |     `ul_owd_delta_thr_ms` | extent of upload OWD increase to classify as a delay                                                         |
     | `dl_avg_owd_delta_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
-    | `ul_avg_owd_delta_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
+    | `ul_avg_owd_delta_thr_ms` | average upload OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied   |
 
     An OWD measurement to an individual reflector that exceeds
     `xl_owd_delta_thr_ms` from its baseline is classified as a delay.
@@ -206,8 +206,10 @@ _/var/log/cake-autorate.primary.log_ (observing the instance
 identifier _cake-autorate_config.identifier.sh_ set in the config file
 name).
 
-WARNING: Take care to ensure sufficient free (Flash) memory exists in
-router to handle selected logging parameters.
+WARNING: Take care to ensure sufficient free memory exists on
+router to handle selected logging parameters. Consider disabling
+logging or adjusting logging parameters such as 
+`log_file_max_time_mins` or `log_file_max_size_KB` if necessary.
 
 ## Preserving cake-autorate files for backup or upgrades
 
