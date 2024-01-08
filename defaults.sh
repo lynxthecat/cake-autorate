@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # defaults.sh -- default configuration values for cake-autorate.sh
 #

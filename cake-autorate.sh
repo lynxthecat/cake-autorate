@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # cake-autorate automatically adjusts CAKE bandwidth(s)
 # in dependence on: a) receive and transmit transfer rates; and b) latency
@@ -212,7 +212,7 @@ reset_log_file()
 generate_log_file_scripts()
 {
 	cat > "${run_path}/log_file_export" <<- EOT
-	#!/bin/bash
+	#!/usr/bin/env bash
 
 	timeout_s=\${1:-20}
 
@@ -246,7 +246,7 @@ generate_log_file_scripts()
 	EOT
 
 	cat > "${run_path}/log_file_reset" <<- EOT
-	#!/bin/bash
+	#!/usr/bin/env bash
 
 	if kill -USR2 "${proc_pids['maintain_log_file']}"
 	then

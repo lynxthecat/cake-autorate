@@ -1,19 +1,12 @@
-#!/bin/bash /etc/rc.common
+#!/bin/sh /etc/rc.common
 
 START=97
 STOP=4
 USE_PROCD=1
 
 start_service() {
-
-        cake_instances=(/root/cake-autorate/config.*.sh)
-
-        for cake_instance in "${!cake_instances[@]}"
-        do
-                procd_open_instance "${cake_instance}"
-                procd_set_param command /root/cake-autorate/cake-autorate.sh "${cake_instances[cake_instance]}"
-                # uncomment if you want procd to restart your script if it terminated for whatever reason
-                #procd_set_param respawn
-                procd_close_instance
-        done
+        procd_open_instance
+        procd_set_param command /root/cake-autorate/launcher.sh
+        procd_set_param respawn
+        procd_close_instance
 }

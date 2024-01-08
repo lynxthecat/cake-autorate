@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 cake_instances=(/root/cake-autorate/config.*.sh)
 cake_instance_pids=()
