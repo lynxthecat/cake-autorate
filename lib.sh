@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # lib.sh -- common functions for use by cake-autorate.sh
 #
