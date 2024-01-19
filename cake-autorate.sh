@@ -823,7 +823,7 @@ parse_fping()
 
 				if [[ "${#command[@]}" -eq 3 ]]
 				then
-						export -n "${command[1]}=${command[2]}"
+					export -n "${command[1]}=${command[2]}"
 				fi
 				continue
 				;;
@@ -832,7 +832,7 @@ parse_fping()
 
 				if [[ "${#command[@]}" -eq 4 ]]
 				then
-						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
+					declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 				fi
 				continue
 				;;
@@ -968,7 +968,7 @@ parse_ping()
 
 				if [[ "${#command[@]}" -eq 3 ]]
 				then
-						export -n "${command[1]}=${command[2]}"
+					export -n "${command[1]}=${command[2]}"
 				fi
 				continue
 				;;
@@ -977,7 +977,7 @@ parse_ping()
 
 				if [[ "${#command[@]}" -eq 4 ]]
 				then
-						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
+					declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
 				fi
 				continue
 				;;
