@@ -1,4 +1,4 @@
-# CAKE with Adaptive Bandwidth - "cake-autorate"
+# ⚡CAKE with Adaptive Bandwidth - "cake-autorate"
 
 **cake-autorate** is a script that automatically adjusts CAKE
 bandwidth settings based on traffic load and one-way-delay or
@@ -12,6 +12,8 @@ is an algorithm that manages the buffering of data being sent/received
 by a device such as an [OpenWrt router](https://openwrt.org) so that
 no more data is queued than is necessary, minimizing the latency
 ("bufferbloat") and improving the responsiveness of a network.
+
+If you like cake-autorate and can benefit from it, then please leave a ⭐ (top right) and become a [stargazer](https://github.com/lynxthecat/cake-autorate/stargazers)! Thank you for your support.
 
 ### Status
 
