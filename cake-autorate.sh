@@ -783,8 +783,7 @@ parse_fping()
 
 			REFLECTOR_RESPONSE)
 
-				read -r timestamp reflector _ seq_rtt <<< "${command[@]:1}"
-				checksum="${command[*]: -1}"
+				read -r timestamp reflector _ seq _ _ rtt_ms _ _ _ _ _ checksum <<< "${command[@]:1}"
 				;;
 
 			START_PINGER)
@@ -848,15 +847,12 @@ parse_fping()
 				;;
 		esac
 
-		[[ "${timestamp:-}" && "${reflector:-}" && "${seq_rtt:-}" && "${checksum:-}" ]] || continue
+		[[ "${timestamp:-}" && "${reflector:-}" && "${seq:-}" && "${rtt_ms:-}" && "${checksum:-}" ]] || continue
 		[[ "${checksum}" == "${timestamp}" ]] || continue
-
-		[[ "${seq_rtt}" =~ \[([0-9]+)\].*[[:space:]]([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
-
-		seq="${BASH_REMATCH[1]}"
-
-		rtt_us="${BASH_REMATCH[3]}000"
-		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
+		
+		seq="${seq//[\[\]]}"
+		printf -v rtt_us %.3f "${rtt_ms}"
+		rtt_us="${rtt_us//.}"
 
 		dl_owd_us=$((rtt_us/2))
 		ul_owd_us="${dl_owd_us}"
@@ -928,8 +924,7 @@ parse_ping()
 
 			REFLECTOR_RESPONSE)
 
-				read -r timestamp _ _ _ reflector seq_rtt <<< "${command[@]:1}"
-				checksum="${command[*]: -1}"
+				read -r timestamp _ _ _ reflector seq _ rtt_ms _ checksum <<< "${command[@]:1}"
 				;;
 
 			START_PINGER)
@@ -995,18 +990,16 @@ parse_ping()
 
 		esac
 
-		[[ "${timestamp:-}" && "${reflector:-}" && "${seq_rtt:-}" && "${checksum:-}" ]] || continue
+		[[ "${timestamp:-}" && "${reflector:-}" && "${seq:-}" && "${rtt_ms:-}" && "${checksum:-}" ]] || continue
 		[[ "${checksum}" == "${timestamp}" ]] || continue
-
-		# If no match then skip onto the next one
-		[[ "${seq_rtt}" =~ icmp_[s|r]eq=([0-9]+).*time=([0-9]+)\.?([0-9]+)?[[:space:]]ms ]] || continue
 
 		reflector=${reflector//:/}
 
-		seq=${BASH_REMATCH[1]}
+		seq="${seq//icmp_seq=}"
+		rtt_ms="${rtt_ms//time=}"
 
-		rtt_us=${BASH_REMATCH[3]}000
-		rtt_us=$((${BASH_REMATCH[2]}000+10#${rtt_us:0:3}))
+		printf -v rtt_us %.3f "$rtt_ms"
+		rtt_us="${rtt_us//.}"
 
 		dl_owd_us=$((rtt_us/2))
 		ul_owd_us="${dl_owd_us}"
