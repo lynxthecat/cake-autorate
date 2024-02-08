@@ -52,6 +52,14 @@ required tools. To use it:
     |  `dl_if` | Interface that downloads data (often _ifb4-wan_) |
     |  `ul_if` | Interface that uploads (often _wan_)             |
 
+  - Choose whether cake-autorate should adjust the shaper rates
+    (disable for monitoring only):
+
+    |                Variable | Setting                                    |
+    | ----------------------: | :----------------------------------------- |
+    | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
+    | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
+
   - Set bandwidth variables as described in _config.primary.sh_.
 
     | Type | Download                   | Upload                     |
@@ -60,13 +68,11 @@ required tools. To use it:
     | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
     | Max. | `max_dl_shaper_rate_kbps`  | `max_ul_shaper_rate_kbps`  |
 
-  - Choose whether cake-autorate should adjust the shaper rates
-    (disable for monitoring only):
+  - Set connection idle variable as described in _config.primary.sh_.
 
-    |                Variable | Setting                                    |
-    | ----------------------: | :----------------------------------------- |
-    | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
-    | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
+    |                     Variable | Setting                                                  |
+    | ---------------------------: | :------------------------------------------------------- |
+    | `connection_active_thr_kbps` | threshold in Kbit/s below which dl/ul is considered idle |
 
 ## Configuration of cake-autorate
 
@@ -234,10 +240,10 @@ preserved, enter the files below to the OpenWrt router's
   _/root/cake-autorate/_ directory in the form:
 
 ```bash
-config.interface.sh
+config.instance.sh
 ```
 
-where 'interface' is replaced with e.g. 'primary', 'secondary', etc.
+where 'instance' is replaced with e.g. 'primary', 'secondary', etc.
 
 ## Example Starlink Configuration
 

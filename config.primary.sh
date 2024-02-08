@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-# *** STANDARD CONFIGURATION OPTIONS ***
+# *** INSTANCE-SPECIFIC CONFIGURATION OPTIONS ***
+# 
+# cake-autorate will run one instance per config file present in the /root/cake-autorate
+# directory in the form: config.instance.sh. Thus multiple instances of cake-autorate
+# can be established by setting up appropriate config files like config.primary.sh and 
+# config.secondary.sh for the respective first and second instances of cake-autorate.
 
 ### For multihomed setups, it is the responsibility of the user to ensure that the probes
 ### sent by this instance of cake-autorate actually travel through these interfaces.
@@ -21,6 +26,8 @@ max_dl_shaper_rate_kbps=80000  # maximum bandwidth for download (Kbit/s)
 min_ul_shaper_rate_kbps=5000  # minimum bandwidth for upload (Kbit/s)
 base_ul_shaper_rate_kbps=20000 # steady state bandwidth for upload (KBit/s)
 max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
+
+connection_active_thr_kbps=2000  # threshold in Kbit/s below which dl/ul is considered idle
 
 # *** OVERRIDES ***
 

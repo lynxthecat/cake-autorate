@@ -102,7 +102,7 @@ max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 # sleep functionality saves unecessary pings and CPU cycles by
 # pausing all active pingers when connection is not in active use
 enable_sleep_function=1 # enable (1) or disable (0) sleep functonality
-connection_active_thr_kbps=1000  # threshold in Kbit/s below which dl/ul is considered idle
+connection_active_thr_kbps=2000  # threshold in Kbit/s below which dl/ul is considered idle
 sustained_idle_sleep_thr_s=60.0  # time threshold to put pingers to sleep on sustained dl/ul achieved rate < idle_thr (seconds)
 
 min_shaper_rates_enforcement=0 # enable (1) or disable (0) dropping down to minimum shaper rates on connection idle or stall
