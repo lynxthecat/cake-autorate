@@ -998,7 +998,7 @@ parse_ping()
 		seq="${seq//icmp_seq=}"
 		rtt_ms="${rtt_ms//time=}"
 
-		printf -v rtt_us %.3f "$rtt_ms"
+		printf -v rtt_us %.3f "${rtt_ms}"
 		rtt_us="${rtt_us//.}"
 
 		dl_owd_us=$((rtt_us/2))
