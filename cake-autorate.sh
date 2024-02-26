@@ -212,7 +212,7 @@ reset_log_file()
 generate_log_file_scripts()
 {
 	cat > "${run_path}/log_file_export" <<- EOT
-	#!/usr/bin/env bash
+	#!${BASH}
 
 	timeout_s=\${1:-20}
 
@@ -246,7 +246,7 @@ generate_log_file_scripts()
 	EOT
 
 	cat > "${run_path}/log_file_reset" <<- EOT
-	#!/usr/bin/env bash
+	#!${BASH}
 
 	if kill -USR2 "${proc_pids['maintain_log_file']}"
 	then
