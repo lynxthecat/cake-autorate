@@ -20,7 +20,6 @@ cake_autorate_version="3.2.0-PRERELEASE"
 ## main - main process
 ## monitor_achieved_rates - monitor network transfer rates
 ## maintain_pingers - manage pingers and active reflectors
-## pinger_preprocessor - preprocessing of reflector responses
 ## maintain_log_file - maintain and rotate log file
 ##
 ## IPC is facilitated via FIFOs in the form of anonymous pipes
@@ -560,15 +559,6 @@ classify_load()
 
 # MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
 
-pinger_preprocessor()
-{
-	# prepend REFLECTOR_RESPONSE and append timestamp as a checksum
-	while read -r timestamp remainder
-	do
-		printf "REFLECTOR_RESPONSE %s %s %s\n" "${timestamp}" "${remainder}" "${timestamp}" >&"${main_fd}"
-	done
-}
-
 # GENERIC PINGER START AND STOP FUNCTIONS
 
 start_pinger()
@@ -583,19 +573,19 @@ start_pinger()
 			pinger=0
 			# accommodate present tsping interval/sleep handling to prevent ping flood with only one pinger
 			tsping_sleep_time=$(( no_pingers == 1 ? ping_response_interval_ms : 0 ))
-			${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=, --sleep-time "${tsping_sleep_time}" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${pinger_preprocessor_fd}" &
+			${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=, --sleep-time "${tsping_sleep_time}" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${main_fd}" &
 			pinger_pid[0]="${!}"
 			printf "SET_PROC_PID proc_pids %s %s\n" "tsping_pinger" "${pinger_pid[0]}" >&"${main_fd}"
 			;;
 		fping)
 			pinger=0
-			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${pinger_preprocessor_fd}" &
+			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${main_fd}" &
 			pinger_pid[0]="${!}"
 			printf "SET_PROC_PID proc_pids %s %s\n" "fping_pinger" "${pinger_pid[0]}" >&"${main_fd}"
 			;;
 		ping)
 			sleep_until_next_pinger_time_slot "${pinger}"
-			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${pinger_preprocessor_fd}" &
+			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
 			pinger_pid[pinger]="${!}"
 			printf "SET_PROC_PID proc_pids %s %s\n" "ping_${pinger}_pinger" "${pinger_pid[pinger]}" >&"${main_fd}"
 			;;
@@ -763,9 +753,6 @@ kill_maintain_pingers()
 			;;
 	esac
 
-	terminate "${pinger_preprocessor_pid}"
-	exec {pinger_preprocessor_fd}>&-
-
 	exit
 }
 
@@ -837,10 +824,6 @@ maintain_pingers()
 	maintain_pingers_state="START"
 	sleep_duration_s=0
 	pinger=0
-
-	exec {pinger_preprocessor_fd}> >(pinger_preprocessor)
-	pinger_preprocessor_pid="${!}"
-	printf "SET_PROC_PID proc_pids %s %s\n" "pinger_preprocessor" "${pinger_preprocessor_pid}" >&"${main_fd}"
 
 	# Reflector maintenance loop - verifies reflectors have not gone stale and rotates reflectors as necessary
 	while true
@@ -1638,34 +1621,17 @@ log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_
 while true
 do
 	unset command
+	reflector_response=0
 	read -r -u "${main_fd}" -a command
 	[[ "${#command[@]}" -eq 0 ]] && continue
 
 	case "${command[0]}" in
 
-		REFLECTOR_RESPONSE)
-			case "${pinger_binary}" in
-
-				tsping)
-					read -r timestamp reflector seq _ _ _ _ _ dl_owd_ms ul_owd_ms checksum <<< "${command[@]:1}"
-					;;
-				fping)
-					read -r timestamp reflector _ seq _ _ rtt_ms _ _ _ _ _ checksum <<< "${command[@]:1}"
-					;;	
-				ping)
-					read -r timestamp _ _ _ reflector seq _ rtt_ms _ checksum <<< "${command[@]:1}"
-					;;
-				*)
-					log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
-					kill $$ 2>/dev/null
-				;;
-			esac
-			;;
 		SET_REFLECTORS)
 			case "${pinger_binary}" in
 
 				tsping|fping)
-					read -r -a reflectors <<< "${command[@]:1}"
+					reflectors=("${command[@]:1}")
 					log_msg "DEBUG" "Read in new reflectors: ${reflectors[*]}"
 					for (( reflector=0; reflector<no_pingers; reflector++ ))
 					do
@@ -1716,20 +1682,57 @@ do
 			done
 			;;
 		*)
+			case "${pinger_binary}" in
+
+				tsping)
+					if [[ "${#command[@]}" -eq 10 ]]
+					then
+						timestamp="${command[0]}"
+						reflector="${command[1]}"
+						seq="${command[2]}"
+						dl_owd_ms="${command[8]}"
+						ul_owd_ms="${command[9]}"
+						reflector_response=1
+					fi
+					;;
+				fping)
+					if [[ "${#command[@]}" -eq 12 ]]
+					then
+						timestamp="${command[0]}"
+						reflector="${command[1]}"
+						seq="${command[3]}"
+						rtt_ms="${command[6]}"
+						reflector_response=1
+					fi
+					;;	
+				ping)
+					if [[ "${#command[@]}" -eq 9 ]]
+					then
+						timestamp="${command[0]}"
+						reflector="${command[4]}"
+						seq="${command[5]}"
+						rtt_ms="${command[7]}"
+						reflector_response=1
+					fi
+					;;
+				*)
+					log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+					kill $$ 2>/dev/null
+				;;
+			esac
 			;;
 	esac
 
 	case "${main_state}" in
 
 		RUNNING)
-			if [[ "${command[0]}" == "REFLECTOR_RESPONSE" ]]
+			if ((reflector_response))
 			then
 				# parse pinger response according to pinger binary
 				case "${pinger_binary}" in
 
 					tsping)
-						[[ "${timestamp-}" && "${reflector-}" && "${seq}" && "${dl_owd_ms}" && "${ul_owd_ms}" && "${checksum}" ]] || continue
-						[[ "${checksum}" == "${timestamp}" ]] || continue
+						[[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${dl_owd_ms-}" && "${ul_owd_ms-}" ]] || continue
 
 						dl_owd_us="${dl_owd_ms}000"
 						ul_owd_us="${ul_owd_ms}000"
@@ -1783,8 +1786,7 @@ do
 
 						;;
 					fping)
-						[[ "${timestamp-}" && "${reflector-}" && "${seq}" && "${rtt_ms}" && "${checksum}" ]] || continue
-						[[ "${checksum}" == "${timestamp}" ]] || continue
+						[[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${rtt_ms-}" ]] || continue
 						
 						seq="${seq//[\[\]]}"
 						printf -v rtt_us %.3f "${rtt_ms}"
@@ -1812,8 +1814,7 @@ do
 
 						;;
 					ping)
-						[[ "${timestamp-}" && "${reflector-}" && "${seq}" && "${rtt_ms}" && "${checksum}" ]] || continue
-						[[ "${checksum}" == "${timestamp}" ]] || continue
+						[[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${rtt_ms-}" ]] || continue
 
 						reflector=${reflector//:/}
 
@@ -1982,16 +1983,14 @@ do
 			fi
 			;;
 		STALL)
-			
-			[[ "${command[0]}" == "REFLECTOR_RESPONSE" ]] && reflectors_last_timestamp_us="${EPOCHREALTIME/./}"
+			((reflector_response)) && reflectors_last_timestamp_us="${EPOCHREALTIME/./}"
 
-			if [[ "${command[0]}" == "REFLECTOR_RESPONSE" ]] || (( achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
+			if (( reflector_response || achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
 			then
 
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 				printf "CHANGE_STATE RUNNING\n" >&"${maintain_pingers_fd}"
 				change_state_main "RUNNING"
-
 			fi
 
 			if (( global_ping_response_timeout==0 && ${EPOCHREALTIME/./} > (t_connection_stall_time_us + global_ping_response_timeout_us - stall_detection_timeout_us) ))
@@ -2005,7 +2004,6 @@ do
 			fi
 			;;
 		*)
-				
 			log_msg "ERROR" "Unrecognized main state: ${main_state}. Exiting now."
 			exit 1
 			;;
