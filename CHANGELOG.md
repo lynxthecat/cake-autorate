@@ -11,7 +11,9 @@ more about cake-autorate. This is the history of changes.
 
 - This version focuses on reducing CPU usage.
 - Fold pinger parsing and pinger maintenance processes into main 
-  process. This involved a significant restructure of  the code.
+  process thereby to reduce IPC overhead. This involved a significant 
+  restructure of the code.
+- Reduce overhead associated with achieved rate monitoring.
 - Improve IPC read efficiency of the main process.
 - Use buffered log file writes.
 - Replace costly regex with alternatives.

@@ -33,7 +33,6 @@ IFS=" ,"
 ## that the log file will be written to directly
 log_fd=-1
 exec {main_fd}<> <(:)
-exec {monitor_achieved_rates_fd}<> <(:)
 
 # process pids are stored below in the form
 # proc_pids['process_identifier']=${!}
@@ -80,7 +79,7 @@ cleanup_and_killall()
 	
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
-	printf "TERMINATE\n" >&"${monitor_achieved_rates_fd}"
+	terminate "${proc_pids['monitor_achieved_rates']:-}"
 
 	terminate "${pinger_pids[@]}"
 
@@ -475,34 +474,6 @@ monitor_achieved_rates()
 	do
 		t_start_us="${EPOCHREALTIME/./}"
 
-		while read -r -t 0 -u "${monitor_achieved_rates_fd}"
-		do
-			unset command
-			read -r -u "${monitor_achieved_rates_fd}" -a command
-			case "${command[0]:-}" in
-
-				SET_VAR)
-					if [[ "${#command[@]}" -eq 3 ]]
-					then
-						export -n "${command[1]}=${command[2]}"
-					fi
-					;;
-				SET_ARRAY_ELEMENT)
-					if [[ "${#command[@]}" -eq 4 ]]
-					then
-						declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
-					fi
-					;;
-				TERMINATE)
-					log_msg "DEBUG" "Terminating monitor_achieved_rates."
-					exit
-					;;
-				*)
-					:
-					;;
-			esac
-		done
-
 		# If rx/tx bytes file exists, read it in, otherwise set to prev_bytes
 		# This addresses interfaces going down and back up
 		[[ -f "${rx_bytes_path}" ]] && { read -r rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || rx_bytes="${prev_rx_bytes}"
@@ -514,18 +485,7 @@ monitor_achieved_rates()
 		((achieved_rate_kbps[dl]<0)) && achieved_rate_kbps[dl]=0
 		((achieved_rate_kbps[ul]<0)) && achieved_rate_kbps[ul]=0
 
-		printf "SET_ARRAY_ELEMENT achieved_rate_kbps dl %s\n" "${achieved_rate_kbps[dl]}" >&"${main_fd}"
-		printf "SET_ARRAY_ELEMENT achieved_rate_kbps ul %s\n" "${achieved_rate_kbps[ul]}" >&"${main_fd}"
-
-		load_percent[dl]=$(( (100*achieved_rate_kbps[dl])/shaper_rate_kbps[dl] ))
-		load_percent[ul]=$(( (100*achieved_rate_kbps[ul])/shaper_rate_kbps[ul] ))
-
-		if ((output_load_stats))
-		then
-
-			printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
-			log_msg "LOAD" "${load_stats}"
-		fi
+		printf "SARS %s %s\n" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" >&"${main_fd}"
 
 		prev_rx_bytes="${rx_bytes}"
 		prev_tx_bytes="${tx_bytes}"
@@ -533,7 +493,6 @@ monitor_achieved_rates()
 		compensated_monitor_achieved_rates_interval_us=$(( monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us ))
 
 		sleep_remaining_tick_time "${t_start_us}" "${compensated_monitor_achieved_rates_interval_us}"
-
 	done
 }
 
@@ -761,7 +720,6 @@ set_shaper_rate()
 			((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 		fi
 
-		printf "SET_ARRAY_ELEMENT shaper_rate_kbps ${direction} %s\n" "${shaper_rate_kbps[${direction}]}" >&"${monitor_achieved_rates_fd}"
 		last_shaper_rate_kbps["${direction}"]="${shaper_rate_kbps[${direction}]}"
 
 		update_max_wire_packet_compensation
@@ -1387,16 +1345,17 @@ do
 
 	case "${command[0]}" in
 
-		SET_VAR)
+		# Set download and upload achieved rates
+		SARS)
 			if [[ "${#command[@]}" -eq 3 ]]
 			then
-				export -n "${command[1]}=${command[2]}"
-			fi
-			;;
-		SET_ARRAY_ELEMENT)
-			if [[ "${#command[@]}" -eq 4 ]]
-			then
-				declare -A "${command[1]}"+="([${command[2]}]=${command[3]})"
+				achieved_rate_kbps[dl]="${command[1]}"
+				achieved_rate_kbps[ul]="${command[2]}"
+				if ((output_load_stats))
+				then
+					printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
+					log_msg "LOAD" "${load_stats}"
+				fi
 			fi
 			;;
 		*)
