@@ -22,8 +22,7 @@ cake_autorate_version="3.2.0-PRERELEASE"
 ## maintain_log_file - maintain and rotate log file
 ##
 ## IPC is facilitated via FIFOs in the form of anonymous pipes
-## accessible via fds in the form: ${process_name_fd}
-## thereby to enable transferring instructions and data between processes
+## thereby to enable transferring data between processes
 
 # Set the IFS to space and comma
 IFS=" ,"

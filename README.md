@@ -137,14 +137,12 @@ and expected behaviour.
 
 ```bash
 root@OpenWrt-1:~# ps |grep -e bash -e fping
- 5183 root      3396 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5192 root      3240 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5196 root      3200 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5207 root      3356 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5208 root      3468 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5212 root      3496 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5213 root      3504 S    {cake-autorate.s} /bin/bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
- 5214 root      1928 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9
+ 1731 root      2468 S    bash /root/cake-autorate/launcher.sh
+ 1733 root      3412 S    bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 1862 root      3020 S    bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 1866 root      2976 S    bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 1878 root      3200 S    bash /root/cake-autorate/cake-autorate.sh /root/cake-autorate/config.primary.sh
+ 2785 root      1988 S    fping --timestamp --loop --period 300 --interval 50 --timeout 10000 1.1.1.1 1.0.0.1 8.8.8.8
 ```
 
 Process IDs can be checked using
@@ -152,14 +150,11 @@ Process IDs can be checked using
 
 ```bash
 root@OpenWrt-1:~# cat /var/run/cake-autorate/primary/proc_pids
-intercept_stderr=8591
-maintain_log_file=8597
-parse_fping_preprocessor=21175
-parse_fping=8624
-monitor_achieved_rates=8618
-main=8573
-maintain_pingers=8620
-parse_fping_pinger=21176
+intercept_stderr=1862
+maintain_log_file=1866
+fping_pinger=2785
+monitor_achieved_rates=1878
+main=1733
 ```
 
 It is useful to keep an htop instance running and run some speed tests
