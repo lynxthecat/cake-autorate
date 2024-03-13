@@ -9,7 +9,7 @@ more about cake-autorate. This is the history of changes.
 
 ## 2024-03-13 - Version 3.2.0
 
-- This version focuses on reducing CPU usage.
+- This version focuses on reducing CPU usage for everyday use.
 - Fold pinger parsing and pinger maintenance processes into main 
   process thereby to reduce IPC overhead. This involved a significant 
   restructure of the code.
@@ -17,6 +17,7 @@ more about cake-autorate. This is the history of changes.
 - Improve IPC read efficiency of the main process.
 - Use buffered log file writes.
 - Replace costly regex with alternatives.
+- Disable costly logging options by default.
 - Other minor fixes and improvements.
 
 ## 2023-09-19 - Version 3.1.1

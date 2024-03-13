@@ -157,9 +157,8 @@ monitor_achieved_rates=1878
 main=1733
 ```
 
-It is useful to keep an htop instance running and run some speed tests
-to see the maximum CPU utilisation of the processes and keep an eye on
-the loadavg:
+It is useful to keep an htop or atop instance running and run some speed 
+tests and check the maximum CPU utilisation of the processes:
 
 ![image](https://github.com/lynxthecat/cake-autorate/assets/10721999/732ecdc0-e847-48db-baa5-c10616c2ad1b)
 
@@ -169,3 +168,7 @@ reduce CPU usage. The default ping response rate is 20 Hz (6 pingers
 with 0.3 seconds between pings). Reducing the number of pingers to
 three will give a ping response rate of 10 Hz and approximately half
 the CPU load.
+
+Also, for everyday use, consider disabling any unecessary logging 
+options, and especially: `output_summary_stats`,
+`output_processing_stats` and `output_load_stats`.

@@ -14,6 +14,12 @@ line so long as `output_reflector_stats` is enabled using e.g.:
 tail -f /var/log/cake-autorate.primary.log | grep -e SUMMARY
 ```
 
+## Logging options for a more detailed analysis
+
+Enabling `output_processing_stats` and `output_load_stats` is
+recommended for any detailed analysis and indeed necessary for either
+plotting tool described below.
+
 ## Exporting a Log File
 
 Extract a compressed log file from a running cake-autorate instance
