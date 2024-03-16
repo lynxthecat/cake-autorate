@@ -19,9 +19,9 @@ main() {
 	tainted=1
 	for x in ${ID_LIKE:-}
 	do
-		[ "${x}" = "openwrt" ] && tainted=0
+		[ ${x} = "openwrt" ] && tainted=0
 	done
-	if [ "${tainted}" -eq 1 ]
+	if [ ${tainted} -eq 1 ]
 	then
 		printf "This script requires OpenWrt.\n" >&2
 		return 1
@@ -55,15 +55,15 @@ main() {
 	keepIt=''
 	for file in *config.*.sh*
 	do
-		[ -e "${file}" ] || continue   # handle case where there are no old config files
-		if [ -z "${keepIt:-}" ]
+		[ -e ${file} ] || continue   # handle case where there are no old config files
+		if [ -z ${keepIt:-} ]
 	        then
 	                printf "Would you like to keep your configs? [Y/n]"
 	                read -r keepIt
-	                [ -z "${keepIt:-}" ] && keepIt=Y
+	                [ -z ${keepIt:-} ] && keepIt=Y
 	        fi
 
-		if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
+		if [ ${keepIt} = "N" ] || [ ${keepIt} = "n" ]; then
 			rm -f "${file}"
 	        fi
 	done

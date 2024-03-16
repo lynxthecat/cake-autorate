@@ -14,7 +14,7 @@
 # Author and maintainer: lynxthecat
 # Contributors:  rany2; moeller0; richb-hanover
 
-cake_autorate_version="3.2.0-PRERELEASE"
+cake_autorate_version=3.2.0-PRERELEASE
 
 ## cake-autorate uses multiple asynchronous processes including:
 ## main - main process
@@ -82,7 +82,7 @@ cleanup_and_killall()
 
 	terminate "${pinger_pids[@]}"
 
-	[[ -d "${run_path}" ]] && rm -r "${run_path}"
+	[[ -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
 
 	# give some time for processes to gracefully exit
@@ -90,15 +90,15 @@ cleanup_and_killall()
 
 	# terminate any processes that remain, save for main and intercept_stderr
 	unset "proc_pids[main]"
-	intercept_stderr_pid="${proc_pids[intercept_stderr]:-}"
-	if [[ -n "${intercept_stderr_pid}" ]]
+	intercept_stderr_pid=${proc_pids[intercept_stderr]:-}
+	if [[ -n ${intercept_stderr_pid} ]]
 	then
 		unset "proc_pids[intercept_stderr]"
 	fi
 	terminate "${proc_pids[@]}"
 
 	# restore original stderr, and terminate intercept_stderr
-	if [[ -n "${intercept_stderr_pid}" ]]
+	if [[ -n ${intercept_stderr_pid} ]]
 	then
 		exec 2>&"${original_stderr_fd}"
 		terminate "${intercept_stderr_pid}"
@@ -114,9 +114,9 @@ log_msg()
 {
 	# send logging message to terminal, log file fifo, log file and/or system logger
 
-	local type="${1}"
-	local msg="${2}"
-	local instance_id="${instance_id:-"unknown"}"
+	local type=${1}
+	local msg=${2}
+	local instance_id=${instance_id:-"unknown"}
 	local log_timestamp=${EPOCHREALTIME}
 
 	case ${type} in
@@ -182,12 +182,12 @@ rotate_log_file()
 
 	if [[ -f ${log_file_path} ]]
 	then
-		cat "${log_file_path}" > "${log_file_path}.old"
-		true > "${log_file_path}"
+		cat "${log_file_path}" > ${log_file_path}.old
+		true > ${log_file_path}
 	fi
 
 	((output_processing_stats)) && print_headers
-	t_log_file_start_us=${EPOCHREALTIME/./}
+	t_log_file_start_us=${EPOCHREALTIME/.}
 	get_log_file_size_bytes
 }
 
@@ -196,16 +196,16 @@ reset_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	rm -f "${log_file_path}.old"
-	true > "${log_file_path}"
+	true > ${log_file_path}
 
 	((output_processing_stats)) && print_headers
-	t_log_file_start_us=${EPOCHREALTIME/./}
+	t_log_file_start_us=${EPOCHREALTIME/.}
 	get_log_file_size_bytes
 }
 
 generate_log_file_scripts()
 {
-	cat > "${run_path}/log_file_export" <<- EOT
+	cat > ${run_path}/log_file_export <<- EOT
 	#!${BASH}
 
 	timeout_s=\${1:-20}
@@ -259,31 +259,31 @@ export_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
-	log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
+	log_file_export_path=${log_file_path/.log/_${log_file_export_datetime}.log}
 	log_msg "DEBUG" "Exporting log file with path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 
 	# Now export with or without compression to the appropriate export path
 	if ((log_file_export_compress))
 	then
-		log_file_export_path="${log_file_export_path}.gz"
-		if [[ -f "${log_file_path}.old" ]]
+		log_file_export_path=${log_file_export_path}.gz
+		if [[ -f ${log_file_path}.old ]]
 		then
-			gzip -c "${log_file_path}.old" > "${log_file_export_path}"
-			gzip -c "${log_file_path}" >> "${log_file_export_path}"
+			gzip -c "${log_file_path}.old" > ${log_file_export_path}
+			gzip -c "${log_file_path}" >> ${log_file_export_path}
 		else
-			gzip -c "${log_file_path}" > "${log_file_export_path}"
+			gzip -c "${log_file_path}" > ${log_file_export_path}
 		fi
 	else
-		if [[ -f "${log_file_path}.old" ]]
+		if [[ -f ${log_file_path}.old ]]
 		then
 			cp "${log_file_path}.old" "${log_file_export_path}"
-			cat "${log_file_path}" >> "${log_file_export_path}"
+			cat "${log_file_path}" >> ${log_file_export_path}
 		else
 			cp "${log_file_path}" "${log_file_export_path}"
 		fi
 	fi
 
-	printf '%s' "${log_file_export_path}" > "${run_path}/last_log_file_export"
+	printf '%s' "${log_file_export_path}" > ${run_path}/last_log_file_export
 }
 
 flush_log_fd()
@@ -292,7 +292,7 @@ flush_log_fd()
 	while read -r -t 0 -u "${log_fd}"
 	do
 		read -r -u "${log_fd}" log_line
-		printf '%s\n' "${log_line}" >&"${log_file_fd}"
+		printf '%s\n' "${log_line}" >&${log_file_fd}
 	done
 }
 
@@ -320,22 +320,22 @@ maintain_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	reset_log_file_signalled=0
-	t_log_file_start_us=${EPOCHREALTIME/./}
+	t_log_file_start_us=${EPOCHREALTIME/.}
 
 	get_log_file_size_bytes
 
 	while true
 	do
-		exec {log_file_fd}> "${log_file_path}"
+		exec {log_file_fd}> ${log_file_path}
 
 		while read -r -N "${log_file_buffer_size_B}" -u "${log_fd}" log_chunk
 		do
-			printf '%s' "${log_chunk}" >&"${log_file_fd}"
+			printf '%s' "${log_chunk}" >&${log_file_fd}
 
 			((log_file_size_bytes+=log_file_buffer_size_B))
 
 			# Verify log file time < configured maximum
-			if (( (${EPOCHREALTIME/./}-t_log_file_start_us) > log_file_max_time_us ))
+			if (( (${EPOCHREALTIME/.}-t_log_file_start_us) > log_file_max_time_us ))
 			then
 
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
@@ -370,69 +370,69 @@ export_proc_pids()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	true > "${run_path}/proc_pids"
+	true > ${run_path}/proc_pids
 	for proc_pid in "${!proc_pids[@]}"
 	do
-		printf "%s=%s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> "${run_path}/proc_pids"
+		printf "%s=%s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> ${run_path}/proc_pids
 	done
 }
 
 update_shaper_rate()
 {
-	local direction="${1}" # 'dl' or 'ul'
+	local direction=${1} # 'dl' or 'ul'
 
-	case "${load_condition["${direction}"]}" in
+	case ${load_condition[${direction}]} in
 
 		# upload Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
 		ul*sss)
-			shaper_rate_kbps["${direction}"]="${min_shaper_rate_kbps[${direction}]}"
+			shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}
 			;;
 		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
-			shaper_rate_kbps["${direction}"]=$(( shaper_rate_kbps["${direction}"] > base_shaper_rate_kbps["${direction}"] ? base_shaper_rate_kbps["${direction}"] : shaper_rate_kbps["${direction}"] ))
+			shaper_rate_kbps[${direction}]=$(( shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}] ? base_shaper_rate_kbps[${direction}] : shaper_rate_kbps[${direction}] ))
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
-			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
+			if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
 			then
-				if (( compensated_avg_owd_delta_thr_us["${direction}"] <= compensated_owd_delta_thr_us["${direction}"] ))
+				if (( compensated_avg_owd_delta_thr_us[${direction}] <= compensated_owd_delta_thr_us[${direction}] ))
 				then
 					shaper_rate_adjust_down_bufferbloat_factor=1000
-				elif (( (avg_owd_delta_us["${direction}"]-compensated_owd_delta_thr_us["${direction}"]) > 0 ))
+				elif (( (avg_owd_delta_us[${direction}]-compensated_owd_delta_thr_us[${direction}]) > 0 ))
 				then
-					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*(avg_owd_delta_us["${direction}"]-compensated_owd_delta_thr_us["${direction}"]))/(compensated_avg_owd_delta_thr_us["${direction}"]-compensated_owd_delta_thr_us["${direction}"]) ))
+					shaper_rate_adjust_down_bufferbloat_factor=$(( (1000*(avg_owd_delta_us[${direction}]-compensated_owd_delta_thr_us[${direction}]))/(compensated_avg_owd_delta_thr_us[${direction}]-compensated_owd_delta_thr_us[${direction}]) ))
 					(( shaper_rate_adjust_down_bufferbloat_factor > 1000 )) && shaper_rate_adjust_down_bufferbloat_factor=1000
 				else
 					shaper_rate_adjust_down_bufferbloat_factor=0
 				fi
 				shaper_rate_adjust_down_bufferbloat=$(( 1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_bufferbloat_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat) ))
-				shaper_rate_kbps["${direction}"]=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_down_bufferbloat)/1000000 )) 
-				t_last_bufferbloat_us["${direction}"]="${EPOCHREALTIME/./}"
+				shaper_rate_kbps[${direction}]=$(( (shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_bufferbloat)/1000000 )) 
+				t_last_bufferbloat_us[${direction}]=${EPOCHREALTIME/.}
 			fi
 			;;
 		# high load, so increase rate providing not inside bufferbloat refractory period
 		*high*)
-			if (( t_start_us > (t_last_bufferbloat_us["${direction}"]+bufferbloat_refractory_period_us) ))
+			if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
 			then
-				shaper_rate_kbps["${direction}"]=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_up_load_high)/1000 ))
+				shaper_rate_kbps[${direction}]=$(( (shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000 ))
 			fi
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
 		*low*|*idle*)
-			if (( t_start_us > (t_last_decay_us["${direction}"]+decay_refractory_period_us) ))
+			if (( t_start_us > (t_last_decay_us[${direction}]+decay_refractory_period_us) ))
 			then
 
-				if ((shaper_rate_kbps["${direction}"] > base_shaper_rate_kbps["${direction}"]))
+				if ((shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}]))
 				then
-					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_down_load_low)/1000 ))
-					shaper_rate_kbps["${direction}"]=$(( decayed_shaper_rate_kbps > base_shaper_rate_kbps["${direction}"] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps["${direction}"]))
-				elif ((shaper_rate_kbps["${direction}"] < base_shaper_rate_kbps["${direction}"]))
+					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_load_low)/1000 ))
+					shaper_rate_kbps[${direction}]=$(( decayed_shaper_rate_kbps > base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]))
+				elif ((shaper_rate_kbps[${direction}] < base_shaper_rate_kbps[${direction}]))
 				then
-					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps["${direction}"]*shaper_rate_adjust_up_load_low)/1000 ))
-					shaper_rate_kbps["${direction}"]=$(( decayed_shaper_rate_kbps < base_shaper_rate_kbps["${direction}"] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps["${direction}"]))
+					decayed_shaper_rate_kbps=$(( (shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_low)/1000 ))
+					shaper_rate_kbps[${direction}]=$(( decayed_shaper_rate_kbps < base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]))
 				fi
 
-				t_last_decay_us["${direction}"]="${EPOCHREALTIME/./}"
+				t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
 			fi
 			;;
 		*)
@@ -441,8 +441,8 @@ update_shaper_rate()
 			;;
 	esac
 	# make sure to only return rates between cur_min_rate and cur_max_rate
-	((shaper_rate_kbps["${direction}"] < min_shaper_rate_kbps["${direction}"])) && shaper_rate_kbps["${direction}"]="${min_shaper_rate_kbps[${direction}]}"
-	((shaper_rate_kbps["${direction}"] > max_shaper_rate_kbps["${direction}"])) && shaper_rate_kbps["${direction}"]="${max_shaper_rate_kbps[${direction}]}"
+	((shaper_rate_kbps[${direction}] < min_shaper_rate_kbps[${direction}])) && shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}
+	((shaper_rate_kbps[${direction}] > max_shaper_rate_kbps[${direction}])) && shaper_rate_kbps[${direction}]=${max_shaper_rate_kbps[${direction}]}
 }
 
 monitor_achieved_rates()
@@ -452,16 +452,16 @@ monitor_achieved_rates()
 	# track rx and tx bytes transfered and divide by time since last update
 	# to determine achieved dl and ul transfer rates
 
-	local rx_bytes_path="${1}"
-	local tx_bytes_path="${2}"
-	local monitor_achieved_rates_interval_us="${3}" # (microseconds)
+	local rx_bytes_path=${1}
+	local tx_bytes_path=${2}
+	local monitor_achieved_rates_interval_us=${3} # (microseconds)
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	compensated_monitor_achieved_rates_interval_us="${monitor_achieved_rates_interval_us}"
 
-	{ read -r prev_rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || prev_rx_bytes=0
-	{ read -r prev_tx_bytes < "${tx_bytes_path}"; } 2> /dev/null || prev_tx_bytes=0
+	{ read -r prev_rx_bytes < ${rx_bytes_path}; } 2> /dev/null || prev_rx_bytes=0
+	{ read -r prev_tx_bytes < ${tx_bytes_path}; } 2> /dev/null || prev_tx_bytes=0
 
 	sleep_duration_s=0
 	t_start_us=0
@@ -471,12 +471,12 @@ monitor_achieved_rates()
 
 	while true
 	do
-		t_start_us="${EPOCHREALTIME/./}"
+		t_start_us=${EPOCHREALTIME/.}
 
 		# read in rx/tx bytes file, and if this fails then set to prev_bytes
 		# this addresses interfaces going down and back up
-		{ read -r rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || rx_bytes="${prev_rx_bytes}"
-		{ read -r tx_bytes < "${tx_bytes_path}"; } 2> /dev/null || tx_bytes="${prev_tx_bytes}"
+		{ read -r rx_bytes < ${rx_bytes_path}; } 2> /dev/null || rx_bytes=${prev_rx_bytes}
+		{ read -r tx_bytes < ${tx_bytes_path}; } 2> /dev/null || tx_bytes=${prev_tx_bytes}
 
 		achieved_rate_kbps[dl]=$(( (8000*(rx_bytes - prev_rx_bytes)) / compensated_monitor_achieved_rates_interval_us ))
 		achieved_rate_kbps[ul]=$(( (8000*(tx_bytes - prev_tx_bytes)) / compensated_monitor_achieved_rates_interval_us ))
@@ -484,10 +484,10 @@ monitor_achieved_rates()
 		((achieved_rate_kbps[dl]<0)) && achieved_rate_kbps[dl]=0
 		((achieved_rate_kbps[ul]<0)) && achieved_rate_kbps[ul]=0
 
-		printf "SARS %s %s\n" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" >&"${main_fd}"
+		printf "SARS %s %s\n" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" >&${main_fd}
 
-		prev_rx_bytes="${rx_bytes}"
-		prev_tx_bytes="${tx_bytes}"
+		prev_rx_bytes=${rx_bytes}
+		prev_tx_bytes=${tx_bytes}
 
 		compensated_monitor_achieved_rates_interval_us=$(( monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us ))
 
@@ -500,35 +500,35 @@ classify_load()
 {
 	# classify the load according to high/low/idle and add _delayed if delayed
 	# thus ending up with high_delayed, low_delayed, etc.
-	local direction="${1}"
+	local direction=${1}
 
-	if (( load_percent["${direction}"] > high_load_thr_percent ))
+	if (( load_percent[${direction}] > high_load_thr_percent ))
 	then
-		load_condition["${direction}"]="high"
-	elif (( achieved_rate_kbps["${direction}"] > connection_active_thr_kbps ))
+		load_condition[${direction}]="high"
+	elif (( achieved_rate_kbps[${direction}] > connection_active_thr_kbps ))
 	then
-		load_condition["${direction}"]="low"
+		load_condition[${direction}]="low"
 	else
-		load_condition["${direction}"]="idle"
+		load_condition[${direction}]="idle"
 	fi
 
-	((bufferbloat_detected["${direction}"])) && load_condition["${direction}"]="${load_condition[${direction}]}_bb"
+	((bufferbloat_detected[${direction}])) && load_condition[${direction}]=${load_condition[${direction}]}_bb
 
 	if ((sss_compensation))
 	then
 		# shellcheck disable=SC2154
 		for sss_time_us in "${sss_times_us[@]}"
 		do
-			((timestamp_usecs_past_minute=${EPOCHREALTIME/./}%60000000))
+			((timestamp_usecs_past_minute=${EPOCHREALTIME/.}%60000000))
 			if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) ))
 			then
-				load_condition["${direction}"]="${load_condition[${direction}]}_sss"
+				load_condition[${direction}]=${load_condition[${direction}]}_sss
 				break
 			fi
 		done
 	fi
 
-	load_condition["${direction}"]="${direction}_${load_condition[${direction}]}"
+	load_condition[${direction}]=${direction}_${load_condition[${direction}]}
 }
 
 # MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
@@ -537,29 +537,29 @@ classify_load()
 
 start_pinger()
 {
-	local pinger="${1}"
+	local pinger=${1}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	case "${pinger_binary}" in
+	case ${pinger_binary} in
 
 		tsping)
 			# accommodate present tsping interval/sleep handling to prevent ping flood with only one pinger
 			tsping_sleep_time=$(( no_pingers == 1 ? ping_response_interval_ms : 0 ))
 			${ping_prefix_string} tsping ${ping_extra_args} --print-timestamps --machine-readable=, --sleep-time "${tsping_sleep_time}" --target-spacing "${ping_response_interval_ms}" "${reflectors[@]:0:${no_pingers}}" 2>/dev/null >&"${main_fd}" &
-			pinger_pids[0]="${!}"
-			proc_pids['tsping_pinger']="${pinger_pids[0]}"
+			pinger_pids[0]=${!}
+			proc_pids['tsping_pinger']=${pinger_pids[0]}
 			;;
 		fping)
 			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${main_fd}" &
-			pinger_pids[0]="${!}"
-			proc_pids['fping_pinger']="${pinger_pids[0]}"
+			pinger_pids[0]=${!}
+			proc_pids['fping_pinger']=${pinger_pids[0]}
 			;;
 		ping)
 			sleep_until_next_pinger_time_slot "${pinger}"
 			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
-			pinger_pids[pinger]="${!}"
-			proc_pids["ping_${pinger}_pinger"]="${pinger_pids[0]}"
+			pinger_pids[pinger]=${!}
+			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[0]}
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
@@ -576,7 +576,7 @@ start_pingers()
 
 	if ((pingers_active==0))
 	then
-		case "${pinger_binary}" in
+		case ${pinger_binary} in
 
 			tsping|fping)
 				start_pinger 0
@@ -602,20 +602,20 @@ sleep_until_next_pinger_time_slot()
 	# this allows pingers to be stopped and started (e.g. during sleep or reflector rotation)
 	# whilst ensuring pings will remain spaced out appropriately to maintain granularity
 
-	local pinger="${1}"
+	local pinger=${1}
 
-	t_start_us=${EPOCHREALTIME/./}
+	t_start_us=${EPOCHREALTIME/.}
 	time_to_next_time_slot_us=$(( (reflector_ping_interval_us-(t_start_us-pingers_t_start_us)%reflector_ping_interval_us) + pinger*ping_response_interval_us ))
 	sleep_remaining_tick_time "${t_start_us}" "${time_to_next_time_slot_us}"
 }
 
 kill_pinger()
 {
-	local pinger="${1}"
+	local pinger=${1}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	case "${pinger_binary}" in
+	case ${pinger_binary} in
 		tsping|fping)
 			pinger=0
 			;;
@@ -633,7 +633,7 @@ stop_pingers()
 
 	if ((pingers_active))
 	then
-		case "${pinger_binary}" in
+		case ${pinger_binary} in
 
 			tsping|fping)
 				log_msg "DEBUG" "Killing ${pinger_binary} instance."
@@ -665,7 +665,7 @@ replace_pinger_reflector()
 	# and the the bad reflector moved to the back of the queue (last element in ${reflectors[]})
 	# and finally the indices for ${reflectors} are updated to reflect the new order
 
-	local pinger="${1}"
+	local pinger=${1}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -679,15 +679,15 @@ replace_pinger_reflector()
 		# remove the new reflector from the list of additional reflectors beginning from ${reflectors[no_pingers]}
 		unset "reflectors[no_pingers]"
 		# bad reflector goes to the back of the queue
-		reflectors+=("${bad_reflector}")
+		reflectors+=(${bad_reflector})
 		# reset array indices
 		mapfile -t reflectors < <(for i in "${reflectors[@]}"; do printf '%s\n' "${i}"; done)
 		# set up the new pinger with the new reflector and retain pid
-		dl_owd_baselines_us["${reflectors[pinger]}"]="${dl_owd_baselines_us[${reflectors[pinger]}]:-100000}"
-		ul_owd_baselines_us["${reflectors[pinger]}"]="${ul_owd_baselines_us[${reflectors[pinger]}]:-100000}"
-		dl_owd_delta_ewmas_us["${reflectors[pinger]}"]="${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}"
-		ul_owd_delta_ewmas_us["${reflectors[pinger]}"]="${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}"
-		last_timestamp_reflectors_us["${reflectors[pinger]}"]="${EPOCHREALTIME/./}"
+		dl_owd_baselines_us[${reflectors[pinger]}]=${dl_owd_baselines_us[${reflectors[pinger]}]:-100000}
+		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000}
+		dl_owd_delta_ewmas_us[${reflectors[pinger]}]=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}
+		ul_owd_delta_ewmas_us[${reflectors[pinger]}]=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}
+		last_timestamp_reflectors_us[${reflectors[pinger]}]=${EPOCHREALTIME/.}
 
 		start_pinger "${pinger}"
 	else
@@ -706,20 +706,20 @@ set_shaper_rate()
 {
 	# fire up tc and update max_wire_packet_compensation if there are rates to change for the given direction
 
-	local direction="${1}" # 'dl' or 'ul'
+	local direction=${1} # 'dl' or 'ul'
 
-	if (( shaper_rate_kbps["${direction}"] != last_shaper_rate_kbps["${direction}"] ))
+	if (( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] ))
 	then
 		((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
 
-		if ((adjust_shaper_rate["${direction}"]))
+		if ((adjust_shaper_rate[${direction}]))
 		then
 			tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
 		else
 			((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 		fi
 
-		last_shaper_rate_kbps["${direction}"]="${shaper_rate_kbps[${direction}]}"
+		last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
 
 		update_max_wire_packet_compensation
 	fi
@@ -736,14 +736,14 @@ set_min_shaper_rates()
 
 get_max_wire_packet_size_bits()
 {
-	local interface="${1}"
-	local -n max_wire_packet_size_bits="${2}"
+	local interface=${1}
+	local -n max_wire_packet_size_bits=${2}
 
-	read -r max_wire_packet_size_bits < "/sys/class/net/${interface}/mtu"
+	read -r max_wire_packet_size_bits < /sys/class/net/${interface}/mtu
 	[[ $(tc qdisc show dev "${interface}") =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
 	max_wire_packet_size_bits=$(( 8*(max_wire_packet_size_bits+BASH_REMATCH[2]) ))
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
-	[[ "${BASH_REMATCH[1]:-}" == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
+	[[ ${BASH_REMATCH[1]:-} == "atm" ]] && max_wire_packet_size_bits=$(( 424*((max_wire_packet_size_bits+376)/384) ))
 }
 
 update_max_wire_packet_compensation()
@@ -779,9 +779,9 @@ verify_ifs_up()
 
 ewma_iteration()
 {
-	local value="${1}"
-	local alpha="${2}" # alpha must be scaled by factor of 1000000
-	local -n ewma="${3}"
+	local value=${1}
+	local alpha=${2} # alpha must be scaled by factor of 1000000
+	local -n ewma=${3}
 
 	prev_ewma=${ewma}
 	ewma=$(( (alpha*value+(1000000-alpha)*prev_ewma)/1000000 ))
@@ -789,7 +789,7 @@ ewma_iteration()
 
 change_state_main()
 {
-	local main_next_state="${1}"
+	local main_next_state=${1}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -797,7 +797,7 @@ change_state_main()
 
 		RUNNING|IDLE|STALL)
 
-			if [[ "${main_state}" != "${main_next_state}" ]]
+			if [[ ${main_state} != "${main_next_state}" ]]
 			then
 				log_msg "DEBUG" "Changing main state from: ${main_state} to: ${main_next_state}"
 				main_state=${main_next_state}
@@ -835,9 +835,9 @@ debug_cmd()
 	# Error messages are output as log_msg ERROR messages
 	# Or set error_silence=1 to output errors as log_msg DEBUG messages
 
-	local debug_msg="${1}"
-	local err_silence="${2}"
-	local cmd="${3}"
+	local debug_msg=${1}
+	local err_silence=${2}
+	local cmd=${3}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -867,7 +867,7 @@ debug_cmd()
 	then
 		log_msg "DEBUG" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=SUCCESS"
 	else
-		[[ "${err_type}" == "DEBUG" && "${debug}" == "0" ]] && return # if debug disabled, then skip on DEBUG but not on ERROR
+		[[ ${err_type} == "DEBUG" && ${debug} == "0" ]] && return # if debug disabled, then skip on DEBUG but not on ERROR
 
 		log_msg "${err_type}" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=FAILURE (${ret})"
 		log_msg "${err_type}" "debug_cmd: LAST ERROR (${stderr})"
@@ -895,7 +895,7 @@ validate_config_entry() {
 	# case they are both valid. It doesn't matter as they'd both have the
 	# same type.
 
-	local config_path="${1}"
+	local config_path=${1}
 
 	local user_type
 	local valid_type
@@ -903,11 +903,11 @@ validate_config_entry() {
 	user_type=$(unset "${2}" && . "${config_path}" && typeof "${2}")
 	valid_type=$(typeof "${2}")
 
-	if [[ "${user_type}" != "${valid_type}" ]]
+	if [[ ${user_type} != "${valid_type}" ]]
 	then
 		printf '%s' "${user_type} ${valid_type}"
 		return
-	elif [[ "${user_type}" != "string" ]]
+	elif [[ ${user_type} != "string" ]]
 	then
 		printf '%s' "${valid_type}"
 		return
@@ -919,7 +919,7 @@ validate_config_entry() {
 	user_value=$(. "${config_path}" && local -n x="${2}" && printf '%s' "${x}")
 
 	# if user is empty but default is not, invalid entry
-	if [[ -z "${user_value}" && -n "${default_value}" ]]
+	if [[ -z ${user_value} && -n ${default_value} ]]
 	then
 		printf '%s' "${user_type} ${valid_type}"
 	else
@@ -940,14 +940,14 @@ log_file_path=/var/log/cake-autorate.log
 run_path=/var/run/cake-autorate/
 
 # cake-autorate first argument is config file path
-if [[ -n "${1-}" ]]
+if [[ -n ${1-} ]]
 then
-	config_path="${1}"
+	config_path=${1}
 else
-	config_path="${PREFIX}/config.primary.sh"
+	config_path=${PREFIX}/config.primary.sh
 fi
 
-if [[ ! -f "${config_path}" ]]
+if [[ ! -f ${config_path} ]]
 then
 	log_msg "ERROR" "No config file found. Exiting now."
 	exit 1
@@ -962,7 +962,7 @@ do
 	# we make an exemption just in this case as that variable in
 	# particular does not have any real impact to the operation
 	# of the script.
-	[[ "${key}" == "config_file_check" ]] && continue
+	[[ ${key} == "config_file_check" ]] && continue
 
 	# shellcheck disable=SC2076
 	if [[ ! " ${valid_config_entries[*]} " =~ " ${key} " ]]
@@ -976,7 +976,7 @@ do
 		then
 			error_msg="The value of '${key}' in config file: '${config_path}' is not a valid value of type: '${supposed}'."
 
-			case "${user}" in
+			case ${user} in
 				negative-*) error_msg="${error_msg} Also, negative numbers are not supported." ;;
 				*) ;;
 			esac
@@ -997,18 +997,18 @@ fi
 unset valid_config_entries user_config config_error_count key
 
 # shellcheck source=config.primary.sh
-. "${config_path}"
+. ${config_path}
 
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then
-	instance_id="${BASH_REMATCH[1]}"
+	instance_id=${BASH_REMATCH[1]}
 	run_path="/var/run/cake-autorate/${instance_id}"
 else
 	log_msg "ERROR" "Instance identifier 'X' set by config.X.sh cannot be empty. Exiting now."
 	exit 1
 fi
 
-if [[ -n "${log_file_path_override-}" ]]
+if [[ -n ${log_file_path_override-} ]]
 then
 	if [[ ! -d ${log_file_path_override} ]]
 	then
@@ -1034,9 +1034,9 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 
 # ${run_path}/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory
-if [[ -d "${run_path}" ]]
+if [[ -d ${run_path} ]]
 then
-	if [[ -f "${run_path}/proc_pids" ]] && running_main_pid=$(awk -F= '/^main=/ {print $2}' "${run_path}/proc_pids") && [[ -d "/proc/${running_main_pid}" ]]
+	if [[ -f ${run_path}/proc_pids ]] && running_main_pid=$(awk -F= '/^main=/ {print $2}' "${run_path}/proc_pids") && [[ -d /proc/${running_main_pid} ]]
 	then
 		log_msg "ERROR" "${run_path} already exists and an instance appears to be running with main process pid ${running_main_pid}. Exiting script."
 		trap - INT TERM EXIT
@@ -1050,7 +1050,7 @@ else
 	mkdir -p "${run_path}"
 fi
 
-proc_pids['main']="${BASHPID}"
+proc_pids['main']=${BASHPID}
 
 no_reflectors=${#reflectors[@]}
 
@@ -1085,35 +1085,35 @@ fi
 if ! ((terminal))
 then
 	echo "stdout not a terminal so redirecting output to: ${log_file_path}"
-	((log_to_file)) && exec 1>&"${log_fd}"
+	((log_to_file)) && exec 1>&${log_fd}
 fi
 
 # Initialize rx_bytes_path and tx_bytes_path if not set
-if [[ -z "${rx_bytes_path-}" ]]
+if [[ -z ${rx_bytes_path-} ]]
 then
-	case "${dl_if}" in
+	case ${dl_if} in
 		veth*)
-			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+			rx_bytes_path=/sys/class/net/${dl_if}/statistics/tx_bytes
 			;;
 		ifb*)
-			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+			rx_bytes_path=/sys/class/net/${dl_if}/statistics/tx_bytes
 			;;
 		*)
-			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+			rx_bytes_path=/sys/class/net/${dl_if}/statistics/tx_bytes
 			;;
 	esac
 fi
-if [[ -z "${tx_bytes_path-}" ]]
+if [[ -z ${tx_bytes_path-} ]]
 then
-	case "${ul_if}" in
+	case ${ul_if} in
 		veth*)
-			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
+			tx_bytes_path=/sys/class/net/${ul_if}/statistics/rx_bytes
 			;;
 		ifb*)
-			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
+			tx_bytes_path=/sys/class/net/${ul_if}/statistics/rx_bytes
 			;;
 		*)
-			tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
+			tx_bytes_path=/sys/class/net/${ul_if}/statistics/tx_bytes
 			;;
 	esac
 fi
@@ -1201,17 +1201,17 @@ declare -A dl_owd_delta_ewmas_us
 declare -A ul_owd_delta_ewmas_us
 declare -A last_timestamp_reflectors_us
 
-base_shaper_rate_kbps[dl]="${base_dl_shaper_rate_kbps}"
-base_shaper_rate_kbps[ul]="${base_ul_shaper_rate_kbps}"
+base_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps}
+base_shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps}
 
-min_shaper_rate_kbps[dl]="${min_dl_shaper_rate_kbps}"
-min_shaper_rate_kbps[ul]="${min_ul_shaper_rate_kbps}"
+min_shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps}
+min_shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
 
-max_shaper_rate_kbps[dl]="${max_dl_shaper_rate_kbps}"
-max_shaper_rate_kbps[ul]="${max_ul_shaper_rate_kbps}"
+max_shaper_rate_kbps[dl]=${max_dl_shaper_rate_kbps}
+max_shaper_rate_kbps[ul]=${max_ul_shaper_rate_kbps}
 
-shaper_rate_kbps[dl]="${base_dl_shaper_rate_kbps}"
-shaper_rate_kbps[ul]="${base_ul_shaper_rate_kbps}"
+shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps}
+shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps}
 
 achieved_rate_kbps[dl]=0
 achieved_rate_kbps[ul]=0
@@ -1219,11 +1219,11 @@ achieved_rate_kbps[ul]=0
 last_shaper_rate_kbps[dl]=0
 last_shaper_rate_kbps[ul]=0
 
-interface[dl]="${dl_if}"
-interface[ul]="${ul_if}"
+interface[dl]=${dl_if}
+interface[ul]=${ul_if}
 
-adjust_shaper_rate[dl]="${adjust_dl_shaper_rate}"
-adjust_shaper_rate[ul]="${adjust_ul_shaper_rate}"
+adjust_shaper_rate[dl]=${adjust_dl_shaper_rate}
+adjust_shaper_rate[ul]=${adjust_ul_shaper_rate}
 
 dl_max_wire_packet_size_bits=0
 ul_max_wire_packet_size_bits=0
@@ -1233,8 +1233,8 @@ get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 avg_owd_delta_us[dl]=0
 avg_owd_delta_us[ul]=0
 
-avg_owd_delta_thr_us[dl]="${dl_avg_owd_delta_thr_us}"
-avg_owd_delta_thr_us[ul]="${ul_avg_owd_delta_thr_us}"
+avg_owd_delta_thr_us[dl]=${dl_avg_owd_delta_thr_us}
+avg_owd_delta_thr_us[ul]=${ul_avg_owd_delta_thr_us}
 
 set_shaper_rate "dl"
 set_shaper_rate "ul"
@@ -1286,7 +1286,7 @@ reflector_offences_idx=0
 pingers_active=0
 
 monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}" &
-proc_pids['monitor_achieved_rates']="${!}"
+proc_pids['monitor_achieved_rates']=${!}
 
 export_proc_pids
 
@@ -1299,32 +1299,32 @@ then
 	sleep_us "${startup_wait_us}"
 fi
 
-t_start_us="${EPOCHREALTIME/./}"
+t_start_us=${EPOCHREALTIME/.}
 
-t_last_bufferbloat_us[dl]="${t_start_us}"
-t_last_bufferbloat_us[ul]="${t_start_us}"
-t_last_decay_us[dl]="${t_start_us}"
-t_last_decay_us[ul]="${t_start_us}"
-t_last_reflector_health_check_us="${t_start_us}"
+t_last_bufferbloat_us[dl]=${t_start_us}
+t_last_bufferbloat_us[ul]=${t_start_us}
+t_last_decay_us[dl]=${t_start_us}
+t_last_decay_us[ul]=${t_start_us}
+t_last_reflector_health_check_us=${t_start_us}
 
 t_sustained_connection_idle_us=0
-t_last_connection_idle_us="${t_start_us}"
-reflectors_last_timestamp_us="${t_start_us}"
+t_last_connection_idle_us=${t_start_us}
+reflectors_last_timestamp_us=${t_start_us}
 
-pingers_t_start_us="${t_start_us}"
-t_last_reflector_replacement_us="${t_start_us}"
-t_last_reflector_comparison_us="${t_start_us}"
+pingers_t_start_us=${t_start_us}
+t_last_reflector_replacement_us=${t_start_us}
+t_last_reflector_comparison_us=${t_start_us}
 
 for ((reflector=0; reflector < no_reflectors; reflector++))
 do
-	last_timestamp_reflectors_us["${reflectors[reflector]}"]="${t_start_us}"
+	last_timestamp_reflectors_us[${reflectors[reflector]}]=${t_start_us}
 done
 
 # For each pinger initialize record of offences
 for ((pinger=0; pinger < no_pingers; pinger++))
 do
 	# shellcheck disable=SC2178
-	declare -n reflector_offences="reflector_${pinger}_offences"
+	declare -n reflector_offences=reflector_${pinger}_offences
 	for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
 	sum_reflector_offences[pinger]=0
 done
@@ -1342,14 +1342,14 @@ do
 	read -r -u "${main_fd}" -a command
 	[[ "${#command[@]}" -eq 0 ]] && continue
 
-	case "${command[0]}" in
+	case ${command[0]} in
 
 		# Set download and upload achieved rates
 		SARS)
 			if [[ "${#command[@]}" -eq 3 ]]
 			then
-				achieved_rate_kbps[dl]="${command[1]}"
-				achieved_rate_kbps[ul]="${command[2]}"
+				achieved_rate_kbps[dl]=${command[1]}
+				achieved_rate_kbps[ul]=${command[2]}
 				if ((output_load_stats))
 				then
 					printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
@@ -1363,31 +1363,31 @@ do
 				tsping)
 					if [[ "${#command[@]}" -eq 10 ]]
 					then
-						timestamp="${command[0]}"
-						reflector="${command[1]}"
-						seq="${command[2]}"
-						dl_owd_ms="${command[8]}"
-						ul_owd_ms="${command[9]}"
+						timestamp=${command[0]}
+						reflector=${command[1]}
+						seq=${command[2]}
+						dl_owd_ms=${command[8]}
+						ul_owd_ms=${command[9]}
 						reflector_response=1
 					fi
 					;;
 				fping)
 					if [[ "${#command[@]}" -eq 12 ]]
 					then
-						timestamp="${command[0]}"
-						reflector="${command[1]}"
-						seq="${command[3]}"
-						rtt_ms="${command[6]}"
+						timestamp=${command[0]}
+						reflector=${command[1]}
+						seq=${command[3]}
+						rtt_ms=${command[6]}
 						reflector_response=1
 					fi
 					;;	
 				ping)
 					if [[ "${#command[@]}" -eq 9 ]]
 					then
-						timestamp="${command[0]}"
-						reflector="${command[4]}"
-						seq="${command[5]}"
-						rtt_ms="${command[7]}"
+						timestamp=${command[0]}
+						reflector=${command[4]}
+						seq=${command[5]}
+						rtt_ms=${command[7]}
 						reflector_response=1
 					fi
 					;;
@@ -1399,21 +1399,21 @@ do
 			;;
 	esac
 
-	t_start_us=${EPOCHREALTIME/./}
+	t_start_us=${EPOCHREALTIME/.}
 
-	case "${main_state}" in
+	case ${main_state} in
 
 		RUNNING)
 			if ((reflector_response))
 			then
 				# parse pinger response according to pinger binary
-				case "${pinger_binary}" in
+				case ${pinger_binary} in
 
 					tsping)
-						[[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${dl_owd_ms-}" && "${ul_owd_ms-}" ]] || continue
+						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${dl_owd_ms-} && ${ul_owd_ms-} ]] || continue
 
-						dl_owd_us="${dl_owd_ms}000"
-						ul_owd_us="${ul_owd_ms}000"
+						dl_owd_us=${dl_owd_ms}000
+						ul_owd_us=${ul_owd_ms}000
 
 						dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
 						ul_owd_delta_us=$(( ul_owd_us - ul_owd_baselines_us[${reflector}] ))
@@ -1460,50 +1460,50 @@ do
 							ewma_iteration "${ul_owd_delta_us}" "${alpha_delta_ewma}" "ul_owd_delta_ewmas_us[${reflector}]"
 						fi
 
-						timestamp_us="${timestamp//[.]}"
+						timestamp_us=${timestamp//[.]}
 
 						;;
 					fping)
-						[[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${rtt_ms-}" ]] || continue
+						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${rtt_ms-} ]] || continue
 						
-						seq="${seq//[\[\]]}"
+						seq=${seq//[\[\]]}
 						printf -v rtt_us %.3f "${rtt_ms}"
-						rtt_us="${rtt_us//.}"
+						rtt_us=${rtt_us//.}
 
 						dl_owd_us=$((rtt_us/2))
-						ul_owd_us="${dl_owd_us}"
+						ul_owd_us=${dl_owd_us}
 
 						dl_alpha=$(( dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
 
 						ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
-						ul_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]}"
+						ul_owd_baselines_us[${reflector}]=${dl_owd_baselines_us[${reflector}]}
 
 						dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
-						ul_owd_delta_us="${dl_owd_delta_us}"
+						ul_owd_delta_us=${dl_owd_delta_us}
 
 						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
 						then
 							ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
-							ul_owd_delta_ewmas_us["${reflector}"]="${dl_owd_delta_ewmas_us[${reflector}]}"
+							ul_owd_delta_ewmas_us[${reflector}]=${dl_owd_delta_ewmas_us[${reflector}]}
 						fi
 
-						timestamp="${timestamp//[\[\]]}0"
-						timestamp_us="${timestamp//[.]}"
+						timestamp=${timestamp//[\[\]]}0
+						timestamp_us=${timestamp//[.]}
 
 						;;
 					ping)
-						[[ "${timestamp-}" && "${reflector-}" && "${seq-}" && "${rtt_ms-}" ]] || continue
+						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${rtt_ms-} ]] || continue
 
 						reflector=${reflector//:/}
 
-						seq="${seq//icmp_seq=}"
-						rtt_ms="${rtt_ms//time=}"
+						seq=${seq//icmp_seq=}
+						rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"
-						rtt_us="${rtt_us//.}"
+						rtt_us=${rtt_us//.}
 
 						dl_owd_us=$((rtt_us/2))
-						ul_owd_us="${dl_owd_us}"
+						ul_owd_us=${dl_owd_us}
 
 						dl_alpha=$(( dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease ))
 
@@ -1511,7 +1511,7 @@ do
 						ul_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]}"
 
 						dl_owd_delta_us=$(( dl_owd_us - dl_owd_baselines_us[${reflector}] ))
-						ul_owd_delta_us="${dl_owd_delta_us}"
+						ul_owd_delta_us=${dl_owd_delta_us}
 
 						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
 						then
@@ -1519,8 +1519,8 @@ do
 							ul_owd_delta_ewmas_us["${reflector}"]="${dl_owd_delta_ewmas_us[${reflector}]}"
 						fi
 
-						timestamp="${timestamp//[\[\]]}"
-						timestamp_us="${timestamp//[.]}"
+						timestamp=${timestamp//[\[\]]}
+						timestamp_us=${timestamp//[.]}
 
 						;;
 					*)
@@ -1529,11 +1529,11 @@ do
 						;;
 				esac
 						
-				last_timestamp_reflectors_us["${reflector}"]="${timestamp_us}"
+				last_timestamp_reflectors_us[${reflector}]=${timestamp_us}
 				
-				reflectors_last_timestamp_us="${timestamp_us}"
+				reflectors_last_timestamp_us=${timestamp_us}
 
-				if (( (t_start_us - 10#"${reflectors_last_timestamp_us}")>500000 ))
+				if (( (t_start_us - 10#${reflectors_last_timestamp_us})>500000 ))
 				then
 					log_msg "DEBUG" "processed response from [${reflector}] that is > 500ms old. Skipping."
 					continue
@@ -1637,7 +1637,7 @@ do
 				else
 					change_state_main "STALL"
 
-					t_connection_stall_time_us="${t_start_us}"
+					t_connection_stall_time_us=${t_start_us}
 					global_ping_response_timeout=0
 				fi
 
@@ -1650,29 +1650,29 @@ do
 					pinger=$((RANDOM%no_pingers))
 					log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
 					replace_pinger_reflector "${pinger}"
-					t_last_reflector_replacement_us="${t_start_us}"
+					t_last_reflector_replacement_us=${t_start_us}
 					continue
 				fi
 
 				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) ))
 				then
 
-					t_last_reflector_comparison_us="${t_start_us}"
+					t_last_reflector_comparison_us=${t_start_us}
 
 					[[ "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" ]] || continue
 
 					min_sum_owd_baselines_us=$(( dl_owd_baselines_us[${reflectors[0]}] + ul_owd_baselines_us[${reflectors[0]}] ))
-					min_dl_owd_delta_ewma_us="${dl_owd_delta_ewmas_us[${reflectors[0]}]}"
-					min_ul_owd_delta_ewma_us="${ul_owd_delta_ewmas_us[${reflectors[0]}]}"
+					min_dl_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[0]}]}
+					min_ul_owd_delta_ewma_us=${ul_owd_delta_ewmas_us[${reflectors[0]}]}
 
 					for ((pinger=0; pinger < no_pingers; pinger++))
 					do
-						[[ "${dl_owd_baselines_us[${reflectors[pinger]}]:-}" && "${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-}" && "${ul_owd_baselines_us[${reflectors[pinger]}]:-}" && "${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-}" ]] || continue 2
+						[[ ${dl_owd_baselines_us[${reflectors[pinger]}]:-} && ${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-} && ${ul_owd_baselines_us[${reflectors[pinger]}]:-} && ${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-} ]] || continue 2
 
 						sum_owd_baselines_us[pinger]=$(( dl_owd_baselines_us[${reflectors[pinger]}] + ul_owd_baselines_us[${reflectors[pinger]}] ))
-						(( sum_owd_baselines_us[pinger] < min_sum_owd_baselines_us )) && min_sum_owd_baselines_us="${sum_owd_baselines_us[pinger]}"
-						(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < min_dl_owd_delta_ewma_us )) && min_dl_owd_delta_ewma_us="${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}"
-						(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < min_ul_owd_delta_ewma_us )) && min_ul_owd_delta_ewma_us="${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}"
+						(( sum_owd_baselines_us[pinger] < min_sum_owd_baselines_us )) && min_sum_owd_baselines_us=${sum_owd_baselines_us[pinger]}
+						(( dl_owd_delta_ewmas_us[${reflectors[pinger]}] < min_dl_owd_delta_ewma_us )) && min_dl_owd_delta_ewma_us=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}
+						(( ul_owd_delta_ewmas_us[${reflectors[pinger]}] < min_ul_owd_delta_ewma_us )) && min_ul_owd_delta_ewma_us=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}
 					done
 
 					for ((pinger=0; pinger < no_pingers; pinger++))
@@ -1744,7 +1744,7 @@ do
 					fi
 				done
 				((reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window))
-				t_last_reflector_health_check_us="${t_start_us}"
+				t_last_reflector_health_check_us=${t_start_us}
 			fi
 			;;
 		IDLE)
@@ -1756,11 +1756,11 @@ do
 				t_sustained_connection_idle_us=0
 				# Give some time to enable pingers to get set up
 				reflectors_last_timestamp_us=$(( t_start_us + 2*reflector_ping_interval_us ))
-				t_last_reflector_health_check_us="${reflectors_last_timestamp_us}"
+				t_last_reflector_health_check_us=${reflectors_last_timestamp_us}
 			fi
 			;;
 		STALL)
-			((reflector_response)) && reflectors_last_timestamp_us="${t_start_us}"
+			((reflector_response)) && reflectors_last_timestamp_us=${t_start_us}
 
 			if (( reflector_response || achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
 			then

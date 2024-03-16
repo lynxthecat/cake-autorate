@@ -11,12 +11,13 @@ then
     __set_e=1
 fi
 
-if [[ -z "${__sleep_fd:-}" ]]
+if [[ -z ${__sleep_fd:-} ]]
 then
 	exec {__sleep_fd}<> <(:)
 fi
 
-typeof() {
+typeof() 
+{
 	# typeof -- returns the type of a variable
 
 	local type_sig
@@ -35,10 +36,11 @@ typeof() {
 	fi
 }
 
-str_type() {
+str_type() 
+{
 	# str_type -- returns the type of a string
 
-	local -n str="${1}"
+	local -n str=${1}
 
 	if [[ "${str}" =~ ^[0-9]+$ ]]
 	then
