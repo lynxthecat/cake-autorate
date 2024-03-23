@@ -507,42 +507,6 @@ monitor_achieved_rates()
 	done
 }
 
-
-classify_load()
-{
-	# classify the load according to high/low/idle and add _delayed if delayed
-	# thus ending up with high_delayed, low_delayed, etc.
-	local direction=${1}
-
-	if (( load_percent[${direction}] > high_load_thr_percent ))
-	then
-		load_condition[${direction}]="high"
-	elif (( achieved_rate_kbps[${direction}] > connection_active_thr_kbps ))
-	then
-		load_condition[${direction}]="low"
-	else
-		load_condition[${direction}]="idle"
-	fi
-
-	((bufferbloat_detected[${direction}])) && load_condition[${direction}]=${load_condition[${direction}]}_bb
-
-	if ((sss_compensation))
-	then
-		# shellcheck disable=SC2154
-		for sss_time_us in "${sss_times_us[@]}"
-		do
-			((timestamp_usecs_past_minute=${EPOCHREALTIME/.}%60000000))
-			if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) ))
-			then
-				load_condition[${direction}]=${load_condition[${direction}]}_sss
-				break
-			fi
-		done
-	fi
-
-	load_condition[${direction}]=${direction}_${load_condition[${direction}]}
-}
-
 # MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
 
 # GENERIC PINGER START AND STOP FUNCTIONS
@@ -1258,6 +1222,9 @@ set_shaper_rate "ul"
 
 update_max_wire_packet_compensation
 
+dl_rate_load_condition="idle"
+ul_rate_load_condition="idle"
+
 mapfile -t dl_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t ul_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t dl_owd_deltas_us < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
@@ -1371,6 +1338,26 @@ do
 				then
 					printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
 					log_msg "LOAD" "${load_stats}"
+				fi
+
+				if (( load_percent[dl] > high_load_thr_percent ))
+				then
+					dl_rate_load_condition="dl_high"
+				elif (( achieved_rate_kbps[dl] > connection_active_thr_kbps ))
+				then
+					dl_rate_load_condition="dl_low"
+				else
+					dl_rate_load_condition="dl_idle"
+				fi
+
+				if (( load_percent[ul] > high_load_thr_percent ))
+				then
+					ul_rate_load_condition="ul_high"
+				elif (( achieved_rate_kbps[ul] > connection_active_thr_kbps ))
+				then
+					ul_rate_load_condition="ul_low"
+				else
+					ul_rate_load_condition="ul_idle"
 				fi
 			fi
 			;;
@@ -1599,8 +1586,25 @@ do
 					load_percent[ul]=100*achieved_rate_kbps[ul]/shaper_rate_kbps[ul]
 				))
 
-				classify_load "dl"
-				classify_load "ul"
+				load_condition[dl]=${dl_rate_load_condition}
+				load_condition[ul]=${ul_rate_load_condition}
+
+				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
+				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
+
+				if ((sss_compensation))
+				then
+					((timestamp_usecs_past_minute=${EPOCHREALTIME/.}%60000000))
+					for sss_time_us in "${sss_times_us[@]}"
+					do
+						if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) ))
+						then
+							load_condition[dl]+=_sss
+							load_condition[ul]+=_sss
+							break
+						fi
+					done
+				fi
 
 				update_shaper_rate "dl"
 				update_shaper_rate "ul"
