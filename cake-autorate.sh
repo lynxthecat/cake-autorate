@@ -158,19 +158,19 @@ print_headers()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; ICMP_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; DL_SUM_DELAYS; DL_AVG_OWD_DELTA_US; DL_ADJ_AVG_OWD_DELTA_THR_US; UL_SUM_DELAYS; UL_AVG_OWD_DELTA_US; UL_ADJ_AVG_OWD_DELTA_THR_US; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
-	((log_to_file)) && printf '%s\n' "${header}" >> "${log_file_path}"
+	((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
 	((terminal)) && printf '%s\n' "${header}"
 
 	header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
-	((log_to_file)) && printf '%s\n' "${header}" >> "${log_file_path}"
+	((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
 	((terminal)) && printf '%s\n' "${header}"
 
 	header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; MIN_SUM_OWD_BASELINES_US; SUM_OWD_BASELINES_US; SUM_OWD_BASELINES_DELTA_US; SUM_OWD_BASELINES_DELTA_THR_US; MIN_DL_DELTA_EWMA_US; DL_DELTA_EWMA_US; DL_DELTA_EWMA_DELTA_US; DL_DELTA_EWMA_DELTA_THR; MIN_UL_DELTA_EWMA_US; UL_DELTA_EWMA_US; UL_DELTA_EWMA_DELTA_US; UL_DELTA_EWMA_DELTA_THR"
-	((log_to_file)) && printf '%s\n' "${header}" >> "${log_file_path}"
+	((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
 	((terminal)) && printf '%s\n' "${header}"
 
 	header="SUMMARY_HEADER; LOG_DATETIME; LOG_TIMESTAMP; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_SUM_DELAYS; UL_SUM_DELAYS; DL_AVG_OWD_DELTA_US; UL_AVG_OWD_DELTA_US; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
-	((log_to_file)) && printf '%s\n' "${header}" >> "${log_file_path}"
+	((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
 	((terminal)) && printf '%s\n' "${header}"
 }
 
@@ -185,10 +185,6 @@ rotate_log_file()
 		cat "${log_file_path}" > ${log_file_path}.old
 		true > ${log_file_path}
 	fi
-
-	((output_processing_stats)) && print_headers
-	t_log_file_start_us=${EPOCHREALTIME/.}
-	get_log_file_size_bytes
 }
 
 reset_log_file()
@@ -197,10 +193,6 @@ reset_log_file()
 
 	rm -f "${log_file_path}.old"
 	true > ${log_file_path}
-
-	((output_processing_stats)) && print_headers
-	t_log_file_start_us=${EPOCHREALTIME/.}
-	get_log_file_size_bytes
 }
 
 generate_log_file_scripts()
@@ -320,13 +312,15 @@ maintain_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	reset_log_file_signalled=0
-	t_log_file_start_us=${EPOCHREALTIME/.}
-
-	get_log_file_size_bytes
 
 	while true
 	do
 		exec {log_file_fd}> ${log_file_path}
+
+		print_headers
+		get_log_file_size_bytes
+
+		t_log_file_start_us=${EPOCHREALTIME/.}
 
 		while read -r -N "${log_file_buffer_size_B}" -u "${log_fd}" log_chunk
 		do
@@ -1008,7 +1002,7 @@ else
 	log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 fi
 
-rotate_log_file # rotate here to force header prints at top of log file
+rotate_log_file
 
 # save stderr fd, redirect stderr to intercept_stderr
 # intercept_stderr sends stderr to log_msg and exits cake-autorate
