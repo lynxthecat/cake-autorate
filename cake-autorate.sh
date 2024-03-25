@@ -386,13 +386,13 @@ update_shaper_rate()
 		# upload Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
 		ul*sss)
 			shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}
-			t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
+			t_last_decay_us[${direction}]=t_start_us
 			;;
 		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
 			((
 				shaper_rate_kbps[${direction}] = shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}] ? base_shaper_rate_kbps[${direction}] : shaper_rate_kbps[${direction}],
-				t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
+				t_last_decay_us[${direction}]=t_start_us
 			))
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
@@ -426,7 +426,7 @@ update_shaper_rate()
 				((
 					shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000,
 					achieved_rate_updated[$direction]=0,
-					t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
+					t_last_decay_us[${direction}]=t_start_us
 				))
 			fi
 			;;
@@ -449,7 +449,7 @@ update_shaper_rate()
 					))
 				fi
 
-				t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
+				t_last_decay_us[${direction}]=${t_start_us}
 			fi
 			;;
 		*)
@@ -672,7 +672,7 @@ replace_pinger_reflector()
 		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000}
 		dl_owd_delta_ewmas_us[${reflectors[pinger]}]=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}
 		ul_owd_delta_ewmas_us[${reflectors[pinger]}]=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}
-		last_timestamp_reflectors_us[${reflectors[pinger]}]=${EPOCHREALTIME/.}
+		last_timestamp_reflectors_us[${reflectors[pinger]}]=t_start_us
 
 		start_pinger "${pinger}"
 	else
@@ -1611,7 +1611,7 @@ do
 
 				if ((sss_compensation))
 				then
-					((timestamp_usecs_past_minute=${EPOCHREALTIME/.}%60000000))
+					((timestamp_usecs_past_minute=t_start_us%60000000))
 					for sss_time_us in "${sss_times_us[@]}"
 					do
 						if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) ))
