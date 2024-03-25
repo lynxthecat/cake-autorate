@@ -386,10 +386,14 @@ update_shaper_rate()
 		# upload Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
 		ul*sss)
 			shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}
+			t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
 			;;
 		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
 		dl*sss)
-			(( shaper_rate_kbps[${direction}] = shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}] ? base_shaper_rate_kbps[${direction}] : shaper_rate_kbps[${direction}] ))
+			((
+				shaper_rate_kbps[${direction}] = shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}] ? base_shaper_rate_kbps[${direction}] : shaper_rate_kbps[${direction}],
+				t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
+			))
 			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
@@ -410,7 +414,8 @@ update_shaper_rate()
 				((
 					shaper_rate_adjust_down_bufferbloat=1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_bufferbloat_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat),
 					shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_bufferbloat/1000000,
-					t_last_bufferbloat_us[${direction}]=${EPOCHREALTIME/.}
+					t_last_bufferbloat_us[${direction}]=t_start_us,
+					t_last_decay_us[${direction}]=t_start_us
 				))
 			fi
 			;;
@@ -418,7 +423,10 @@ update_shaper_rate()
 		*high*)
 			if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
 			then
-				(( shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000 ))
+				((
+					shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000,
+					t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
+				))
 			fi
 			;;
 		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
