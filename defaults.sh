@@ -170,7 +170,7 @@ alpha_delta_ewma=0.095
 # otherwise shaper rate is adjusted up on load high, and down on load idle or low
 shaper_rate_min_adjust_down_bufferbloat=0.99    # how rapidly to reduce shaper rate upon detection of bufferbloat (min reduction)
 shaper_rate_max_adjust_down_bufferbloat=0.75	# how rapidly to reduce shaper rate upon detection of bufferbloat (max reduction)
-shaper_rate_adjust_up_load_high=1.01		# how rapidly to increase shaper rate upon high load detected
+shaper_rate_adjust_up_load_high=1.04		# how rapidly to increase shaper rate upon high load detected
 shaper_rate_adjust_down_load_low=0.99		# how rapidly to return down to base shaper rate upon idle or low load detected
 shaper_rate_adjust_up_load_low=1.01		# how rapidly to return up to base shaper rate upon idle or low load detected
 

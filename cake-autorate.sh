@@ -421,10 +421,11 @@ update_shaper_rate()
 			;;
 		# high load, so increase rate providing not inside bufferbloat refractory period
 		*high*)
-			if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+			if (( achieved_rate_updated[$direction] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
 			then
 				((
 					shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000,
+					achieved_rate_updated[$direction]=0,
 					t_last_decay_us[${direction}]=${EPOCHREALTIME/.}
 				))
 			fi
@@ -1168,6 +1169,7 @@ stall_detection_timeout_s=000000${stall_detection_timeout_us}
 stall_detection_timeout_s=$((10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
 
 declare -A achieved_rate_kbps
+declare -A achieved_rate_updated
 declare -A bufferbloat_detected
 declare -A load_percent
 declare -A load_condition
@@ -1204,6 +1206,9 @@ shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps}
 
 achieved_rate_kbps[dl]=0
 achieved_rate_kbps[ul]=0
+
+achieved_rate_updated[dl]=0
+achieved_rate_updated[ul]=0
 
 last_shaper_rate_kbps[dl]=0
 last_shaper_rate_kbps[ul]=0
@@ -1342,6 +1347,10 @@ do
 			then
 				achieved_rate_kbps[dl]=${command[1]}
 				achieved_rate_kbps[ul]=${command[2]}
+
+				achieved_rate_updated[dl]=1
+				achieved_rate_updated[ul]=1
+
 				if ((output_load_stats))
 				then
 					printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"

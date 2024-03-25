@@ -19,6 +19,10 @@ more about cake-autorate. This is the history of changes.
 - Replace costly regex with alternatives.
 - Disable costly logging options by default.
 - Improve efficiency of load classification.
+- Reduce frequency of shaper rate updates on high load by only
+  permitting shaper rate increases on load updates and increasing
+  the default shaper rate increase factor to give the same overall 
+  increase rate. 
 - Other minor fixes and improvements.
 
 ## 2023-09-19 - Version 3.1.1
