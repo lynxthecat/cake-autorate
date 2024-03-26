@@ -211,10 +211,3 @@ connection_stall_thr_kbps=10
 global_ping_response_timeout_s=10.0 # timeout to set shaper rates to min on no ping response whatsoever (seconds)
 
 if_up_check_interval_s=10.0 # time to wait before re-checking if rx/tx bytes files exist (e.g. from boot state or sleep recovery)
-
-# Starlink satellite switch (sss) compensation options
-sss_compensation=0 # enable (1) or disable (0) Starlink handling
-# satellite switch compensation start times in seconds of each minute
-sss_times_s=("12.0" "27.0" "42.0" "57.0")
-sss_compensation_pre_duration_ms=300
-sss_compensation_post_duration_ms=200

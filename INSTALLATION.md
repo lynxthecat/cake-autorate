@@ -245,15 +245,6 @@ config.instance.sh
 
 where 'instance' is replaced with e.g. 'primary', 'secondary', etc.
 
-## Example Starlink Configuration
-
-- OpenWrt forum member @gba has kindly shared
-  [his Starlink config](Example_Starlink_config.sh). This ought to
-  provide some helpful pointers for adding appropriate overrides for
-  Starlink users.
-- See discussion on OpenWrt thread from
-  [around this post](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/108848/3100?u=lynx).
-
 ## Selecting a "ping binary"
 
 cake-autorate reads the `$pinger_binary` variable in the config file

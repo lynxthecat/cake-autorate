@@ -389,18 +389,6 @@ update_shaper_rate()
 
 	case ${load_condition[${direction}]} in
 
-		# upload Starlink satelite switching compensation, so drop down to minimum rate for upload through switching period
-		ul*sss)
-			shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}
-			t_last_decay_us[${direction}]=t_start_us
-			;;
-		# download Starlink satelite switching compensation, so drop down to base rate for download through switching period
-		dl*sss)
-			((
-				shaper_rate_kbps[${direction}] = shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}] ? base_shaper_rate_kbps[${direction}] : shaper_rate_kbps[${direction}],
-				t_last_decay_us[${direction}]=t_start_us
-			))
-			;;
 		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
 		*bb*)
 			if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
@@ -1158,13 +1146,6 @@ printf -v global_ping_response_timeout_us %.0f "${global_ping_response_timeout_s
 printf -v bufferbloat_refractory_period_us %.0f "${bufferbloat_refractory_period_ms}e3"
 printf -v decay_refractory_period_us %.0f "${decay_refractory_period_ms}e3"
 
-for (( i=0; i<${#sss_times_s[@]}; i++ ));
-do
-	printf -v sss_times_us[i] %.0f\\n "${sss_times_s[i]}e6"
-done
-printf -v sss_compensation_pre_duration_us %.0f "${sss_compensation_pre_duration_ms}e3"
-printf -v sss_compensation_post_duration_us %.0f "${sss_compensation_post_duration_ms}e3"
-
 ((
 	ping_response_interval_us=reflector_ping_interval_us/no_pingers,
 	ping_response_interval_ms=ping_response_interval_us/1000,
@@ -1614,20 +1595,6 @@ do
 
 				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
 				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
-
-				if ((sss_compensation))
-				then
-					((timestamp_usecs_past_minute=t_start_us%60000000))
-					for sss_time_us in "${sss_times_us[@]}"
-					do
-						if (( (timestamp_usecs_past_minute > (sss_time_us-sss_compensation_pre_duration_us)) && (timestamp_usecs_past_minute < (sss_time_us+sss_compensation_post_duration_us)) ))
-						then
-							load_condition[dl]+=_sss
-							load_condition[ul]+=_sss
-							break
-						fi
-					done
-				fi
 
 				update_shaper_rate "dl"
 				update_shaper_rate "ul"

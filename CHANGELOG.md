@@ -25,6 +25,9 @@ more about cake-autorate. This is the history of changes.
   increase rate. 
 - Only print log file headers to log file corresponding with toggled 
   logging stats.
+- Remove Starlink satellite switching code given insufficient
+  evidence that it helps especially given recent improvements
+  to Starlink connections.
 - Other minor fixes and improvements.
 
 ## 2023-09-19 - Version 3.1.1
