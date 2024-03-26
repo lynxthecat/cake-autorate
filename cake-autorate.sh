@@ -1660,6 +1660,7 @@ do
 							))
 						else
 							sustained_connection_idle=1
+							t_last_connection_idle_us=t_start_us
 						fi
 						if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
 						then
