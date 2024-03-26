@@ -29,6 +29,12 @@ max_ul_shaper_rate_kbps=35000  # maximum bandwidth for upload (Kbit/s)
 
 connection_active_thr_kbps=2000  # threshold in Kbit/s below which dl/ul is considered idle
 
+# Logging toggles for various stats
+output_processing_stats=0 # enable (1) or disable (0) output monitoring lines showing processing stats
+output_load_stats=0       # enable (1) or disable (0) output monitoring lines showing achieved loads
+output_reflector_stats=0  # enable (1) or disable (0) output monitoring lines showing reflector stats
+output_summary_stats=0    # enable (1) or disable (0) output monitoring lines showing summary stats
+
 # *** OVERRIDES ***
 
 ### See defaults.sh for additional configuration options
