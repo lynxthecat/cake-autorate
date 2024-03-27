@@ -172,3 +172,7 @@ the CPU load.
 Also, for everyday use, consider disabling any unecessary logging 
 options, and especially: `output_summary_stats`,
 `output_processing_stats` and `output_load_stats`.
+
+## :stars: Stargazers <a name="stargazers"></a>
+
+[![Star History Chart](https://api.star-history.com/svg?repos=lynxthecat/cake-autorate&type=Date)](https://star-history.com/#lynxthecat/cake-autorate&Date)
