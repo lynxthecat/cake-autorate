@@ -757,16 +757,6 @@ verify_ifs_up()
 	done
 }
 
-ewma_iteration()
-{
-	local value=${1}
-	local alpha=${2} # alpha must be scaled by factor of 1000000
-	local -n ewma=${3}
-
-	prev_ewma=${ewma}
-	(( ewma=(alpha*value+(1000000-alpha)*prev_ewma)/1000000 ))
-}
-
 change_state_main()
 {
 	local main_next_state=${1}
@@ -1450,13 +1440,11 @@ do
 
 							((
 								dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
-								ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease
-							))
+								ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-							ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
-							ewma_iteration "${ul_owd_us}" "${ul_alpha}" "ul_owd_baselines_us[${reflector}]"
+								dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
+								ul_owd_baselines_us[${reflector}]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[${reflector}])/1000000,
 
-							((
 								dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
 								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
 							))
@@ -1470,8 +1458,10 @@ do
 
 						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
 						then
-							ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
-							ewma_iteration "${ul_owd_delta_us}" "${alpha_delta_ewma}" "ul_owd_delta_ewmas_us[${reflector}]"
+							((
+								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
+								ul_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[${reflector}])/1000000
+							))
 						fi
 
 						timestamp_us=${timestamp//[.]}
@@ -1487,21 +1477,21 @@ do
 						((
 							dl_owd_us=rtt_us/2,
 							ul_owd_us=dl_owd_us,
-							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease
-						))
+							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-						ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
-						ul_owd_baselines_us[${reflector}]=${dl_owd_baselines_us[${reflector}]}
+							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
+							ul_owd_baselines_us[${reflector}]=dl_owd_baselines_us[${reflector}],
 
-						((
 							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
 							ul_owd_delta_us=dl_owd_delta_us
 						))
 
 						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
 						then
-							ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
-							ul_owd_delta_ewmas_us[${reflector}]=${dl_owd_delta_ewmas_us[${reflector}]}
+							((
+								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
+								ul_owd_delta_ewmas_us[${reflector}]=dl_owd_delta_ewmas_us[${reflector}]
+							))
 						fi
 
 						timestamp=${timestamp//[\[\]]}0
@@ -1523,21 +1513,21 @@ do
 							dl_owd_us=rtt_us/2,
 							ul_owd_us=dl_owd_us,
 
-							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease
-						))
+							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-						ewma_iteration "${dl_owd_us}" "${dl_alpha}" "dl_owd_baselines_us[${reflector}]"
-						ul_owd_baselines_us["${reflector}"]="${dl_owd_baselines_us[${reflector}]}"
+							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[$reflector])/1000000,
+							ul_owd_baselines_us[${reflector}]=dl_owd_baselines_us[${reflector}],
 
-						((
 							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
 							ul_owd_delta_us=dl_owd_delta_us
 						))
 
 						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
 						then
-							ewma_iteration "${dl_owd_delta_us}" "${alpha_delta_ewma}" "dl_owd_delta_ewmas_us[${reflector}]"
-							ul_owd_delta_ewmas_us["${reflector}"]="${dl_owd_delta_ewmas_us[${reflector}]}"
+							((
+								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
+								ul_owd_delta_ewmas_us[${reflector}]=dl_owd_delta_ewmas_us[${reflector}]
+							))
 						fi
 
 						timestamp=${timestamp//[\[\]]}
