@@ -19,9 +19,9 @@ main() {
 	tainted=1
 	for x in ${ID_LIKE:-}
 	do
-		[ ${x} = "openwrt" ] && tainted=0
+		[ "${x}" = "openwrt" ] && tainted=0
 	done
-	if [ ${tainted} -eq 1 ]
+	if [ "${tainted}" -eq 1 ]
 	then
 		printf "This script requires OpenWrt.\n" >&2
 		return 1
@@ -49,7 +49,7 @@ main() {
 
 	# Retrieve required packages if not present
 	# shellcheck disable=SC2312
-	if [ $(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ') -ne 3 ]
+	if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]
 	then
 		printf "Running opkg update to update package lists:\n"
 		opkg update
@@ -65,7 +65,7 @@ main() {
 			exit_now=1
 		fi
 	done
-	[ ${exit_now} -ge 1 ] && exit "${exit_now}"
+	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
 	# Set up CAKE-autorate files
 	# cd to the /root directory
@@ -82,7 +82,7 @@ main() {
 
 	# Get the latest commit to download
 	commit=$(uclient-fetch -qO- "${API_URL}" | jsonfilter -e @.sha)
-	if [ -z ${commit:-} ];
+	if [ -z "${commit:-}" ];
 	then
 		printf >&2 "Invalid operation occurred, commit variable should not be empty"
 		exit 1
@@ -99,7 +99,7 @@ main() {
 	# Migrate old configuration (and new file) files if present
 	for file in cake-autorate_config.*.sh*
 	do
-		[ -e ${file} ] || continue   # handle case where there are no old config files
+		[ -e "${file}" ] || continue   # handle case where there are no old config files
 		new_fname="$(printf '%s\n' "${file}" | cut -c15-)"
 		mv "${file}" "${new_fname}"
 	done
@@ -110,7 +110,7 @@ main() {
 	then
 		printf "Previous configuration present - keep it? [Y/n] "
 		read -r keepIt
-		if [ ${keepIt} = "N" ] || [ ${keepIt} = "n" ]; then
+		if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
 			mv "${tmp}/config.primary.sh" config.primary.sh
 			rm -f config.primary.sh.new   # delete config.primary.sh.new if exists
 		else
