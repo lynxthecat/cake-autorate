@@ -114,10 +114,7 @@ log_msg()
 {
 	# send logging message to terminal, log file fifo, log file and/or system logger
 
-	local type=${1}
-	local msg=${2}
-	local instance_id=${instance_id:-"unknown"}
-	local log_timestamp=${EPOCHREALTIME}
+	local type=${1} msg=${2} instance_id=${instance_id:-"unknown"} log_timestamp=${EPOCHREALTIME}
 
 	case ${type} in
 
@@ -300,12 +297,6 @@ flush_log_fd()
 	done
 }
 
-get_log_file_size_bytes()
-{
-	log_file_size_bytes=$(wc -c "${log_file_path}" 2>/dev/null | awk '{print $1}')
-	log_file_size_bytes=${log_file_size_bytes:-0}
-}
-
 kill_maintain_log_file()
 {
 	trap - TERM EXIT
@@ -330,7 +321,7 @@ maintain_log_file()
 		exec {log_file_fd}> ${log_file_path}
 
 		print_headers
-		get_log_file_size_bytes
+		log_file_size_bytes=$(wc -c "${log_file_path}" 2>/dev/null | awk '{print $1}') log_file_size_bytes=${log_file_size_bytes:-0}
 
 		t_log_file_start_us=${EPOCHREALTIME/.}
 
@@ -465,22 +456,18 @@ monitor_achieved_rates()
 	# track rx and tx bytes transfered and divide by time since last update
 	# to determine achieved dl and ul transfer rates
 
-	local rx_bytes_path=${1}
-	local tx_bytes_path=${2}
-	local monitor_achieved_rates_interval_us=${3} # (microseconds)
+	local rx_bytes_path=${1} tx_bytes_path=${2} monitor_achieved_rates_interval_us=${3}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	compensated_monitor_achieved_rates_interval_us="${monitor_achieved_rates_interval_us}"
+	compensated_monitor_achieved_rates_interval_us=${monitor_achieved_rates_interval_us}
 
 	{ read -r prev_rx_bytes < ${rx_bytes_path}; } 2> /dev/null || prev_rx_bytes=0
 	{ read -r prev_tx_bytes < ${tx_bytes_path}; } 2> /dev/null || prev_tx_bytes=0
 
-	sleep_duration_s=0
-	t_start_us=0
+	sleep_duration_s=0 t_start_us=0
 
-	declare -A achieved_rate_kbps
-	declare -A load_percent
+	declare -A achieved_rate_kbps load_percent
 
 	while true
 	do
@@ -501,8 +488,7 @@ monitor_achieved_rates()
 
 		printf "SARS %s %s\n" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" >&${main_fd}
 
-		prev_rx_bytes=${rx_bytes}
-		prev_tx_bytes=${tx_bytes}
+		prev_rx_bytes=${rx_bytes} prev_tx_bytes=${tx_bytes}
 
 		(( compensated_monitor_achieved_rates_interval_us = monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us ))
 
@@ -663,11 +649,11 @@ replace_pinger_reflector()
 		# reset array indices
 		mapfile -t reflectors < <(for i in "${reflectors[@]}"; do printf '%s\n' "${i}"; done)
 		# set up the new pinger with the new reflector and retain pid
-		dl_owd_baselines_us[${reflectors[pinger]}]=${dl_owd_baselines_us[${reflectors[pinger]}]:-100000}
-		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000}
-		dl_owd_delta_ewmas_us[${reflectors[pinger]}]=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}
-		ul_owd_delta_ewmas_us[${reflectors[pinger]}]=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0}
-		last_timestamp_reflectors_us[${reflectors[pinger]}]=t_start_us
+		dl_owd_baselines_us[${reflectors[pinger]}]=${dl_owd_baselines_us[${reflectors[pinger]}]:-100000} \
+		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000} \
+		dl_owd_delta_ewmas_us[${reflectors[pinger]}]=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0} \
+		ul_owd_delta_ewmas_us[${reflectors[pinger]}]=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0} \
+		last_timestamp_reflectors_us[${reflectors[pinger]}]=${t_start_us}
 
 		start_pinger "${pinger}"
 	else
@@ -708,8 +694,7 @@ set_shaper_rate()
 set_min_shaper_rates()
 {
 	log_msg "DEBUG" "Enforcing minimum shaper rates."
-	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps}
-	shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
+	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
 	set_shaper_rate "dl"
 	set_shaper_rate "ul"
 }
@@ -806,23 +791,13 @@ debug_cmd()
 	# Error messages are output as log_msg ERROR messages
 	# Or set error_silence=1 to output errors as log_msg DEBUG messages
 
-	local debug_msg=${1}
-	local err_silence=${2}
-	local cmd=${3}
+	local debug_msg=${1} err_silence=${2} cmd=${3}
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	shift 3
 
-	local args=("${@}")
-
-	local caller_id
-	local err_type
-
-	local ret
-	local stderr
-
-	err_type="ERROR"
+	local args=("${@}") caller_id err_type="ERROR" ret stderr
 
 	if ((err_silence))
 	then
@@ -972,8 +947,7 @@ unset valid_config_entries user_config config_error_count key
 
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then
-	instance_id=${BASH_REMATCH[1]}
-	run_path="/var/run/cake-autorate/${instance_id}"
+	instance_id=${BASH_REMATCH[1]} run_path="/var/run/cake-autorate/${instance_id}"
 else
 	log_msg "ERROR" "Instance identifier 'X' set by config.X.sh cannot be empty. Exiting now."
 	exit 1
@@ -983,7 +957,7 @@ if [[ -n ${log_file_path_override-} ]]
 then
 	if [[ ! -d ${log_file_path_override} ]]
 	then
-		broken_log_file_path_override=${log_file_path_override}
+		broken_log_file_path_override=${log_file_path_override} \
 		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
 		log_msg "ERROR" "Log file path override: '${broken_log_file_path_override}' does not exist. Exiting now."
 		exit 1
@@ -1143,105 +1117,76 @@ printf -v decay_refractory_period_us %.0f "${decay_refractory_period_ms}e3"
 
 	stall_detection_timeout_us=stall_detection_thr*ping_response_interval_us
 ))
-stall_detection_timeout_s=000000${stall_detection_timeout_us}
+stall_detection_timeout_s=000000${stall_detection_timeout_us} \
 stall_detection_timeout_s=$((10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
 
-declare -A achieved_rate_kbps
-declare -A achieved_rate_updated
-declare -A bufferbloat_detected
-declare -A load_percent
-declare -A load_condition
-declare -A t_last_bufferbloat_us
-declare -A t_last_decay_us
-declare -A shaper_rate_kbps
-declare -A last_shaper_rate_kbps
-declare -A base_shaper_rate_kbps
-declare -A min_shaper_rate_kbps
-declare -A max_shaper_rate_kbps
-declare -A interface
-declare -A adjust_shaper_rate
-declare -A avg_owd_delta_us
-declare -A avg_owd_delta_thr_us
-declare -A compensated_owd_delta_thr_us
-declare -A compensated_avg_owd_delta_thr_us
-declare -A dl_owd_baselines_us
-declare -A ul_owd_baselines_us
-declare -A dl_owd_delta_ewmas_us
-declare -A ul_owd_delta_ewmas_us
-declare -A last_timestamp_reflectors_us
+declare -A achieved_rate_kbps \
+achieved_rate_updated \
+bufferbloat_detected \
+load_percent \
+load_condition \
+t_last_bufferbloat_us \
+t_last_decay_us \
+shaper_rate_kbps \
+last_shaper_rate_kbps \
+base_shaper_rate_kbps \
+min_shaper_rate_kbps \
+max_shaper_rate_kbps \
+interface \
+adjust_shaper_rate \
+avg_owd_delta_us \
+avg_owd_delta_thr_us \
+compensated_owd_delta_thr_us \
+compensated_avg_owd_delta_thr_us \
+dl_owd_baselines_us \
+ul_owd_baselines_us \
+dl_owd_delta_ewmas_us \
+ul_owd_delta_ewmas_us \
+last_timestamp_reflectors_us
 
-base_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps}
-base_shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps}
+base_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps} base_shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps} \
+min_shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} min_shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps} \
+max_shaper_rate_kbps[dl]=${max_dl_shaper_rate_kbps} max_shaper_rate_kbps[ul]=${max_ul_shaper_rate_kbps} \
+shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps} \
+achieved_rate_kbps[dl]=0 achieved_rate_kbps[ul]=0 \
+achieved_rate_updated[dl]=0 achieved_rate_updated[ul]=0 \
+last_shaper_rate_kbps[dl]=0 last_shaper_rate_kbps[ul]=0 \
+interface[dl]=${dl_if} interface[ul]=${ul_if} \
+adjust_shaper_rate[dl]=${adjust_dl_shaper_rate} adjust_shaper_rate[ul]=${adjust_ul_shaper_rate} \
+dl_max_wire_packet_size_bits=0 ul_max_wire_packet_size_bits=0
 
-min_shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps}
-min_shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-
-max_shaper_rate_kbps[dl]=${max_dl_shaper_rate_kbps}
-max_shaper_rate_kbps[ul]=${max_ul_shaper_rate_kbps}
-
-shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps}
-shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps}
-
-achieved_rate_kbps[dl]=0
-achieved_rate_kbps[ul]=0
-
-achieved_rate_updated[dl]=0
-achieved_rate_updated[ul]=0
-
-last_shaper_rate_kbps[dl]=0
-last_shaper_rate_kbps[ul]=0
-
-interface[dl]=${dl_if}
-interface[ul]=${ul_if}
-
-adjust_shaper_rate[dl]=${adjust_dl_shaper_rate}
-adjust_shaper_rate[ul]=${adjust_ul_shaper_rate}
-
-dl_max_wire_packet_size_bits=0
-ul_max_wire_packet_size_bits=0
 get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 
-avg_owd_delta_us[dl]=0
-avg_owd_delta_us[ul]=0
+avg_owd_delta_us[dl]=0 avg_owd_delta_us[ul]=0
 
 # shellcheck disable=SC2034
-avg_owd_delta_thr_us[dl]=${dl_avg_owd_delta_thr_us}
-# shellcheck disable=SC2034
-avg_owd_delta_thr_us[ul]=${ul_avg_owd_delta_thr_us}
+avg_owd_delta_thr_us[dl]=${dl_avg_owd_delta_thr_us} avg_owd_delta_thr_us[ul]=${ul_avg_owd_delta_thr_us}
 
 set_shaper_rate "dl"
 set_shaper_rate "ul"
 
 update_max_wire_packet_compensation
 
-dl_rate_load_condition="idle"
-ul_rate_load_condition="idle"
+dl_rate_load_condition="idle" ul_rate_load_condition="idle"
 
 mapfile -t dl_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t ul_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t dl_owd_deltas_us < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t ul_owd_deltas_us < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 
-delays_idx=0
-sum_dl_delays=0
-sum_ul_delays=0
-sum_dl_owd_deltas_us=0
-sum_ul_owd_deltas_us=0
+delays_idx=0 sum_dl_delays=0 sum_ul_delays=0 sum_dl_owd_deltas_us=0 sum_ul_owd_deltas_us=0
 
 # Randomize reflectors array providing randomize_reflectors set to 1
 ((randomize_reflectors)) && randomize_array reflectors
 
 for (( reflector=0; reflector<no_pingers; reflector++ ))
 do
-	dl_owd_baselines_us["${reflectors[reflector]}"]=100000
-	ul_owd_baselines_us["${reflectors[reflector]}"]=100000
-	dl_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
-	ul_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
+	dl_owd_baselines_us["${reflectors[reflector]}"]=100000 ul_owd_baselines_us["${reflectors[reflector]}"]=100000 \
+	dl_owd_delta_ewmas_us["${reflectors[reflector]}"]=0 ul_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
 done
 
-load_percent[dl]=0
-load_percent[ul]=0
+load_percent[dl]=0 load_percent[ul]=0
  
 if ((debug))
 then
@@ -1258,9 +1203,7 @@ then
 	fi
 fi
 
-sustained_connection_idle=0
-reflector_offences_idx=0
-pingers_active=0
+sustained_connection_idle=0 reflector_offences_idx=0 pingers_active=0
 
 monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}" &
 proc_pids['monitor_achieved_rates']=${!}
@@ -1276,21 +1219,12 @@ then
 	sleep_us "${startup_wait_us}"
 fi
 
-t_start_us=${EPOCHREALTIME/.}
-
-t_last_bufferbloat_us[dl]=${t_start_us}
-t_last_bufferbloat_us[ul]=${t_start_us}
-t_last_decay_us[dl]=${t_start_us}
-t_last_decay_us[ul]=${t_start_us}
-t_last_reflector_health_check_us=${t_start_us}
-
-t_sustained_connection_idle_us=0
-t_last_connection_idle_us=${t_start_us}
-reflectors_last_timestamp_us=${t_start_us}
-
-pingers_t_start_us=${t_start_us}
-t_last_reflector_replacement_us=${t_start_us}
-t_last_reflector_comparison_us=${t_start_us}
+t_start_us=${EPOCHREALTIME/.} \
+t_last_bufferbloat_us[dl]=${t_start_us} t_last_bufferbloat_us[ul]=${t_start_us} \
+t_last_decay_us[dl]=${t_start_us} t_last_decay_us[ul]=${t_start_us} \
+t_last_reflector_health_check_us=${t_start_us} \
+t_sustained_connection_idle_us=0 t_last_connection_idle_us=${t_start_us} reflectors_last_timestamp_us=${t_start_us} \
+pingers_t_start_us=${t_start_us} t_last_reflector_replacement_us=${t_start_us} t_last_reflector_comparison_us=${t_start_us}
 
 for ((reflector=0; reflector < no_reflectors; reflector++))
 do
@@ -1325,11 +1259,7 @@ do
 		SARS)
 			if [[ "${#command[@]}" -eq 3 ]]
 			then
-				achieved_rate_kbps[dl]=${command[1]}
-				achieved_rate_kbps[ul]=${command[2]}
-
-				achieved_rate_updated[dl]=1
-				achieved_rate_updated[ul]=1
+				achieved_rate_kbps[dl]=${command[1]} achieved_rate_kbps[ul]=${command[2]} achieved_rate_updated[dl]=1 achieved_rate_updated[ul]=1
 
 				if ((output_load_stats))
 				then
@@ -1364,32 +1294,19 @@ do
 				tsping)
 					if [[ "${#command[@]}" -eq 10 ]]
 					then
-						timestamp=${command[0]}
-						reflector=${command[1]}
-						seq=${command[2]}
-						dl_owd_ms=${command[8]}
-						ul_owd_ms=${command[9]}
-						reflector_response=1
+						timestamp=${command[0]} reflector=${command[1]}  seq=${command[2]} dl_owd_ms=${command[8]} ul_owd_ms=${command[9]} reflector_response=1
 					fi
 					;;
 				fping)
 					if [[ "${#command[@]}" -eq 12 ]]
 					then
-						timestamp=${command[0]}
-						reflector=${command[1]}
-						seq=${command[3]}
-						rtt_ms=${command[6]}
-						reflector_response=1
+						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
 					fi
 					;;	
 				ping)
 					if [[ "${#command[@]}" -eq 9 ]]
 					then
-						timestamp=${command[0]}
-						reflector=${command[4]}
-						seq=${command[5]}
-						rtt_ms=${command[7]}
-						reflector_response=1
+						timestamp=${command[0]} reflector=${command[4]} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
 					fi
 					;;
 				*)
@@ -1413,8 +1330,7 @@ do
 					tsping)
 						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${dl_owd_ms-} && ${ul_owd_ms-} ]] || continue
 
-						dl_owd_us=${dl_owd_ms}000
-						ul_owd_us=${ul_owd_ms}000
+						dl_owd_us=${dl_owd_ms}000 ul_owd_us=${ul_owd_ms}000
 
 						((
 							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
@@ -1452,11 +1368,7 @@ do
 								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
 							))
 						else
-							dl_owd_baselines_us[${reflector}]=${dl_owd_us}
-							ul_owd_baselines_us[${reflector}]=${ul_owd_us}
-
-							dl_owd_delta_us=0
-							ul_owd_delta_us=0
+							dl_owd_baselines_us[${reflector}]=${dl_owd_us} ul_owd_baselines_us[${reflector}]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
 						fi
 
 						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
@@ -1497,17 +1409,13 @@ do
 							))
 						fi
 
-						timestamp=${timestamp//[\[\]]}0
-						timestamp_us=${timestamp//[.]}
+						timestamp=${timestamp//[\[\]]}0 timestamp_us=${timestamp//[.]}
 
 						;;
 					ping)
 						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${rtt_ms-} ]] || continue
 
-						reflector=${reflector//:/}
-
-						seq=${seq//icmp_seq=}
-						rtt_ms=${rtt_ms//time=}
+						reflector=${reflector//:/} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"
 						rtt_us=${rtt_us//.}
@@ -1533,8 +1441,7 @@ do
 							))
 						fi
 
-						timestamp=${timestamp//[\[\]]}
-						timestamp_us=${timestamp//[.]}
+						timestamp=${timestamp//[\[\]]} timestamp_us=${timestamp//[.]}
 
 						;;
 					*)
@@ -1543,9 +1450,7 @@ do
 						;;
 				esac
 						
-				last_timestamp_reflectors_us[${reflector}]=${timestamp_us}
-				
-				reflectors_last_timestamp_us=${timestamp_us}
+				last_timestamp_reflectors_us[${reflector}]=${timestamp_us} reflectors_last_timestamp_us=${timestamp_us}
 
 				if (( (t_start_us - 10#${reflectors_last_timestamp_us})>500000 ))
 				then
@@ -1583,8 +1488,7 @@ do
 					load_percent[ul]=100*achieved_rate_kbps[ul]/shaper_rate_kbps[ul]
 				))
 
-				load_condition[dl]=${dl_rate_load_condition}
-				load_condition[ul]=${ul_rate_load_condition}
+				load_condition[dl]=${dl_rate_load_condition} load_condition[ul]=${ul_rate_load_condition}
 
 				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
 				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
@@ -1619,8 +1523,7 @@ do
 								t_last_connection_idle_us=t_start_us
 							))
 						else
-							sustained_connection_idle=1
-							t_last_connection_idle_us=t_start_us
+							sustained_connection_idle=1 t_last_connection_idle_us=t_start_us
 						fi
 						if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
 						then
@@ -1631,12 +1534,10 @@ do
 
 							stop_pingers
 
-							t_sustained_connection_idle_us=0
-							sustained_connection_idle=0
+							t_sustained_connection_idle_us=0 sustained_connection_idle=0
 						fi
 					else
-						t_sustained_connection_idle_us=0
-						sustained_connection_idle=0
+						t_sustained_connection_idle_us=0 sustained_connection_idle=0
 					fi
 				fi
 			elif (( (t_start_us - reflectors_last_timestamp_us) > stall_detection_timeout_us ))
@@ -1655,8 +1556,7 @@ do
 				else
 					change_state_main "STALL"
 
-					t_connection_stall_time_us=${t_start_us}
-					global_ping_response_timeout=0
+					t_connection_stall_time_us=${t_start_us} global_ping_response_timeout=0
 				fi
 
 			fi
