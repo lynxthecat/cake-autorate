@@ -415,11 +415,11 @@ update_shaper_rate()
 			;;
 		# high load, so increase rate providing not inside bufferbloat refractory period
 		*high*)
-			if (( achieved_rate_updated[$direction] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+			if (( achieved_rate_updated[${direction}] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
 			then
 				((
 					shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000,
-					achieved_rate_updated[$direction]=0,
+					achieved_rate_updated[${direction}]=0,
 					t_last_decay_us[${direction}]=t_start_us
 				))
 			fi
@@ -658,6 +658,7 @@ replace_pinger_reflector()
 		# remove the new reflector from the list of additional reflectors beginning from ${reflectors[no_pingers]}
 		unset "reflectors[no_pingers]"
 		# bad reflector goes to the back of the queue
+		# shellcheck disable=SC2206
 		reflectors+=(${bad_reflector})
 		# reset array indices
 		mapfile -t reflectors < <(for i in "${reflectors[@]}"; do printf '%s\n' "${i}"; done)
@@ -1204,7 +1205,9 @@ get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 avg_owd_delta_us[dl]=0
 avg_owd_delta_us[ul]=0
 
+# shellcheck disable=SC2034
 avg_owd_delta_thr_us[dl]=${dl_avg_owd_delta_thr_us}
+# shellcheck disable=SC2034
 avg_owd_delta_thr_us[ul]=${ul_avg_owd_delta_thr_us}
 
 set_shaper_rate "dl"
@@ -1515,7 +1518,7 @@ do
 
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[$reflector])/1000000,
+							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
 							ul_owd_baselines_us[${reflector}]=dl_owd_baselines_us[${reflector}],
 
 							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
@@ -1662,7 +1665,7 @@ do
 			then
 				if (( t_start_us>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) ))
 				then
-					((pinger=${RANDOM}%no_pingers))
+					((pinger=RANDOM%no_pingers))
 					log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
 					replace_pinger_reflector "${pinger}"
 					t_last_reflector_replacement_us=${t_start_us}

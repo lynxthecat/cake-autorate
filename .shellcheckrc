@@ -1,6 +1,8 @@
-
 # Double quote to prevent globbing and word splitting.
 disable=SC2086
+
+# Prefer double quoting even when variables don't contain special characters.
+disable=SC2248
 
 # Remove exec if script should continue after this command.
 disable=SC2093
