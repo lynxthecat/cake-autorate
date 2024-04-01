@@ -374,81 +374,6 @@ export_proc_pids()
 	done
 }
 
-update_shaper_rate()
-{
-	local direction=${1} # 'dl' or 'ul'
-
-	case ${load_condition[${direction}]} in
-
-		# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
-		*bb*)
-			if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
-			then
-				if (( compensated_avg_owd_delta_thr_us[${direction}] <= compensated_owd_delta_thr_us[${direction}] ))
-				then
-					shaper_rate_adjust_down_bufferbloat_factor=1000
-				elif (( (avg_owd_delta_us[${direction}]-compensated_owd_delta_thr_us[${direction}]) > 0 ))
-				then
-					((
-						shaper_rate_adjust_down_bufferbloat_factor=1000*(avg_owd_delta_us[${direction}]-compensated_owd_delta_thr_us[${direction}])/(compensated_avg_owd_delta_thr_us[${direction}]-compensated_owd_delta_thr_us[${direction}]),
-						shaper_rate_adjust_down_bufferbloat_factor > 1000 && (shaper_rate_adjust_down_bufferbloat_factor=1000)
-					))
-				else
-					shaper_rate_adjust_down_bufferbloat_factor=0
-				fi
-				((
-					shaper_rate_adjust_down_bufferbloat=1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_bufferbloat_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat),
-					shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_bufferbloat/1000000,
-					t_last_bufferbloat_us[${direction}]=t_start_us,
-					t_last_decay_us[${direction}]=t_start_us
-				))
-			fi
-			;;
-		# high load, so increase rate providing not inside bufferbloat refractory period
-		*high*)
-			if (( achieved_rate_updated[${direction}] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
-			then
-				((
-					shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000,
-					achieved_rate_updated[${direction}]=0,
-					t_last_decay_us[${direction}]=t_start_us
-				))
-			fi
-			;;
-		# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-		*low*|*idle*)
-			if (( t_start_us > (t_last_decay_us[${direction}]+decay_refractory_period_us) ))
-			then
-
-				if ((shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}]))
-				then
-					((
-						decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_load_low)/1000,
-						shaper_rate_kbps[${direction}]=decayed_shaper_rate_kbps > base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
-					))
-				elif ((shaper_rate_kbps[${direction}] < base_shaper_rate_kbps[${direction}]))
-				then
-					((
-						decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_low)/1000,
-						shaper_rate_kbps[${direction}] = decayed_shaper_rate_kbps < base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
-					))
-				fi
-
-				t_last_decay_us[${direction}]=${t_start_us}
-			fi
-			;;
-		*)
-			log_msg "ERROR" "unknown load condition: ${load_condition[${direction}]} in update_shaper_rate"
-			kill $$ 2>/dev/null
-			;;
-	esac
-	# make sure to only return rates between cur_min_rate and cur_max_rate
-	((
-		shaper_rate_kbps[${direction}] < min_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}),
-		shaper_rate_kbps[${direction}] > max_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${max_shaper_rate_kbps[${direction}]})
-	))
-}
-
 monitor_achieved_rates()
 {
 	trap '' INT
@@ -1493,8 +1418,79 @@ do
 				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
 				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
 
-				update_shaper_rate "dl"
-				update_shaper_rate "ul"
+				# Update shaper rates
+				for direction in dl ul
+				do
+					case ${load_condition[${direction}]} in
+
+						# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
+						*bb*)
+							if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+							then
+								if (( compensated_avg_owd_delta_thr_us[${direction}] <= compensated_owd_delta_thr_us[${direction}] ))
+								then
+									shaper_rate_adjust_down_bufferbloat_factor=1000
+								elif (( (avg_owd_delta_us[${direction}]-compensated_owd_delta_thr_us[${direction}]) > 0 ))
+								then
+									((
+										shaper_rate_adjust_down_bufferbloat_factor=1000*(avg_owd_delta_us[${direction}]-compensated_owd_delta_thr_us[${direction}])/(compensated_avg_owd_delta_thr_us[${direction}]-compensated_owd_delta_thr_us[${direction}]),
+										shaper_rate_adjust_down_bufferbloat_factor > 1000 && (shaper_rate_adjust_down_bufferbloat_factor=1000)
+									))
+								else
+									shaper_rate_adjust_down_bufferbloat_factor=0
+								fi
+								((
+									shaper_rate_adjust_down_bufferbloat=1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_bufferbloat_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat),
+									shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_bufferbloat/1000000,
+									t_last_bufferbloat_us[${direction}]=t_start_us,
+									t_last_decay_us[${direction}]=t_start_us
+								))
+							fi
+							;;
+						# high load, so increase rate providing not inside bufferbloat refractory period
+						*high*)
+							if (( achieved_rate_updated[${direction}] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+							then
+								((
+									shaper_rate_kbps[${direction}]=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_high)/1000,
+									achieved_rate_updated[${direction}]=0,
+									t_last_decay_us[${direction}]=t_start_us
+								))
+							fi
+							;;
+						# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
+						*low*|*idle*)
+							if (( t_start_us > (t_last_decay_us[${direction}]+decay_refractory_period_us) ))
+							then
+
+								if ((shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}]))
+								then
+									((
+										decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_load_low)/1000,
+										shaper_rate_kbps[${direction}]=decayed_shaper_rate_kbps > base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
+									))
+								elif ((shaper_rate_kbps[${direction}] < base_shaper_rate_kbps[${direction}]))
+								then
+									((
+										decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_low)/1000,
+										shaper_rate_kbps[${direction}] = decayed_shaper_rate_kbps < base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
+									))
+								fi
+
+								t_last_decay_us[${direction}]=${t_start_us}
+							fi
+							;;
+						*)
+							log_msg "ERROR" "unknown load condition: ${load_condition[${direction}]}"
+							kill $$ 2>/dev/null
+							;;
+					esac
+					# make sure to only return rates between cur_min_rate and cur_max_rate
+					((
+						shaper_rate_kbps[${direction}] < min_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}),
+						shaper_rate_kbps[${direction}] > max_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${max_shaper_rate_kbps[${direction}]})
+					))
+				done
 
 				set_shaper_rate "dl"
 				set_shaper_rate "ul"
