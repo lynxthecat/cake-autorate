@@ -421,8 +421,6 @@ monitor_achieved_rates()
 	done
 }
 
-# MAINTAIN PINGERS + ASSOCIATED HELPER FUNCTIONS
-
 # GENERIC PINGER START AND STOP FUNCTIONS
 
 start_pinger()
@@ -595,7 +593,7 @@ replace_pinger_reflector()
 
 set_shaper_rate()
 {
-	# fire up tc and update max_wire_packet_compensation if there are rates to change for the given direction
+	# Fire up tc and update max_wire_packet_compensation if there are rates to change for the given direction
 
 	local direction=${1} # 'dl' or 'ul'
 
@@ -692,51 +690,6 @@ intercept_stderr()
 		log_msg "ERROR" "${error}"
 		kill $$ 2>/dev/null
 	done
-}
-
-# Debug command wrapper
-# Inspired by cmd_wrapper of sqm-script
-debug_cmd()
-{
-	# Usage: debug_cmd debug_msg err_silence cmd arg1 arg2, etc.
-
-	# Error messages are output as log_msg ERROR messages
-	# Or set error_silence=1 to output errors as log_msg DEBUG messages
-
-	local debug_msg=${1} err_silence=${2} cmd=${3}
-
-	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-
-	shift 3
-
-	local args=("${@}") caller_id err_type="ERROR" ret stderr
-
-	if ((err_silence))
-	then
-		err_type="DEBUG"
-	fi
-
-	stderr=$(${cmd} "${args[@]}" 2>&1)
-	ret=${?}
-
-	caller_id=$(caller)
-
-	if ((ret==0))
-	then
-		log_msg "DEBUG" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=SUCCESS"
-	else
-		[[ ${err_type} == "DEBUG" && ${debug} == "0" ]] && return # if debug disabled, then skip on DEBUG but not on ERROR
-
-		log_msg "${err_type}" "debug_cmd: err_silence=${err_silence}; debug_msg=${debug_msg}; caller_id=${caller_id}; command=${cmd} ${args[*]}; result=FAILURE (${ret})"
-		log_msg "${err_type}" "debug_cmd: LAST ERROR (${stderr})"
-
-		frame=1
-		while caller_output=$(caller "${frame}")
-		do
-			log_msg "${err_type}" "debug_cmd: CALL CHAIN: ${caller_output}"
-			((++frame))
-		done
-	fi
 }
 
 # shellcheck disable=SC1090,SC2311
