@@ -610,18 +610,23 @@ set_shaper_rate()
 			((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 		fi
 
-		last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
+		# Compensate for delays imposed by active traffic shaper
+		# This will serve to increase the delay thr at rates below around 12Mbit/s
+		((
+			dl_compensation_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl],
+			ul_compensation_us=(1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
 
-		update_max_wire_packet_compensation
+			compensated_owd_delta_thr_us[dl]=dl_owd_delta_thr_us + dl_compensation_us,
+			compensated_owd_delta_thr_us[ul]=ul_owd_delta_thr_us + ul_compensation_us,
+
+			compensated_avg_owd_delta_thr_us[dl]=dl_avg_owd_delta_thr_us + dl_compensation_us,
+			compensated_avg_owd_delta_thr_us[ul]=ul_avg_owd_delta_thr_us + ul_compensation_us,
+
+			max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
+		
+			last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
+		))
 	fi
-}
-
-set_min_shaper_rates()
-{
-	log_msg "DEBUG" "Enforcing minimum shaper rates."
-	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-	set_shaper_rate "dl"
-	set_shaper_rate "ul"
 }
 
 get_max_wire_packet_size_bits()
@@ -634,24 +639,6 @@ get_max_wire_packet_size_bits()
 	(( max_wire_packet_size_bits=8*(max_wire_packet_size_bits+BASH_REMATCH[2]) ))
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
 	[[ ${BASH_REMATCH[1]:-} == "atm" ]] && (( max_wire_packet_size_bits=424*((max_wire_packet_size_bits+376)/384) ))
-}
-
-update_max_wire_packet_compensation()
-{
-	# Compensate for delays imposed by active traffic shaper
-	# This will serve to increase the delay thr at rates below around 12Mbit/s
-	((
-		dl_compensation_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl],
-		ul_compensation_us=(1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
-
-		compensated_owd_delta_thr_us[dl]=dl_owd_delta_thr_us + dl_compensation_us,
-		compensated_owd_delta_thr_us[ul]=ul_owd_delta_thr_us + ul_compensation_us,
-	
-		compensated_avg_owd_delta_thr_us[dl]=dl_avg_owd_delta_thr_us + dl_compensation_us,
-		compensated_avg_owd_delta_thr_us[ul]=ul_avg_owd_delta_thr_us + ul_compensation_us,
-
-		max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul]
-	))
 }
 
 verify_ifs_up()
@@ -1091,8 +1078,6 @@ avg_owd_delta_thr_us[dl]=${dl_avg_owd_delta_thr_us} avg_owd_delta_thr_us[ul]=${u
 set_shaper_rate "dl"
 set_shaper_rate "ul"
 
-update_max_wire_packet_compensation
-
 dl_rate_load_condition="idle" ul_rate_load_condition="idle"
 
 mapfile -t dl_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
@@ -1526,7 +1511,14 @@ do
 							change_state_main "IDLE"	
 
 							log_msg "DEBUG" "Connection idle. Waiting for minimum load."
-							((min_shaper_rates_enforcement)) && set_min_shaper_rates
+
+							if ((min_shaper_rates_enforcement))
+							then
+								log_msg "DEBUG" "Enforcing minimum shaper rates."
+								shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
+								set_shaper_rate "dl"
+								set_shaper_rate "ul"
+							fi
 
 							stop_pingers
 
