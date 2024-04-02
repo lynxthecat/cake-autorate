@@ -408,7 +408,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 			% use real sample times, PROC_TIME_US is seconds.NNNNNN
 			% to make things less odd report times in seconds since the log start
-			x_vec.DATA = (autorate_log.DATA.LISTS.PROC_TIME_US .- first_sample_timestamp);
+			x_vec.DATA = (autorate_log.DATA.LISTS.PROC_TIME_US - first_sample_timestamp);
 			disp(['Selected DATA sample indices: ', num2str(x_range.DATA)]);
 
 			% use this later to set the XLim s for all time plots
@@ -420,7 +420,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 		if (n_LOAD_samples > 0)
 			LOAD_rates_x_idx = (x_range.LOAD(1):1:x_range.LOAD(2));
-			x_vec.LOAD = (autorate_log.LOAD.LISTS.PROC_TIME_US .- first_sample_timestamp);
+			x_vec.LOAD = (autorate_log.LOAD.LISTS.PROC_TIME_US - first_sample_timestamp);
 			disp(['Selected LOAD sample indices: ', num2str(x_range.LOAD)]);
 			% XLims should fit both DATA and LOAD sample timestamps
 			x_vec_range(1) = min(x_vec_range(1), x_vec.LOAD(LOAD_rates_x_idx(1)));
@@ -1631,7 +1631,7 @@ function [ delay_struct, CDF_x_vec, unique_reflector_list ] = fn_get_XDF_by_load
 
 
 	% the next needs checking for true OWDs and RTTs
-	RTT_sample_list = UL_OWD_sample_list .+ DL_OWD_sample_list;
+	RTT_sample_list = UL_OWD_sample_list + DL_OWD_sample_list;
 
 	delay.UL_OWD = UL_OWD_sample_list;
 	delay.DL_OWD = DL_OWD_sample_list;
