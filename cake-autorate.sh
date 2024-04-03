@@ -1250,10 +1250,9 @@ do
 						
 						seq=${seq//[\[\]]}
 						printf -v rtt_us %.3f "${rtt_ms}"
-						rtt_us=${rtt_us//.}
 
 						((
-							dl_owd_us=rtt_us/2,
+							dl_owd_us=10#${rtt_us//.}/2,
 							ul_owd_us=dl_owd_us,
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 
@@ -1281,10 +1280,9 @@ do
 						reflector=${reflector//:/} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"
-						rtt_us=${rtt_us//.}
 
 						((
-							dl_owd_us=rtt_us/2,
+							dl_owd_us=10#${rtt_us//.}/2,
 							ul_owd_us=dl_owd_us,
 
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
