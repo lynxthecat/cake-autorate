@@ -850,6 +850,11 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 			disp([num2str(line_count), ': ', current_line]);
 		endif
 
+    if (length(current_line) < 5)
+      disp('WARN: line shorter than 5 chars, abort parsing...');
+      break
+    endif
+
 		cur_record_type = fn_get_record_type_4_line(current_line, delimiter_string, string_field_identifier_list);
 		fn_parse_current_line(cur_record_type, current_line, delimiter_string, line_increment);
 
@@ -1225,6 +1230,12 @@ function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_s
 			current_line(extra_delimiter_idx) = ":";
 		endif
 	endif
+  if (length(delimiter_idx) < length(log_struct.(cur_record_type).listnames) - 1)
+    disp('WARN: incomplete line in logfile encountered...');
+    cur_valid_data_idx = cur_valid_data_idx -1;
+    return
+  endif
+
 	field_cell_array = textscan(current_line, log_struct.(cur_record_type).format_string, "Delimiter", delimiter_string);
 
 	if isempty(field_cell_array) || length(field_cell_array) < length(log_struct.(cur_record_type).listnames)
