@@ -263,6 +263,8 @@ export_log_file()
 	log_file_export_path=${log_file_path/.log/_${log_file_export_datetime}.log}
 	log_msg "DEBUG" "Exporting log file with path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 
+	flush_log_pipe
+
 	# Now export with or without compression to the appropriate export path
 	if ((log_file_export_compress))
 	then
@@ -287,13 +289,14 @@ export_log_file()
 	printf '%s' "${log_file_export_path}" > ${run_path}/last_log_file_export
 }
 
-flush_log_fd()
+flush_log_pipe()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	while read -r -t 0 -u "${log_fd}"
 	do
 		read -r -u "${log_fd}" log_line
 		printf '%s\n' "${log_line}" >&${log_file_fd}
+		((log_file_size_bytes+=${#log_line}))
 	done
 }
 
@@ -301,7 +304,7 @@ kill_maintain_log_file()
 {
 	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	flush_log_fd
+	flush_log_pipe
 	exit
 }
 
@@ -350,7 +353,7 @@ maintain_log_file()
 			fi
 		done
 
-		flush_log_fd
+		flush_log_pipe
 		if ((reset_log_file_signalled))
 		then
 			reset_log_file
