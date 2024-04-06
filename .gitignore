@@ -1,0 +1,4 @@
+cake-autorate.*.log
+cake-autorate.*.log.gz
+cake-autorate.*.log.mat
+output.*.*
