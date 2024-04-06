@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 
 """
-Modified from matlab-formatter-vscode to add GNU Octave support and to adapt
-it to cake-autorate's needs (i.e., we added some features like inplace, tabs,
-argparse, etc.)
+Modified from matlab-formatter-vscode to add GNU Octave support and other features
+which are not available in the original version.
 
 Based on https://github.com/affenwiesel/matlab-formatter-vscode commit 43d7224.
 
-For reference on what needs to be modified, see
+For reference on the differences between GNU Octave and MATLAB, see:
 https://en.wikibooks.org/wiki/MATLAB_Programming/Differences_between_Octave_and_MATLAB
 
 Copyright(C) 2019-2021 Benjamin "Mogli" Mann
@@ -36,18 +35,22 @@ import sys
 class Formatter:
     # control sequences
     ctrl_1line = re.compile(
-        r"(\s*)(if|while|for|try)(\W\s*\S.*\W)((end|endif|endwhile|endfor|end_try_catch);?)(\s+\S.*|\s*$)"
+        r"(\s*)(if|while|for|try)(\W\s*\S.*\W)"
+        r"((end|endif|endwhile|endfor|end_try_catch);?)"
+        r"(\s+\S.*|\s*$)"
     )
     ctrl_1line_dountil = re.compile(r"(^|\s*)(do)(\W\S.*\W)(until)\s*(\W\S.*|\s*$)")
     fcnstart = re.compile(r"(\s*)(function|classdef)\s*(\W\s*\S.*|\s*$)")
     ctrlstart = re.compile(
-        r"(\s*)(if|while|for|parfor|try|methods|properties|events|arguments|enumeration|do|spmd)\s*(\W\s*\S.*|\s*$)"
+        r"(\s*)(if|while|for|parfor|try|methods|properties|events|arguments|enumeration|do|spmd)"
+        r"\s*(\W\s*\S.*|\s*$)"
     )
     ctrl_ignore = re.compile(r"(\s*)(import|clear|clearvars)(.*$)")
     ctrlstart_2 = re.compile(r"(\s*)(switch)\s*(\W\s*\S.*|\s*$)")
     ctrlcont = re.compile(r"(\s*)(elseif|else|case|otherwise|catch)\s*(\W\s*\S.*|\s*$)")
     ctrlend = re.compile(
-        r"(\s*)((end|endfunction|endif|endwhile|endfor|end_try_catch|endswitch|until|endclassdef|endmethods|endproperties);?)(\s+\S.*|\s*$)"
+        r"(\s*)((end|endfunction|endif|endwhile|endfor|end_try_catch|endswitch|until|endclassdef|"
+        r"endmethods|endproperties);?)(\s+\S.*|\s*$)"
     )
     linecomment = re.compile(r"(\s*)[%#].*$")
     ellipsis = re.compile(r".*\.\.\..*$")
@@ -117,12 +120,12 @@ class Formatter:
     islinecomment = 0
     longline = 0
     continueline = 0
-    is_comment = 0
     separate_blocks = False
     ignore_lines = 0
 
     def __init__(
         self,
+        *,
         indent_width,
         separate_blocks,
         indent_mode,
@@ -139,12 +142,11 @@ class Formatter:
         split = self.extract_string_comment(line)
         if split:
             return (
-                self.clean_line_from_strings_and_comments(split[0])
-                + " "
-                + self.clean_line_from_strings_and_comments(split[2])
+                f"{self.clean_line_from_strings_and_comments(split[0])}"
+                " "
+                f"{self.clean_line_from_strings_and_comments(split[2])}"
             )
-        else:
-            return line
+        return line
 
     # divide string into three parts by extracting and formatting certain
     # expressions
@@ -153,8 +155,7 @@ class Formatter:
         # comment
         m = self.p_comment.match(part)
         if m:
-            self.is_comment = 1
-            part = m.group(1) + " " + m.group(2)
+            part = f"{m.group(1)} {m.group(2)}"
 
         # string
         m = self.p_string.match(part)
@@ -181,17 +182,25 @@ class Formatter:
         # decimal number (e.g. 5.6E-3)
         m = self.p_num_sc.match(part)
         if m:
-            return (m.group(1) + m.group(2), m.group(3), m.group(4) + m.group(5))
+            return (
+                f"{m.group(1)}{m.group(2)}",
+                m.group(3),
+                f"{m.group(4)}{m.group(5)}",
+            )
 
         # rational number (e.g. 1/4)
         m = self.p_num_R.match(part)
         if m:
-            return (m.group(1) + m.group(2), m.group(3), m.group(4) + m.group(5))
+            return (
+                f"{m.group(1)}{m.group(2)}",
+                m.group(3),
+                f"{m.group(4)}{m.group(5)}",
+            )
 
         # incrementor (++ or --)
         m = self.p_incr.match(part)
         if m:
-            return (m.group(1), m.group(2) + m.group(3), m.group(4))
+            return (m.group(1), f"{m.group(2)}{m.group(3)}", m.group(4))
 
         # signum (unary - or +)
         m = self.p_sign.match(part)
@@ -208,41 +217,47 @@ class Formatter:
         if m:
             sep = " " if self.operator_sep > 0 else ""
             return (
-                m.group(1) + sep,
-                m.group(2) + m.group(3) + m.group(4),
-                sep + m.group(5),
+                f"{m.group(1)}{sep}",
+                f"{m.group(2)}{m.group(3)}{m.group(4)}",
+                f"{sep}{m.group(5)}",
             )
 
         # .power (.^)
         m = self.p_pow_dot.match(part)
         if m:
             sep = " " if self.operator_sep > 0.5 else ""
-            return (m.group(1) + sep, m.group(2) + m.group(3), sep + m.group(4))
+            return (
+                f"{m.group(1)}{sep}",
+                f"{m.group(2)}{m.group(3)}",
+                f"{sep}{m.group(4)}",
+            )
 
         # power (^)
         m = self.p_pow.match(part)
         if m:
             sep = " " if self.operator_sep > 0.5 else ""
-            return (m.group(1) + sep, m.group(2), sep + m.group(3))
+            return (f"{m.group(1)}{sep}", m.group(2), f"{sep}{m.group(3)}")
 
         # combined operator (e.g. +=, .+, etc.)
         m = self.p_op_comb.match(part)
         if m:
-            # sep = ' ' if m.group(3) == '=' or self.operatorSep > 0 else ''
             sep = " " if self.operator_sep > 0 else ""
-            return (m.group(1) + sep, m.group(2) + m.group(3), sep + m.group(4))
+            return (
+                f"{m.group(1)}{sep}",
+                f"{m.group(2)}{m.group(3)}",
+                f"{sep}{m.group(4)}",
+            )
 
         # not (~ or !)
         m = self.p_not.match(part)
         if m:
-            return (m.group(1) + " ", m.group(2), m.group(3))
+            return (f"{m.group(1)} ", m.group(2), m.group(3))
 
         # single operator (e.g. +, -, etc.)
         m = self.p_op.match(part)
         if m:
-            # sep = ' ' if m.group(2) == '=' or self.operatorSep > 0 else ''
             sep = " " if self.operator_sep > 0 else ""
-            return (m.group(1) + sep, m.group(2), sep + m.group(3))
+            return (f"{m.group(1)}{sep}", m.group(2), f"{sep}{m.group(3)}")
 
         # function call
         m = self.p_func.match(part)
@@ -262,12 +277,12 @@ class Formatter:
         # comma/semicolon
         m = self.p_comma.match(part)
         if m:
-            return (m.group(1), m.group(2), " " + m.group(3))
+            return (m.group(1), m.group(2), f" {m.group(3)}")
 
         # ellipsis
         m = self.p_ellipsis.match(part)
         if m:
-            return (m.group(1) + " ", m.group(2), " " + m.group(3))
+            return (f"{m.group(1)} ", m.group(2), f" {m.group(3)}")
 
         # multiple whitespace
         m = self.p_multiws.match(part)
@@ -280,20 +295,19 @@ class Formatter:
     def format(self, part):
         m = self.extract(part)
         if m:
-            return self.format(m[0]) + m[1] + self.format(m[2])
+            return f"{self.format(m[0])}{m[1]}{self.format(m[2])}"
         return part
 
     # compute indentation
     def indent(self, add_space=0):
-        indnt = ((self.ilvl + self.continueline) * self.iwidth + add_space) * " "
-        return indnt
+        return ((self.ilvl + self.continueline) * self.iwidth + add_space) * " "
 
     # take care of indentation and call format(line)
     def format_line(self, line):
 
         if self.ignore_lines > 0:
             self.ignore_lines -= 1
-            return (0, self.indent() + line.strip())
+            return (0, f"{self.indent()}{line.strip()}")
 
         # determine if linecomment
         if re.match(self.linecomment, line):
@@ -311,7 +325,6 @@ class Formatter:
             self.isblockcomment = max(0, self.isblockcomment - 1)
 
         # find ellipsis
-        self.is_comment = 0
         stripped_line = self.clean_line_from_strings_and_comments(line)
         ellipsis_in_comment = self.islinecomment == 2 or self.isblockcomment
         if re.match(self.block_close, stripped_line) or ellipsis_in_comment:
@@ -334,36 +347,30 @@ class Formatter:
                     self.ignore_lines = int(m.group(1))
                 else:
                     self.ignore_lines = 1
-            return (0, self.indent() + line.strip())
+            return (0, f"{self.indent()}{line.strip()}")
 
         # find imports, clear, etc.
         m = re.match(self.ctrl_ignore, line)
         if m:
-            return (0, self.indent() + line.strip())
+            return (0, f"{self.indent()}{line.strip()}")
 
         # find matrices
         tmp = self.matrix
         if self.multilinematrix(line) or tmp:
-            return (0, self.indent(tmp) + self.format(line).strip())
+            return (0, f"{self.indent(tmp)}{self.format(line).strip()}")
 
         # find cell arrays
         tmp = self.cell
         if self.cellarray(line) or tmp:
-            return (0, self.indent(tmp) + self.format(line).strip())
+            return (0, f"{self.indent(tmp)}{self.format(line).strip()}")
 
         # find control structures
         m = re.match(self.ctrl_1line, line)
         if m:
             return (
                 0,
-                self.indent()
-                + m.group(2)
-                + " "
-                + self.format(m.group(3)).strip()
-                + " "
-                + m.group(4)
-                + " "
-                + self.format(m.group(6)).strip(),
+                f"{self.indent()}{m.group(2)} {self.format(m.group(3)).strip()} "
+                f"{m.group(4)} {self.format(m.group(6)).strip()}",
             )
 
         m = re.match(self.fcnstart, line)
@@ -374,35 +381,23 @@ class Formatter:
                 offset = int(len(self.fstep) > 1)
             return (
                 offset,
-                self.indent() + m.group(2) + " " + self.format(m.group(3)).strip(),
+                f"{self.indent()}{m.group(2)} {self.format(m.group(3)).strip()}",
             )
 
         m = re.match(self.ctrl_1line_dountil, line)
         if m:
             return (
                 0,
-                self.indent()
-                + m.group(2)
-                + " "
-                + self.format(m.group(3)).strip()
-                + " "
-                + m.group(4)
-                + " "
-                + m.group(5),
+                f"{self.indent()}{m.group(2)} {self.format(m.group(3)).strip()} "
+                f"{m.group(4)} {m.group(5)}",
             )
 
         m = re.match(self.ctrl_1line_dountil, line)
         if m:
             return (
                 0,
-                self.indent()
-                + m.group(2)
-                + " "
-                + self.format(m.group(3)).strip()
-                + " "
-                + m.group(4)
-                + " "
-                + m.group(5),
+                f"{self.indent()}{m.group(2)} {self.format(m.group(3)).strip()} "
+                f"{m.group(4)} {m.group(5)}",
             )
 
         m = re.match(self.ctrlstart, line)
@@ -410,7 +405,7 @@ class Formatter:
             self.istep.append(1)
             return (
                 1,
-                self.indent() + m.group(2) + " " + self.format(m.group(3)).strip(),
+                f"{self.indent()}{m.group(2)} {self.format(m.group(3)).strip()}",
             )
 
         m = re.match(self.ctrlstart_2, line)
@@ -418,17 +413,14 @@ class Formatter:
             self.istep.append(2)
             return (
                 2,
-                self.indent() + m.group(2) + " " + self.format(m.group(3)).strip(),
+                f"{self.indent()}{m.group(2)} {self.format(m.group(3)).strip()}",
             )
 
         m = re.match(self.ctrlcont, line)
         if m:
             return (
                 0,
-                self.indent(-self.iwidth)
-                + m.group(2)
-                + " "
-                + self.format(m.group(3)).strip(),
+                f"{self.indent(-self.iwidth)}{m.group(2)} {self.format(m.group(3)).strip()}",
             )
 
         m = re.match(self.ctrlend, line)
@@ -442,25 +434,21 @@ class Formatter:
                 step = 0
             return (
                 -step,
-                self.indent(-step * self.iwidth)
-                + m.group(2)
-                + " "
-                + self.format(m.group(4)).strip(),
+                f"{self.indent(-step * self.iwidth)}{m.group(2)} "
+                f"{self.format(m.group(4)).strip()}",
             )
 
-        return (0, self.indent() + self.format(line).strip())
+        return (0, f"{self.indent()}{self.format(line).strip()}")
 
     # format file from line 'start' to line 'end'
-    def format_file(self, filename, start, end, inplace, use_tabs, use_crlf):
+    def format_file(self, *, filename, start, end, inplace):
         # read lines from file
         wlines = rlines = []
 
-        if filename == "-":
-            with sys.stdin as f:
-                rlines = f.readlines()[start - 1 : end]
-        else:
-            with open(filename, "r", encoding="UTF-8") as f:
-                rlines = f.readlines()[start - 1 : end]
+        with (
+            sys.stdin if filename == "-" else open(filename, "r", encoding="UTF-8")
+        ) as f:
+            rlines = f.readlines()[start - 1 : end]
 
         # take care of empty input
         if not rlines:
@@ -501,11 +489,9 @@ class Formatter:
             wlines.append(line.rstrip())
 
             # add newline after block
-            if self.separate_blocks and offset < 0:
+            blank = self.separate_blocks and offset < 0
+            if blank:
                 wlines.append("")
-                blank = True
-            else:
-                blank = False
 
         # remove last line if blank
         while wlines and not wlines[-1]:
@@ -514,13 +500,6 @@ class Formatter:
         # take care of empty output
         if not wlines:
             wlines = [""]
-
-        # convert spaces to tabs
-        if self.iwidth <= 0 and use_tabs:
-            print("Indent width must be greater than 0 to use tabs!", file=sys.stderr)
-            use_tabs = False
-        elif use_tabs:
-            wlines = [re.sub(r"^" + r" " * self.iwidth, "\t", line) for line in wlines]
 
         # write output
         if inplace:
@@ -532,14 +511,12 @@ class Formatter:
                 print("Cannot write inplace to a slice of a file!", file=sys.stderr)
                 return
 
-            with open(
-                filename, "w", encoding="UTF-8", newline="\r\n" if use_crlf else "\n"
-            ) as f:
+            with open(filename, "w", encoding="UTF-8") as f:
                 for line in wlines:
-                    f.write(line + "\n")
+                    f.write(f"{line}\n")
         else:
             for line in wlines:
-                print(line, end="\r\n" if use_crlf else "\n")
+                print(line)
 
 
 def main():
@@ -548,10 +525,6 @@ def main():
     parser.add_argument("--start-line", type=int, default=1, help="start line")
     parser.add_argument("--end-line", type=int, help="end line")
     parser.add_argument("--indent-width", type=int, default=4, help="indent width")
-    parser.add_argument(
-        "--use-tabs", action="store_true", help="use tabs instead of spaces"
-    )
-    parser.add_argument("--use-crlf", action="store_true", help="use CRLF line endings")
     parser.add_argument(
         "--separate-blocks", action="store_true", help="separate blocks"
     )
@@ -574,30 +547,29 @@ def main():
         help="matrix indentation",
     )
     parser.add_argument("--inplace", action="store_true", help="modify file in place")
-
     args = parser.parse_args()
 
     indent_modes = {"all_functions": 1, "only_nested_functions": -1, "classic": 0}
-
     operator_spaces = {"all_operators": 1, "exclude_pow": 0.5, "no_spaces": 0}
-
     matrix_indentation = {"aligned": 1, "simple": 0}
 
     formatter = Formatter(
-        args.indent_width,
-        args.separate_blocks,
-        indent_modes.get(args.indent_mode, indent_modes["all_functions"]),
-        operator_spaces.get(args.add_space, operator_spaces["exclude_pow"]),
-        matrix_indentation.get(args.matrix_indent, matrix_indentation["aligned"]),
+        indent_width=args.indent_width,
+        separate_blocks=args.separate_blocks,
+        indent_mode=indent_modes.get(args.indent_mode, indent_modes["all_functions"]),
+        operator_sep=operator_spaces.get(
+            args.add_space, operator_spaces["exclude_pow"]
+        ),
+        matrix_indent=matrix_indentation.get(
+            args.matrix_indent, matrix_indentation["aligned"]
+        ),
     )
 
     formatter.format_file(
-        args.filename,
-        args.start_line,
-        args.end_line,
-        args.inplace,
-        args.use_tabs,
-        args.use_crlf,
+        filename=args.filename,
+        start=args.start_line,
+        end=args.end_line,
+        inplace=args.inplace,
     )
 
 
