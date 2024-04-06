@@ -186,7 +186,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		min_sequence_number = 1;
 
 		align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
-		output_format_extension = '.png'; % '.pdf', '.png', '.tif', '.ps',...
+		output_format_extension = '.png'; % '.pdf', '.png', '.tif', '.ps
 		line_width = 1.0;
 		figure_opts.line_width = line_width;
 		figure_opts.output_format_extension = output_format_extension;
@@ -243,7 +243,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 				rates.DATA.linestyle_list(rate_DATA_idx) = [];
 				rates.DATA.sign_list(rate_DATA_idx) = [];
 			end
-            if isfield(autorate_log.LOAD.LISTS, 'UL_ACHIEVED_RATE_KBPS')
+      if isfield(autorate_log.LOAD.LISTS, 'UL_ACHIEVED_RATE_KBPS')
 				rates.LOAD.fields_to_plot_list{end+1} = 'UL_ACHIEVED_RATE_KBPS';
 				rates.LOAD.color_list{end+1} = [77,172,38]/254;
 				rates.LOAD.linestyle_list{end+1} = '-';
@@ -740,7 +740,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 			write_out_figure(autorate_fh, cur_plot_FQN, [], []);
 		endif
 	catch err
-  		warning(err.identifier, err.message);
+    warning(err.identifier, err.message);
 		err
 		for i_stack = 1 : length(err.stack)
 			disp(['Stack #: ', num2str(i_stack), ':']);
@@ -787,6 +787,9 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.INFO = [];
 	log_struct.SHAPER = [];
 	log_struct.metainformation = [];
+  log_struct.SUMMARY_HEADER = [];
+	log_struct.SUMMARY = [];
+
 
 	%TODO: merge current and old log file if they can be found...
 
@@ -851,12 +854,21 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 		endif
 
     if (length(current_line) < 5)
-      disp('WARN: line shorter than 5 chars, abort parsing...');
-      break
+      disp('WARN: line shorter than 5 chars, skip parsing of this line...');
+      continue
     endif
 
 		cur_record_type = fn_get_record_type_4_line(current_line, delimiter_string, string_field_identifier_list);
-		fn_parse_current_line(cur_record_type, current_line, delimiter_string, line_increment);
+    try
+	    fn_parse_current_line(cur_record_type, current_line, delimiter_string, line_increment);
+    catch
+      disp(['WARN: Parsing of line ', num2str(line_count), ' failed. Line content:']);
+      disp(current_line);
+      disp(['WARN: Will skip this line, but the rest of the parsing might fail, please check the raw logfile....']);
+      %keyboard
+      continue
+    end_try_catch
+
 
 		if ~(mod(line_count, 1000))
 			% give some feed back, however this is expensive so do so rarely
@@ -870,7 +882,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	fclose(log_fd);
 
 	% shrink global datastructures
-	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER", "LOAD"});
+	fn_shrink_global_LISTS({"DEBUG", "INFO", "DATA", "SHAPER", "LOAD", "SUMMARY"});
 
 	% ready for export and
 	autorate_log = log_struct;
@@ -978,7 +990,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				else
 					log_struct.metainformation.SKIP_DATA.count = log_struct.metainformation.SKIP_DATA.count + 1;
 				endif
-				disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_DATA.count), ').']);
+				disp(['Found DATA before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_DATA.count), ').']);
 			else
 				# this is fine we already found a header
 				if ~isfield(log_struct.metainformation, 'DATA')
@@ -1004,7 +1016,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 				else
 					log_struct.metainformation.SKIP_LOAD.count = log_struct.metainformation.SKIP_LOAD.count + 1;
 				endif
-				disp(['Found LOAD  before LOAD_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_LOAD.count), ').']);
+				disp(['Found LOAD before LOAD_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_LOAD.count), ').']);
 			else
 				# this is fine we already found a header
 
@@ -1033,7 +1045,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 					else
 						log_struct.metainformation.SKIP_REFLECTOR.count = log_struct.metainformation.SKIP_REFLECTOR.count + 1;
 					endif
-					disp(['Found DATA  before DATA_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_REFLECTOR.count), ').']);
+					disp(['Found REFLECTOR before REFLECTOR_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_REFLECTOR.count), ').']);
 				else
 					# this is fine we already found a header
 					if ~isfield(log_struct.metainformation, 'REFLECTOR')
@@ -1043,762 +1055,808 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
 						log_struct.metainformation.REFLECTOR.count = log_struct.metainformation.REFLECTOR.count + 1;
 					endif
 				endif
-			endif
-		case {"SHAPE"}
-			cur_record_type = "SHAPER";
-			if ~isfield(log_struct.metainformation, 'SHAPER')
-				log_struct.metainformation.SHAPER.count = 1;
-			else
-				log_struct.metainformation.SHAPER.count = log_struct.metainformation.SHAPER.count + 1;
-			endif
-		case {"INFO;"}
-			cur_record_type = "INFO";
-			if ~isfield(log_struct.metainformation, 'INFO')
-				log_struct.metainformation.INFO.count = 1;
-			else
-				log_struct.metainformation.INFO.count = log_struct.metainformation.INFO.count + 1;
-			endif
-		case {"/root"}
-			% example for single shot logging...
-			cur_record_type = "SKIP_root";
-			if ~isfield(log_struct.metainformation, 'SKIP_root')
-				log_struct.metainformation.SKIP_root.count = 1;
-				% only warn once
-				disp(["WARNING: Unhandled type identifier encountered: ", current_line(1:5), ' only noting once...']);
-			else
-				log_struct.metainformation.SKIP_root.count = log_struct.metainformation.SKIP_root.count + 1;
-			endif
-		otherwise
-			% this will be logged multiple times, but it can be triggered by different lines, so this seems OK.
-			disp(["WARNING: Unhandled type identifier encountered: ", current_line(1:5), ' trying to ignore...']);
-			%error("ERROR: Not handled yet, bailing out...");
-			cur_record_type = "SKIP";
-			if ~isfield(log_struct.metainformation, 'SKIP')
-				log_struct.metainformation.SKIP.count = 1;
-			else
-				log_struct.metainformation.SKIP.count = log_struct.metainformation.SKIP.count + 1;
-			endif
-	endswitch
+      endif
+    case {"SUMMA"}
+      if strcmp(current_line(1:14), "SUMMARY_HEADER")
+        cur_record_type = "SUMMARY_HEADER";
+        if ~isfield(log_struct.metainformation, 'SUMMARY_HEADER')
+          %log_struct.SUMMARY_HEADER = [];
+          log_struct.metainformation.SUMMARY_HEADER.count = 1;
+        else
+          log_struct.metainformation.SUMMARY_HEADER.count = log_struct.metainformation.SUMMARY_HEADER.count + 1;
+        endif
+      elseif strcmp(current_line(1:8), "SUMMARY;")
+        cur_record_type = "SUMMARY";
+        if ~isfield(log_struct.metainformation, 'SUMMARY_HEADER') || log_struct.metainformation.SUMMARY_HEADER.count < 1
+          # we have not encountered a SUMMARY_HEADER record yet and do not know how to parse REFLECTOR records, so SKIP
+          cur_record_type = "SKIP";
+          if ~isfield(log_struct.metainformation, 'SKIP_SUMMARY')
+            log_struct.metainformation.SKIP_SUMMARY.count = 1;
+          else
+            log_struct.metainformation.SKIP_SUMMARY.count = log_struct.metainformation.SKIP_SUMMARY.count + 1;
+          endif
+          disp(['Found SUMMARY before SUMMARY_HEADER record, unable to parse, skipping (N: ', num2str(log_struct.metainformation.SKIP_SUMMARY.count), ').']);
+        else
+          # this is fine we already found a header
+          if ~isfield(log_struct.metainformation, 'SUMMARY')
+            %log_struct.REFLECTOR = [];
+            log_struct.metainformation.SUMMARY.count = 1;
+          else
+            log_struct.metainformation.SUMMARY.count = log_struct.metainformation.SUMMARY.count + 1;
+          endif
+        endif
+      endif
+  case {"SHAPE"}
+    cur_record_type = "SHAPER";
+    if ~isfield(log_struct.metainformation, 'SHAPER')
+      log_struct.metainformation.SHAPER.count = 1;
+    else
+      log_struct.metainformation.SHAPER.count = log_struct.metainformation.SHAPER.count + 1;
+    endif
+  case {"INFO;"}
+    cur_record_type = "INFO";
+    if ~isfield(log_struct.metainformation, 'INFO')
+      log_struct.metainformation.INFO.count = 1;
+    else
+      log_struct.metainformation.INFO.count = log_struct.metainformation.INFO.count + 1;
+    endif
+  case {"/root"}
+    % example for single shot logging...
+    cur_record_type = "SKIP_root";
+    if ~isfield(log_struct.metainformation, 'SKIP_root')
+      log_struct.metainformation.SKIP_root.count = 1;
+      % only warn once
+      disp(["WARNING: Unhandled type identifier encountered: ", current_line(1:5), ' only noting once...']);
+    else
+      log_struct.metainformation.SKIP_root.count = log_struct.metainformation.SKIP_root.count + 1;
+    endif
+  otherwise
+    % this will be logged multiple times, but it can be triggered by different lines, so this seems OK.
+    disp(["WARNING: Unhandled type identifier encountered: ", current_line(1:5), ' trying to ignore...']);
+    %error("ERROR: Not handled yet, bailing out...");
+    cur_record_type = "SKIP";
+    if ~isfield(log_struct.metainformation, 'SKIP')
+      log_struct.metainformation.SKIP.count = 1;
+    else
+      log_struct.metainformation.SKIP.count = log_struct.metainformation.SKIP.count + 1;
+    endif
+endswitch
 
-	% define the parsing strings
-	switch cur_record_type
-		case {"DEBUG"}
-			if ~isfield(log_struct.DEBUG, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
-				log_struct.DEBUG.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};#
-				log_struct.DEBUG.listtypes = {"%s", "%s", "%f", "%s"};
-				log_struct.DEBUG.format_string = fn_compose_format_string(log_struct.DEBUG.listtypes);
-			endif
-		case {"HEADER", "DATA_"}
-			if ~isfield(log_struct.HEADER, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
-				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'HEADER', 'DATA');
-				% HEADER stays mostly empty
-				%log_struct.HEADER.format_string = "";
-				%log_struct.HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
-				%log_struct.HEADER.listtypes = {};
-			endif
-		case {"DATA"}
-			if ~isfield(log_struct.DATA, 'listtypes') || isempty(log_struct.DATA.listtypes)
-				%throw error as this needs to be filled from header already...
-				% fill this from the header
-				log_struct.DATA.format_string = "";
-				log_struct.DATA.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
-				log_struct.DATA.listtypes = {};
-			endif
-		case {"LOAD_HEADER"}
-			if ~isfield(log_struct.LOAD_HEADER, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
-				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'LOAD_HEADER', 'LOAD');
-				% HEADER stays mostly empty
-				%log_struct.HEADER.format_string = "";
-				%log_struct.HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
-				%log_struct.HEADER.listtypes = {};
-			endif
-		case {"LOAD"}
-			if ~isfield(log_struct.LOAD, 'listtypes') || isempty(log_struct.LOAD.listtypes)
-				%throw error as this needs to be filled from header already...
-				% fill this from the header
-				log_struct.LOAD.format_string = "";
-				log_struct.LOAD.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
-				log_struct.LOAD.listtypes = {};
-			endif
-		case {"REFLECTOR_HEADER"}
-			if ~isfield(log_struct.REFLECTOR_HEADER, 'listtypes') || isempty(log_struct.REFLECTOR_HEADER.listtypes)
-				fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'REFLECTOR_HEADER', 'REFLECTOR');
-				% HEADER stays mostly empty
-				%log_struct.REFLECTOR_HEADER.format_string = "";
-				%log_struct.REFLECTOR_HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
-				%log_struct.REFLECTOR_HEADER.listtypes = {};
-			endif
-		case {"REFLECTOR"}
-			if ~isfield(log_struct.REFLECTOR, 'listtypes') || isempty(log_struct.REFLECTOR.listtypes)
-				%throw error as this needs to be filled from header already...
-				% fill this from the header
-				log_struct.REFLECTOR.format_string = "";
-				log_struct.REFLECTOR.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
-				log_struct.REFLECTOR.listtypes = {};
-			endif
-		case {"SHAPER"}
-			if ~isfield(log_struct.SHAPER, 'listtypes') || isempty(log_struct.SHAPER.listtypes)
-				log_struct.SHAPER.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};
-				log_struct.SHAPER.listtypes = {"%s", "%s", "%f", "%s"};
-				log_struct.SHAPER.format_string = fn_compose_format_string(log_struct.SHAPER.listtypes);
-			endif
-		case {"INFO"}
-			if ~isfield(log_struct.INFO, 'listtypes') || isempty(log_struct.INFO.listtypes)
-				log_struct.INFO.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};
-				log_struct.INFO.listtypes = {"%s", "%s", "%f", "%s"};
-				log_struct.INFO.format_string = fn_compose_format_string(log_struct.INFO.listtypes);
-			endif
-		case {"SKIP_root", "SKIP"}
-			% ignore these.
-		otherwise
-			disp(["WARNING: Unhandled record_type  encountered: ", cur_record_type, ' trying to ignore...']);
-			%error("ERROR: Not handled yet, bailing out...");
-	endswitch
+% define the parsing strings
+switch cur_record_type
+  case {"DEBUG"}
+    if ~isfield(log_struct.DEBUG, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
+      log_struct.DEBUG.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};#
+      log_struct.DEBUG.listtypes = {"%s", "%s", "%f", "%s"};
+      log_struct.DEBUG.format_string = fn_compose_format_string(log_struct.DEBUG.listtypes);
+    endif
+  case {"HEADER", "DATA_"}
+    if ~isfield(log_struct.HEADER, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
+      fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'HEADER', 'DATA');
+      % HEADER stays mostly empty
+      %log_struct.HEADER.format_string = "";
+      %log_struct.HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      %log_struct.HEADER.listtypes = {};
+    endif
+  case {"DATA"}
+    if ~isfield(log_struct.DATA, 'listtypes') || isempty(log_struct.DATA.listtypes)
+      %throw error as this needs to be filled from header already...
+      % fill this from the header
+      log_struct.DATA.format_string = "";
+      log_struct.DATA.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      log_struct.DATA.listtypes = {};
+    endif
+  case {"LOAD_HEADER"}
+    if ~isfield(log_struct.LOAD_HEADER, 'listtypes') || isempty(log_struct.DEBUG.listtypes)
+      fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'LOAD_HEADER', 'LOAD');
+      % HEADER stays mostly empty
+      %log_struct.HEADER.format_string = "";
+      %log_struct.HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      %log_struct.HEADER.listtypes = {};
+    endif
+  case {"LOAD"}
+    if ~isfield(log_struct.LOAD, 'listtypes') || isempty(log_struct.LOAD.listtypes)
+      %throw error as this needs to be filled from header already...
+      % fill this from the header
+      log_struct.LOAD.format_string = "";
+      log_struct.LOAD.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      log_struct.LOAD.listtypes = {};
+    endif
+  case {"REFLECTOR_HEADER"}
+    if ~isfield(log_struct.REFLECTOR_HEADER, 'listtypes') || isempty(log_struct.REFLECTOR_HEADER.listtypes)
+      fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'REFLECTOR_HEADER', 'REFLECTOR');
+      % HEADER stays mostly empty
+      %log_struct.REFLECTOR_HEADER.format_string = "";
+      %log_struct.REFLECTOR_HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      %log_struct.REFLECTOR_HEADER.listtypes = {};
+    endif
+  case {"REFLECTOR"}
+    if ~isfield(log_struct.REFLECTOR, 'listtypes') || isempty(log_struct.REFLECTOR.listtypes)
+      %throw error as this needs to be filled from header already...
+      % fill this from the header
+      log_struct.REFLECTOR.format_string = "";
+      log_struct.REFLECTOR.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      log_struct.REFLECTOR.listtypes = {};
+    endif
+  case {"SUMMARY_HEADER"}
+    if ~isfield(log_struct.SUMMARY_HEADER, 'listtypes') || isempty(log_struct.SUMMARY_HEADER.listtypes)
+      fn_extract_DATA_names_types_format_from_HEADER(current_line, delimiter_string, string_field_identifier_list, 'SUMMARY_HEADER', 'SUMMARY');
+      % HEADER stays mostly empty
+      %log_struct.SUMMARY_HEADER.format_string = "";
+      %log_struct.SUMMARY_HEADER.listnames = {};	% no lists just use these to deduce the list/fieldnames for the DATA records
+      %log_struct.SUMMARY_HEADER.listtypes = {};
+    endif
+  case {"SUMMARY"}
+    if ~isfield(log_struct.SUMMARY, 'listtypes') || isempty(log_struct.SUMMARY.listtypes)
+      %throw error as this needs to be filled from header already...
+      % fill this from the header
+      log_struct.SUMMARY.format_string = "";
+      log_struct.SUMMARY.listnames = {};	% no lists just use these to deduce the list/fieldnames for the SUMMARY records
+      log_struct.SUMMARY.listtypes = {};
+    endif
+  case {"SHAPER"}
+    if ~isfield(log_struct.SHAPER, 'listtypes') || isempty(log_struct.SHAPER.listtypes)
+      log_struct.SHAPER.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};
+      log_struct.SHAPER.listtypes = {"%s", "%s", "%f", "%s"};
+      log_struct.SHAPER.format_string = fn_compose_format_string(log_struct.SHAPER.listtypes);
+    endif
+  case {"INFO"}
+    if ~isfield(log_struct.INFO, 'listtypes') || isempty(log_struct.INFO.listtypes)
+      log_struct.INFO.listnames = {"TYPE", "LOG_DATETIME", "LOG_TIMESTAMP", "MESSAGE"};
+      log_struct.INFO.listtypes = {"%s", "%s", "%f", "%s"};
+      log_struct.INFO.format_string = fn_compose_format_string(log_struct.INFO.listtypes);
+    endif
+  case {"SKIP_root", "SKIP"}
+    % ignore these.
+  otherwise
+    disp(["WARNING: Unhandled record_type  encountered: ", cur_record_type, ' trying to ignore...']);
+    %error("ERROR: Not handled yet, bailing out...");
+endswitch
 
-	return
+return
 endfunction
 
 
 function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_string, line_increment)
-	global log_struct
+global log_struct
 
-	if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR'}) % {'DEBUG', 'INFO', 'SJHAPER'}
-		return
-	endif
+if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR'}) % {'DEBUG', 'INFO', 'SJHAPER'}
+  return
+endif
 
-	##	% ignore HEADER records
-	##	if ismember(cur_record_type, {'HEADER'})
-	##		return
-	##	endif
+##	% ignore HEADER records
+##	if ismember(cur_record_type, {'HEADER'})
+##		return
+##	endif
 
-	if ~isfield(log_struct.(cur_record_type), "LISTS") || isempty(log_struct.(cur_record_type).LISTS )
-		log_struct.(cur_record_type).last_valid_data_idx = 0;
-		for i_list = 1 : length(log_struct.(cur_record_type).listnames)
-			cur_listname = log_struct.(cur_record_type).listnames{i_list};
-			cur_listtype = log_struct.(cur_record_type).listtypes{i_list};
-			% put strings into cells and numeric data into proper double arrays
-			switch cur_listtype
-				case {"%s"}
-					log_struct.(cur_record_type).LISTS.(cur_listname) = cell([line_increment, 1]);
-				case {"%f"}
-					log_struct.(cur_record_type).LISTS.(cur_listname) = nan([line_increment, 1]);
-				otherwise
-					error(["ERROR: Unhandled listtype encountered: ", cur_listtype]);
-			endswitch
-		endfor
-	endif
+if ~isfield(log_struct.(cur_record_type), "LISTS") || isempty(log_struct.(cur_record_type).LISTS )
+  log_struct.(cur_record_type).last_valid_data_idx = 0;
+  for i_list = 1 : length(log_struct.(cur_record_type).listnames)
+    cur_listname = log_struct.(cur_record_type).listnames{i_list};
+    cur_listtype = log_struct.(cur_record_type).listtypes{i_list};
+    % put strings into cells and numeric data into proper double arrays
+    switch cur_listtype
+      case {"%s"}
+        log_struct.(cur_record_type).LISTS.(cur_listname) = cell([line_increment, 1]);
+      case {"%f"}
+        log_struct.(cur_record_type).LISTS.(cur_listname) = nan([line_increment, 1]);
+      otherwise
+        error(["ERROR: Unhandled listtype encountered: ", cur_listtype]);
+    endswitch
+  endfor
+endif
 
-	% auto enlarge data structure
-	if (log_struct.(cur_record_type).last_valid_data_idx + 1) > size(log_struct.(cur_record_type).LISTS.LOG_DATETIME, 1)
-		for i_list = 1 : length(log_struct.(cur_record_type).listnames)
-			cur_listname = log_struct.(cur_record_type).listnames{i_list};
-			cur_listtype = log_struct.(cur_record_type).listtypes{i_list};
-			% put strings into cells and numeric data into proper double arrays
-			switch cur_listtype
-				case {"%s"}
-					empty_list = cell([line_increment, 1]);
-				case {"%f"}
-					empty_list =  nan([line_increment, 1]);
-				otherwise
-					error(["ERROR: Unhandled listtype encountered: ", cur_listtype]);
-			endswitch
-			log_struct.(cur_record_type).LISTS.(cur_listname) = [log_struct.(cur_record_type).LISTS.(cur_listname); empty_list];
-		endfor
-		%disp("Growing DEBUG");
-	endif
+% auto enlarge data structure
+if (log_struct.(cur_record_type).last_valid_data_idx + 1) > size(log_struct.(cur_record_type).LISTS.LOG_DATETIME, 1)
+  for i_list = 1 : length(log_struct.(cur_record_type).listnames)
+    cur_listname = log_struct.(cur_record_type).listnames{i_list};
+    cur_listtype = log_struct.(cur_record_type).listtypes{i_list};
+    % put strings into cells and numeric data into proper double arrays
+    switch cur_listtype
+      case {"%s"}
+        empty_list = cell([line_increment, 1]);
+      case {"%f"}
+        empty_list =  nan([line_increment, 1]);
+      otherwise
+        error(["ERROR: Unhandled listtype encountered: ", cur_listtype]);
+    endswitch
+    log_struct.(cur_record_type).LISTS.(cur_listname) = [log_struct.(cur_record_type).LISTS.(cur_listname); empty_list];
+  endfor
+  %disp("Growing DEBUG");
+endif
 
-	cur_valid_data_idx = log_struct.(cur_record_type).last_valid_data_idx + 1;
+cur_valid_data_idx = log_struct.(cur_record_type).last_valid_data_idx + 1;
 
-	% check sanity of lines...
-	orig_current_line = current_line;
-	delimiter_idx = strfind(current_line, delimiter_string);
-	if (ismember(cur_record_type, {'DEBUG', 'INFO', 'SHAPER'}))
-		% if a line ends with a delimiter, do what?
-		if (delimiter_idx(end) == length(current_line))
-			switch log_struct.(cur_record_type).listtypes{end}
-				case '%s'
-					current_line = [current_line, 'EMPTY'];
-				case '%f'
-					current_line(end+1) = nan;
-			endswitch
+% check sanity of lines...
+orig_current_line = current_line;
+delimiter_idx = strfind(current_line, delimiter_string);
+if (ismember(cur_record_type, {'DEBUG', 'INFO', 'SHAPER'}))
+  % if a line ends with a delimiter, do what?
+  if (delimiter_idx(end) == length(current_line))
+    switch log_struct.(cur_record_type).listtypes{end}
+      case '%s'
+        current_line = [current_line, 'EMPTY'];
+      case '%f'
+        current_line(end+1) = nan;
+    endswitch
 
-		endif
-		% check for spurious delimiter characters in non DATA records (DEBUG/INFO/SHAPER)
-		if length(delimiter_idx) > (length(log_struct.(cur_record_type).listtypes) -1)
-			extra_delimiter_idx = delimiter_idx(length(log_struct.(cur_record_type).listtypes) : end);
-			% replace by colon...
-			current_line(extra_delimiter_idx) = ":";
-		endif
-	endif
-  if (length(delimiter_idx) < length(log_struct.(cur_record_type).listnames) - 1)
-    disp('WARN: incomplete line in logfile encountered...');
-    cur_valid_data_idx = cur_valid_data_idx -1;
-    return
   endif
+  % check for spurious delimiter characters in non DATA records (DEBUG/INFO/SHAPER)
+  if length(delimiter_idx) > (length(log_struct.(cur_record_type).listtypes) -1)
+    extra_delimiter_idx = delimiter_idx(length(log_struct.(cur_record_type).listtypes) : end);
+    % replace by colon...
+    current_line(extra_delimiter_idx) = ":";
+  endif
+endif
+if (length(delimiter_idx) < length(log_struct.(cur_record_type).listnames) - 1)
+  disp('WARN: incomplete line in logfile encountered...');
+  cur_valid_data_idx = cur_valid_data_idx -1;
+  return
+endif
 
-	field_cell_array = textscan(current_line, log_struct.(cur_record_type).format_string, "Delimiter", delimiter_string);
+field_cell_array = textscan(current_line, log_struct.(cur_record_type).format_string, "Delimiter", delimiter_string);
 
-	if isempty(field_cell_array) || length(field_cell_array) < length(log_struct.(cur_record_type).listnames)
-		disp('ERROR: This should not happen!');
-	endif
+if isempty(field_cell_array) || length(field_cell_array) < length(log_struct.(cur_record_type).listnames)
+  disp('ERROR: This should not happen!');
+endif
 
-	for i_list = 1 : length(log_struct.(cur_record_type).listnames)
-		cur_listname = log_struct.(cur_record_type).listnames{i_list};
-		log_struct.(cur_record_type).LISTS.(cur_listname)(cur_valid_data_idx) = field_cell_array{i_list};
-	endfor
+for i_list = 1 : length(log_struct.(cur_record_type).listnames)
+  cur_listname = log_struct.(cur_record_type).listnames{i_list};
+  log_struct.(cur_record_type).LISTS.(cur_listname)(cur_valid_data_idx) = field_cell_array{i_list};
+endfor
 
-	% increase the pointer
-	log_struct.(cur_record_type).last_valid_data_idx = cur_valid_data_idx;
-	return
+% increase the pointer
+log_struct.(cur_record_type).last_valid_data_idx = cur_valid_data_idx;
+return
 endfunction
 
 
 function [ ] = fn_extract_DATA_names_types_format_from_HEADER( current_line, delimiter_string, string_field_identifier_list, HEADER_RECORD_name, DATA_RECORD_name )
-	global log_struct
+global log_struct
 
-	% dissect the names
-	cell_array_of_field_names = textscan(current_line, '%s', 'Delimiter', delimiter_string);
-	cell_array_of_field_names = cell_array_of_field_names{1};
-	cell_array_of_field_names{1} = 'RECORD_TYPE'; % give this a better name than HEADER...
+% dissect the names
+cell_array_of_field_names = textscan(current_line, '%s', 'Delimiter', delimiter_string);
+cell_array_of_field_names = cell_array_of_field_names{1};
+cell_array_of_field_names{1} = 'RECORD_TYPE'; % give this a better name than HEADER...
 
-	for i_field = 1 : length(cell_array_of_field_names)
-		log_struct.(HEADER_RECORD_name).listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
-		log_struct.(DATA_RECORD_name).listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
+for i_field = 1 : length(cell_array_of_field_names)
+  log_struct.(HEADER_RECORD_name).listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
+  log_struct.(DATA_RECORD_name).listnames{i_field} = sanitize_name_for_matlab(cell_array_of_field_names{i_field});
 
-		cur_type_string = '%f'; % default to numeric
-		for i_string_identifier = 1 : length(string_field_identifier_list)
-			cur_string_identifier = string_field_identifier_list{i_string_identifier};
-			if ~isempty(regexp(log_struct.(DATA_RECORD_name).listnames{i_field}, cur_string_identifier))
-				cur_type_string = '%s';
-			endif
-		endfor
+  cur_type_string = '%f'; % default to numeric
+  for i_string_identifier = 1 : length(string_field_identifier_list)
+    cur_string_identifier = string_field_identifier_list{i_string_identifier};
+    if ~isempty(regexp(log_struct.(DATA_RECORD_name).listnames{i_field}, cur_string_identifier))
+      cur_type_string = '%s';
+    endif
+  endfor
 
-		%strcmp(log_struct.DATA.listnames{i_field}, 'TYPE')
-		log_struct.(DATA_RECORD_name).listtypes{i_field} = cur_type_string;
-	end
+  %strcmp(log_struct.DATA.listnames{i_field}, 'TYPE')
+  log_struct.(DATA_RECORD_name).listtypes{i_field} = cur_type_string;
+end
 
-	log_struct.(DATA_RECORD_name).format_string = fn_compose_format_string(log_struct.(DATA_RECORD_name).listtypes);
+log_struct.(DATA_RECORD_name).format_string = fn_compose_format_string(log_struct.(DATA_RECORD_name).listtypes);
 
-	return
+return
 endfunction
 
 
 function [ format_string ] = fn_compose_format_string( type_list )
-	% construct a textscan type format string
-	format_string = '';
+% construct a textscan type format string
+format_string = '';
 
-	for i_field = 1 : length(type_list)
-		format_string = [format_string, type_list{i_field}, ' '];
-	endfor
+for i_field = 1 : length(type_list)
+  format_string = [format_string, type_list{i_field}, ' '];
+endfor
 
-	format_string = strtrim(format_string);
+format_string = strtrim(format_string);
 
-	return
+return
 endfunction
 
 
 function [ ] = fn_shrink_global_LISTS( record_type_list )
-	global log_struct
-	% remove pre-assigned but unfilled fields
+global log_struct
+% remove pre-assigned but unfilled fields
 
-	for i_record_type = 1 : length(record_type_list)
-		cur_record_type = record_type_list{i_record_type};
-		if isfield(log_struct, cur_record_type) && isfield(log_struct.(cur_record_type), 'last_valid_data_idx')
-			cur_num_valid_instances = log_struct.(cur_record_type).last_valid_data_idx;
-			cur_listnames = log_struct.(cur_record_type).listnames;
+for i_record_type = 1 : length(record_type_list)
+  cur_record_type = record_type_list{i_record_type};
+  if isfield(log_struct, cur_record_type) && isfield(log_struct.(cur_record_type), 'last_valid_data_idx')
+    cur_num_valid_instances = log_struct.(cur_record_type).last_valid_data_idx;
+    cur_listnames = log_struct.(cur_record_type).listnames;
 
-			for i_list = 1 : length(log_struct.(cur_record_type).listnames)
-				cur_listname = log_struct.(cur_record_type).listnames{i_list};
-				log_struct.(cur_record_type).LISTS.(cur_listname) = log_struct.(cur_record_type).LISTS.(cur_listname)(1:cur_num_valid_instances);
-			endfor
-		endif
-	endfor
-	return
+    for i_list = 1 : length(log_struct.(cur_record_type).listnames)
+      cur_listname = log_struct.(cur_record_type).listnames{i_list};
+      log_struct.(cur_record_type).LISTS.(cur_listname) = log_struct.(cur_record_type).LISTS.(cur_listname)(1:cur_num_valid_instances);
+    endfor
+  endif
+endfor
+return
 endfunction
 
 
 function [ ret_val ] = write_out_figure(img_fh, outfile_fqn, verbosity_str, print_options_str)
-	%WRITE_OUT_FIGURE save the figure referenced by img_fh to outfile_fqn,
-	% using .ext of outfile_fqn to decide which image type to save as.
-	%   Detailed explanation goes here
-	% write out the data
+%WRITE_OUT_FIGURE save the figure referenced by img_fh to outfile_fqn,
+% using .ext of outfile_fqn to decide which image type to save as.
+%   Detailed explanation goes here
+% write out the data
 
-	if ~exist('verbosity_str', 'var')
-		verbosity_str = 'verbose';
-	endif
+if ~exist('verbosity_str', 'var')
+  verbosity_str = 'verbose';
+endif
 
-	% check whether the path exists, create if not...
-	[pathstr, name, img_type] = fileparts(outfile_fqn);
-	if isempty(dir(pathstr)),
-		mkdir(pathstr);
-	endif
+% check whether the path exists, create if not...
+[pathstr, name, img_type] = fileparts(outfile_fqn);
+if isempty(dir(pathstr)),
+  mkdir(pathstr);
+endif
 
-	% deal with r2016a changes, needs revision
-	if (ismember(version('-release'), {'2016a', '2019a', '2019b'}))
-		set(img_fh, 'PaperPositionMode', 'manual');
-		if ~ismember(img_type, {'.png', '.tiff', '.tif'})
-			print_options_str = '-bestfit';
-		end
-	endif
+% deal with r2016a changes, needs revision
+if (ismember(version('-release'), {'2016a', '2019a', '2019b'}))
+  set(img_fh, 'PaperPositionMode', 'manual');
+  if ~ismember(img_type, {'.png', '.tiff', '.tif'})
+    print_options_str = '-bestfit';
+  end
+endif
 
-	if ~exist('print_options_str', 'var') || isempty(print_options_str)
-		print_options_str = '';
-	else
-		print_options_str = [', ''', print_options_str, ''''];
-	endif
-	resolution_str = ', ''-r600''';
+if ~exist('print_options_str', 'var') || isempty(print_options_str)
+  print_options_str = '';
+else
+  print_options_str = [', ''', print_options_str, ''''];
+endif
+resolution_str = ', ''-r600''';
 
 
-	device_str = [];
+device_str = [];
 
-	switch img_type(2:end)
-		case 'pdf'
-			% pdf in 7.3.0 is slightly buggy...
-			%print(img_fh, '-dpdf', outfile_fqn);
-			device_str = '-dpdf';
-		case 'ps3'
-			%print(img_fh, '-depsc2', outfile_fqn);
-			device_str = '-depsc';
-			print_options_str = '';
-			outfile_fqn = [outfile_fqn, '.eps'];
-		case {'ps', 'ps2'}
-			%print(img_fh, '-depsc2', outfile_fqn);
-			device_str = '-depsc2';
-			print_options_str = '';
-			outfile_fqn = [outfile_fqn, '.eps'];
-		case {'tiff', 'tif'}
-			% tiff creates a figure
-			%print(img_fh, '-dtiff', outfile_fqn);
-			device_str = '-dtiff';
-		case 'png'
-			% tiff creates a figure
-			%print(img_fh, '-dpng', outfile_fqn);
-			device_str = '-dpng';
-			resolution_str = ', ''-r600''';
-		case 'eps'
-			%print(img_fh, '-depsc', '-r300', outfile_fqn);
-			device_str = '-depsc';
-		case 'svg'
-			%print(img_fh, '-depsc', '-r300', outfile_fqn);
-			device_str = '-dsvg';
-		case 'fig'
-			%sm: allows to save figures for further refinements
-			saveas(img_fh, outfile_fqn, 'fig');
-		otherwise
-			% default to uncompressed images
-			disp(['Image type: ', img_type, ' not handled yet...']);
-	endswitch
+switch img_type(2:end)
+  case 'pdf'
+    % pdf in 7.3.0 is slightly buggy...
+    %print(img_fh, '-dpdf', outfile_fqn);
+    device_str = '-dpdf';
+  case 'ps3'
+    %print(img_fh, '-depsc2', outfile_fqn);
+    device_str = '-depsc';
+    print_options_str = '';
+    outfile_fqn = [outfile_fqn, '.eps'];
+  case {'ps', 'ps2'}
+    %print(img_fh, '-depsc2', outfile_fqn);
+    device_str = '-depsc2';
+    print_options_str = '';
+    outfile_fqn = [outfile_fqn, '.eps'];
+  case {'tiff', 'tif'}
+    % tiff creates a figure
+    %print(img_fh, '-dtiff', outfile_fqn);
+    device_str = '-dtiff';
+  case 'png'
+    % tiff creates a figure
+    %print(img_fh, '-dpng', outfile_fqn);
+    device_str = '-dpng';
+    resolution_str = ', ''-r600''';
+  case 'eps'
+    %print(img_fh, '-depsc', '-r300', outfile_fqn);
+    device_str = '-depsc';
+  case 'svg'
+    %print(img_fh, '-depsc', '-r300', outfile_fqn);
+    device_str = '-dsvg';
+  case 'fig'
+    %sm: allows to save figures for further refinements
+    saveas(img_fh, outfile_fqn, 'fig');
+  otherwise
+    % default to uncompressed images
+    disp(['Image type: ', img_type, ' not handled yet...']);
+endswitch
 
-	if ~isempty(device_str)
-		device_str = [', ''', device_str, ''''];
-		command_str = ['print(img_fh', device_str, print_options_str, resolution_str, ', outfile_fqn)'];
-		eval(command_str);
-	endif
+if ~isempty(device_str)
+  device_str = [', ''', device_str, ''''];
+  command_str = ['print(img_fh', device_str, print_options_str, resolution_str, ', outfile_fqn)'];
+  eval(command_str);
+endif
 
-	if strcmp(verbosity_str, 'verbose')
-		if ~isnumeric(img_fh)
-			disp(['INFO: Saved figure (', num2str(img_fh.Number), ') to: ', outfile_fqn]);	% >R2014b have structure figure handles
-		else
-			disp(['INFO: Saved figure (', num2str(img_fh), ') to: ', outfile_fqn]);			% older Matlab has numeric figure handles
-		endif
-	endif
+if strcmp(verbosity_str, 'verbose')
+  if ~isnumeric(img_fh)
+    disp(['INFO: Saved figure (', num2str(img_fh.Number), ') to: ', outfile_fqn]);	% >R2014b have structure figure handles
+  else
+    disp(['INFO: Saved figure (', num2str(img_fh), ') to: ', outfile_fqn]);			% older Matlab has numeric figure handles
+  endif
+endif
 
-	ret_val = 0;
+ret_val = 0;
 
-	return
+return
 endfunction
 
 
 function [ output_rect ] = fn_set_figure_outputpos_and_size( figure_handle, left_edge_cm, bottom_edge_cm, rect_w, rect_h, fraction, PaperOrientation_string, Units_string )
-	%FN_SET_FIGURE_OUTPUTPOS_AND_SIZE Summary of this function goes here
-	%   Detailed explanation goes here
-	output_rect = [];
+%FN_SET_FIGURE_OUTPUTPOS_AND_SIZE Summary of this function goes here
+%   Detailed explanation goes here
+output_rect = [];
 
-	if ~ ishandle(figure_handle)
-		error(['ERROR: First argument needs to be a figure handle...']);
-	end
+if ~ ishandle(figure_handle)
+  error(['ERROR: First argument needs to be a figure handle...']);
+end
 
-	cm2inch = 1/2.54;
-	fraction = 1;
-	output_rect = [left_edge_cm bottom_edge_cm rect_w rect_h] * cm2inch;	% left, bottom, width, height
-	set(figure_handle, 'Units', Units_string, 'Position', output_rect, 'PaperPosition', output_rect);
-	set(figure_handle, 'PaperSize', [rect_w+2*left_edge_cm*fraction rect_h+2*bottom_edge_cm*fraction] * cm2inch, 'PaperOrientation', PaperOrientation_string, 'PaperUnits', Units_string);
-	return
+cm2inch = 1/2.54;
+fraction = 1;
+output_rect = [left_edge_cm bottom_edge_cm rect_w rect_h] * cm2inch;	% left, bottom, width, height
+set(figure_handle, 'Units', Units_string, 'Position', output_rect, 'PaperPosition', output_rect);
+set(figure_handle, 'PaperSize', [rect_w+2*left_edge_cm*fraction rect_h+2*bottom_edge_cm*fraction] * cm2inch, 'PaperOrientation', PaperOrientation_string, 'PaperUnits', Units_string);
+return
 endfunction
 
 
 function [ out_x_range, do_return ] = fn_sanitize_x_range( x_range, n_samples )
-	do_return = 0;
-	out_x_range = x_range;
+do_return = 0;
+out_x_range = x_range;
 
-	if isempty(x_range)
-		disp('INFO: Empty x_range specified, plotting all samples.');
-		x_range = [1, n_samples];
-		out_x_range = x_range;
-	endif
+if isempty(x_range)
+  disp('INFO: Empty x_range specified, plotting all samples.');
+  x_range = [1, n_samples];
+  out_x_range = x_range;
+endif
 
-	if (x_range(1) < 1)
-		disp(['WARNING: Range start (', num2str(x_range(1)),') out of bounds, forcing to 1']);
-		out_x_range(1) = 1;
-		do_return = 0;
-	endif
+if (x_range(1) < 1)
+  disp(['WARNING: Range start (', num2str(x_range(1)),') out of bounds, forcing to 1']);
+  out_x_range(1) = 1;
+  do_return = 0;
+endif
 
-	if (x_range(2) > n_samples)
-		disp(['WARNING: Range end (', num2str(x_range(2)), ') out of bounds, forcing to number of samples (', num2str(n_samples),').']);
-		out_x_range(2) = n_samples;
-		do_return = 0;
-	endif
+if (x_range(2) > n_samples)
+  disp(['WARNING: Range end (', num2str(x_range(2)), ') out of bounds, forcing to number of samples (', num2str(n_samples),').']);
+  out_x_range(2) = n_samples;
+  do_return = 0;
+endif
 
-	if (out_x_range(1) > out_x_range(2))
-		disp('WARNING: Requested range start is larger than range end, please fix...');
-		do_return = 1;
-	endif
+if (out_x_range(1) > out_x_range(2))
+  disp('WARNING: Requested range start is larger than range end, please fix...');
+  do_return = 1;
+endif
 
-	if (out_x_range(1) == out_x_range(2))
-		disp('WARNING: Requested range is of size 1, please fix...');
-		do_return = 1;
-	endif
+if (out_x_range(1) == out_x_range(2))
+  disp('WARNING: Requested range is of size 1, please fix...');
+  do_return = 1;
+endif
 
 
-	return
+return
 endfunction
 
 
 function [ out_x_range_sec, do_return ] = fn_sanitize_x_range_sec( x_range_sec, first_sample_timestamp, last_sample_timestamp )
-	do_return = 0;
-	out_x_range_sec = x_range_sec;
+do_return = 0;
+out_x_range_sec = x_range_sec;
 
-	% get reasonable values for the x_range in seconds to display
-	first_sample_relative_timestamp = first_sample_timestamp - first_sample_timestamp;
-	last_sample_relative_timestamp = last_sample_timestamp - first_sample_timestamp;
+% get reasonable values for the x_range in seconds to display
+first_sample_relative_timestamp = first_sample_timestamp - first_sample_timestamp;
+last_sample_relative_timestamp = last_sample_timestamp - first_sample_timestamp;
 
-	if isempty(x_range_sec)
-		disp(['INFO: Empty x_range_sec specified, plotting the whole sample timestamp range (', num2str(first_sample_relative_timestamp), ' - ', num2str(last_sample_relative_timestamp), ').']);
-		out_x_range_sec = [first_sample_relative_timestamp, last_sample_relative_timestamp];
-		return
-	endif
+if isempty(x_range_sec)
+  disp(['INFO: Empty x_range_sec specified, plotting the whole sample timestamp range (', num2str(first_sample_relative_timestamp), ' - ', num2str(last_sample_relative_timestamp), ').']);
+  out_x_range_sec = [first_sample_relative_timestamp, last_sample_relative_timestamp];
+  return
+endif
 
-	if (x_range_sec(1) > x_range_sec(2))
-		% just change the order and perform the rest of the sanity checks
-		disp('WARNING: x_range_sec(1) > x_range_sec(2), inverting to make some sense, please check');
-		out_x_range_sec = [out_x_range_sec(2), out_x_range_sec(1)];
-	endif
+if (x_range_sec(1) > x_range_sec(2))
+  % just change the order and perform the rest of the sanity checks
+  disp('WARNING: x_range_sec(1) > x_range_sec(2), inverting to make some sense, please check');
+  out_x_range_sec = [out_x_range_sec(2), out_x_range_sec(1)];
+endif
 
-	% just adjust the start value
-	if x_range_sec(1) < first_sample_relative_timestamp
-		out_x_range_sec(1) = first_sample_relative_timestamp;
-	endif
+% just adjust the start value
+if x_range_sec(1) < first_sample_relative_timestamp
+  out_x_range_sec(1) = first_sample_relative_timestamp;
+endif
 
-	% just adjust the end value
-	if x_range_sec(2) > last_sample_relative_timestamp
-		out_x_range_sec(2) = last_sample_relative_timestamp;
-	endif
+% just adjust the end value
+if x_range_sec(2) > last_sample_relative_timestamp
+  out_x_range_sec(2) = last_sample_relative_timestamp;
+endif
 
-	if (out_x_range_sec(1) == out_x_range_sec(2))
-		disp('WARNING: x_range_sec(1) == x_range_sec(2), please correct');
-		do_return = 1;
-	endif
+if (out_x_range_sec(1) == out_x_range_sec(2))
+  disp('WARNING: x_range_sec(1) == x_range_sec(2), please correct');
+  do_return = 1;
+endif
 
 endfunction
 
 
 function [ x_range ] = fn_get_range_indices_from_range_timestamps( x_range_sec_absolute, timestamp_list )
-	% x_range_sec_absolute needs to be in absolute timestamps, not relative to log file start
-	% find the index of the first timestamp equal or larger than x_range_sec(1)
-	x_range(1) = find(timestamp_list >= x_range_sec_absolute(1), 1, 'first');
-	% find the index of the last timestamp equal or smaller than x_range_sec(2)
-	x_range(2) = find(timestamp_list <= x_range_sec_absolute(2), 1, 'last');
+% x_range_sec_absolute needs to be in absolute timestamps, not relative to log file start
+% find the index of the first timestamp equal or larger than x_range_sec(1)
+x_range(1) = find(timestamp_list >= x_range_sec_absolute(1), 1, 'first');
+% find the index of the last timestamp equal or smaller than x_range_sec(2)
+x_range(2) = find(timestamp_list <= x_range_sec_absolute(2), 1, 'last');
 endfunction
 
 
 function [ ax_h, legend_list ] = fn_plot_CDF_cell( ax_h, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, title_string, ...
-	set_name_list, n_sample_per_reflector_list, cur_data_XDF_list, linestyle_list, linewidth_list, distribution_string)
+xlabel_string, ylabel_string, title_string, ...
+set_name_list, n_sample_per_reflector_list, cur_data_XDF_list, linestyle_list, linewidth_list, distribution_string)
 
-	legend_font_size = 6;
+legend_font_size = 6;
 
-	%	xlabel_string = 'delay [ms]';
-	%	ylabel_string = 'cumulative density [%]';
-	%	title_string = 'RTT, high versus low load';
-	%	set_name_list = {': low load', ': high load'}
-	%	n_sample_per_reflector_list = {};
-	%	cur_data_XDF_list = {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}
-	%	linestyle_list = {'-', ':'};
-	%	linewidth_list = {line_width, line_width};
-	n_unique_reflectors = length(unique_reflector_list);
-	n_sets = length(set_name_list);
-	cur_x_low_quantile_idx = nan([n_unique_reflectors, n_sets]);
-	cur_x_high_quantile_idx = nan([n_unique_reflectors, n_sets]);
-	legend_list = {};
-	hold on
-	for i_reflector = 1:n_unique_reflectors
-		cur_reflector_color = color_by_reflector_array(i_reflector, :);
+%	xlabel_string = 'delay [ms]';
+%	ylabel_string = 'cumulative density [%]';
+%	title_string = 'RTT, high versus low load';
+%	set_name_list = {': low load', ': high load'}
+%	n_sample_per_reflector_list = {};
+%	cur_data_XDF_list = {RTT_LowLoad_sample_delay_CDF_by_reflector_array, RTT_HighLoad_sample_delay_CDF_by_reflector_array}
+%	linestyle_list = {'-', ':'};
+%	linewidth_list = {line_width, line_width};
+n_unique_reflectors = length(unique_reflector_list);
+n_sets = length(set_name_list);
+cur_x_low_quantile_idx = nan([n_unique_reflectors, n_sets]);
+cur_x_high_quantile_idx = nan([n_unique_reflectors, n_sets]);
+legend_list = {};
+hold on
+for i_reflector = 1:n_unique_reflectors
+  cur_reflector_color = color_by_reflector_array(i_reflector, :);
 
-		for i_set = 1 : n_sets
-			cur_set_name = set_name_list{i_set};
-			cur_n_sample_per_reflector = n_sample_per_reflector_list{i_set};
-			cur_n_sample = cur_n_sample_per_reflector(i_reflector);
-			cur_data_XDF = cur_data_XDF_list{i_set};
-			cur_linestle = linestyle_list{i_set};
-			cur_linewidth = linewidth_list{i_set};
+  for i_set = 1 : n_sets
+    cur_set_name = set_name_list{i_set};
+    cur_n_sample_per_reflector = n_sample_per_reflector_list{i_set};
+    cur_n_sample = cur_n_sample_per_reflector(i_reflector);
+    cur_data_XDF = cur_data_XDF_list{i_set};
+    cur_linestle = linestyle_list{i_set};
+    cur_linewidth = linewidth_list{i_set};
 
-			legend_list{end+1} = [unique_reflector_list{i_reflector}, [cur_set_name, ':(N:', num2str(cur_n_sample),')']];
-			cur_data = 100 * cur_data_XDF(i_reflector, :);
-			plot(ax_h, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', cur_linestle, 'LineWidth', cur_linewidth);
+    legend_list{end+1} = [unique_reflector_list{i_reflector}, [cur_set_name, ':(N:', num2str(cur_n_sample),')']];
+    cur_data = 100 * cur_data_XDF(i_reflector, :);
+    plot(ax_h, CDF_x_vec, (cur_data), 'Color', cur_reflector_color, 'Linestyle', cur_linestle, 'LineWidth', cur_linewidth);
 
-			cur_data_CDF = cur_data;
-			switch distribution_string
-				case {'pdf', 'PDF'}
-					cur_data_CDF = cumsum(cur_data);
-					cur_data_CDF = 100 * cur_data_CDF / max(cur_data_CDF);
-			endswitch
-			% find high and low x values
-			if ~isempty(find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first'))
-				cur_x_low_quantile_idx(i_reflector, i_set) = find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first');
-			endif
-			if ~isempty(find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last'))
-				cur_x_high_quantile_idx(i_reflector, i_set) = find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last');
-			endif
-		endfor
-	endfor
-	hold off
-	set(ax_h, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
-	% for PDFs use auto scaling, these are scaled to unity area, so 0-100% does not make much sense for PDFs
-	if strcmp(distribution_string, 'CDF')
-		set(ax_h, 'YLim', [0, 100]);
-	endif
-	xlabel(ax_h, xlabel_string);
-	ylabel(ax_h, ylabel_string)
-	title(ax_h, title_string);
-	try
-		if strcmp(graphics_toolkit, 'gnuplot')
-			legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
-		else
-			legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
-		end
-	catch
-		disp(['Triggered']);
-		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', legend_font_size);
-	end_try_catch
+    cur_data_CDF = cur_data;
+    switch distribution_string
+      case {'pdf', 'PDF'}
+        cur_data_CDF = cumsum(cur_data);
+        cur_data_CDF = 100 * cur_data_CDF / max(cur_data_CDF);
+    endswitch
+    % find high and low x values
+    if ~isempty(find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first'))
+      cur_x_low_quantile_idx(i_reflector, i_set) = find(cur_data_CDF >= cumulative_range_percent(1), 1, 'first');
+    endif
+    if ~isempty(find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last'))
+      cur_x_high_quantile_idx(i_reflector, i_set) = find(cur_data_CDF <= cumulative_range_percent(2), 1, 'last');
+    endif
+  endfor
+endfor
+hold off
+set(ax_h, 'XLim', [CDF_x_vec(min(cur_x_low_quantile_idx(:))), CDF_x_vec(max(cur_x_high_quantile_idx(:)))]);
+% for PDFs use auto scaling, these are scaled to unity area, so 0-100% does not make much sense for PDFs
+if strcmp(distribution_string, 'CDF')
+  set(ax_h, 'YLim', [0, 100]);
+endif
+xlabel(ax_h, xlabel_string);
+ylabel(ax_h, ylabel_string)
+title(ax_h, title_string);
+try
+  if strcmp(graphics_toolkit, 'gnuplot')
+    legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
+  else
+    legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
+  end
+catch
+  disp(['Triggered']);
+  legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', legend_font_size);
+end_try_catch
 
-	return
+return
 endfunction
 
 
 function [ load_struct ] = fn_get_samples_by_load(DATA_LISTS_struct, method_string, direction_list, data_field_name_list, LowLoad_threshold, HighLoad_threshold);
-	load_struct = struct();
-	% direction_list = {'UL', 'DL'};
-	% data_field_name_list = {'UL_LOAD_PERCENT', 'DL_LOAD_PERCENT'};
-	switch method_string
-		case 'LOAD_PERCENT'
-			% just take the load percentage as calculated by autorate
-			for i_direction = 1 : length(direction_list)
-				cur_direction_string = direction_list{i_direction};
-				cur_data_fieldname = data_field_name_list{i_direction};
-				load_struct.(cur_direction_string).AnyLoad = find(ones(size(DATA_LISTS_struct.(cur_data_fieldname))));
-				load_struct.(cur_direction_string).LowLoad = find(DATA_LISTS_struct.(cur_data_fieldname) <= LowLoad_threshold);
-				load_struct.(cur_direction_string).HighLoad = find(DATA_LISTS_struct.(cur_data_fieldname) >= HighLoad_threshold);
-			endfor
+load_struct = struct();
+% direction_list = {'UL', 'DL'};
+% data_field_name_list = {'UL_LOAD_PERCENT', 'DL_LOAD_PERCENT'};
+switch method_string
+  case 'LOAD_PERCENT'
+    % just take the load percentage as calculated by autorate
+    for i_direction = 1 : length(direction_list)
+      cur_direction_string = direction_list{i_direction};
+      cur_data_fieldname = data_field_name_list{i_direction};
+      load_struct.(cur_direction_string).AnyLoad = find(ones(size(DATA_LISTS_struct.(cur_data_fieldname))));
+      load_struct.(cur_direction_string).LowLoad = find(DATA_LISTS_struct.(cur_data_fieldname) <= LowLoad_threshold);
+      load_struct.(cur_direction_string).HighLoad = find(DATA_LISTS_struct.(cur_data_fieldname) >= HighLoad_threshold);
+    endfor
 
 
-			load_struct.ULorDL.AnyLoad = [];
-			load_struct.ULorDL.LowLoad = [];
-			load_struct.ULorDL.HighLoad = [];
-			% both UL and DL
-			load_struct.ULandDL.AnyLoad = [];
-			load_struct.ULandDL.LowLoad = [];
-			load_struct.ULandDL.HighLoad = [];
+    load_struct.ULorDL.AnyLoad = [];
+    load_struct.ULorDL.LowLoad = [];
+    load_struct.ULorDL.HighLoad = [];
+    % both UL and DL
+    load_struct.ULandDL.AnyLoad = [];
+    load_struct.ULandDL.LowLoad = [];
+    load_struct.ULandDL.HighLoad = [];
 
-			if isfield(load_struct, 'UL') && isfield(load_struct, 'DL')
-				% either DL or UL
-				load_struct.ULorDL.AnyLoad = load_struct.UL.AnyLoad;
-				load_struct.ULorDL.LowLoad = union(load_struct.UL.LowLoad, load_struct.DL.LowLoad);
-				load_struct.ULorDL.HighLoad = union(load_struct.UL.HighLoad, load_struct.DL.HighLoad);
-				% both UL and DL
-				load_struct.ULandDL.AnyLoad = load_struct.UL.AnyLoad;
-				load_struct.ULandDL.LowLoad = intersect(load_struct.UL.LowLoad, load_struct.DL.LowLoad);
-				load_struct.ULandDL.HighLoad = intersect(load_struct.UL.HighLoad, load_struct.DL.HighLoad);
-			endif
-		otherwise
-			error(['ERROR: Unkown method_string (', method_string, ') encountered. ']);
-	endswitch
-	return
+    if isfield(load_struct, 'UL') && isfield(load_struct, 'DL')
+      % either DL or UL
+      load_struct.ULorDL.AnyLoad = load_struct.UL.AnyLoad;
+      load_struct.ULorDL.LowLoad = union(load_struct.UL.LowLoad, load_struct.DL.LowLoad);
+      load_struct.ULorDL.HighLoad = union(load_struct.UL.HighLoad, load_struct.DL.HighLoad);
+      % both UL and DL
+      load_struct.ULandDL.AnyLoad = load_struct.UL.AnyLoad;
+      load_struct.ULandDL.LowLoad = intersect(load_struct.UL.LowLoad, load_struct.DL.LowLoad);
+      load_struct.ULandDL.HighLoad = intersect(load_struct.UL.HighLoad, load_struct.DL.HighLoad);
+    endif
+  otherwise
+    error(['ERROR: Unkown method_string (', method_string, ') encountered. ']);
+endswitch
+return
 endfunction
 
 
 function [ delay_struct, CDF_x_vec, unique_reflector_list ] = fn_get_XDF_by_load(method_string, delay_type_string, UL_OWD_sample_list, DL_OWD_sample_list, data_scale_factor, ...
-	calc_range_ms, step_size_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
-	% method_string = 'CDF';
-	% delay_type_string = 'RAW';
-	delay_struct = struct();
+calc_range_ms, step_size_ms, REFLECTOR_by_sample_list, sample_idx_by_load, DATA_delays_x_idx)
+% method_string = 'CDF';
+% delay_type_string = 'RAW';
+delay_struct = struct();
 
-	% the time resolution
-	CDF_x_vec = (calc_range_ms(1):step_size_ms:calc_range_ms(end));
-	unique_reflector_list = unique(REFLECTOR_by_sample_list);
-	n_unique_reflectors = length(unique_reflector_list);
+% the time resolution
+CDF_x_vec = (calc_range_ms(1):step_size_ms:calc_range_ms(end));
+unique_reflector_list = unique(REFLECTOR_by_sample_list);
+n_unique_reflectors = length(unique_reflector_list);
 
-	delay_struct.CDF_x_vec = CDF_x_vec;
-	delay_struct.unique_reflector_list = unique_reflector_list;
-
-
-	% the next needs checking for true OWDs and RTTs
-	RTT_sample_list = UL_OWD_sample_list + DL_OWD_sample_list;
-
-	delay.UL_OWD = UL_OWD_sample_list;
-	delay.DL_OWD = DL_OWD_sample_list;
-	delay.RTT = RTT_sample_list;
-	delay_measure_list = fieldnames(delay);
-
-	load_direction_list = fieldnames(sample_idx_by_load);
-	load_condition_list = fieldnames(sample_idx_by_load.UL);
+delay_struct.CDF_x_vec = CDF_x_vec;
+delay_struct.unique_reflector_list = unique_reflector_list;
 
 
-	% now construct all combinations of delay_measure, load_direction and load_condition
-	% and generate the respective sample list and then calculate the method_string for all reflectors
-	% report the method, n, and idx? as structure fields
+% the next needs checking for true OWDs and RTTs
+RTT_sample_list = UL_OWD_sample_list + DL_OWD_sample_list;
 
-	% pre-allocate data structures
-	for i_measure = 1 : length(delay_measure_list)
-		cur_delay_measure_name = delay_measure_list{i_measure};
-		cur_delay_data = delay.(cur_delay_measure_name);
-		for i_load_direction = 1 : length(load_direction_list)
-			cur_load_direction = load_direction_list{i_load_direction};
-			for i_load_condition = 1 : length(load_condition_list);
-				cur_load_condition = load_condition_list{i_load_condition};
-				% allocate the data structures
-				delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data = nan([n_unique_reflectors, length(CDF_x_vec)]);
-				delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).n = zeros([n_unique_reflectors, 1]);
+delay.UL_OWD = UL_OWD_sample_list;
+delay.DL_OWD = DL_OWD_sample_list;
+delay.RTT = RTT_sample_list;
+delay_measure_list = fieldnames(delay);
 
-				% now perform the calculation
-				for i_reflector = 1:n_unique_reflectors
-					cur_reflector = unique_reflector_list{i_reflector};
-					cur_reflector_sample_idx = find(ismember(REFLECTOR_by_sample_list, {cur_reflector}));
-					cur_All_sample_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+load_direction_list = fieldnames(sample_idx_by_load);
+load_condition_list = fieldnames(sample_idx_by_load.UL);
 
-					cur_load_directon_load_condition_sample_idx = intersect(cur_All_sample_idx, sample_idx_by_load.(cur_load_direction).(cur_load_condition));
 
-					if ~isempty(cur_load_directon_load_condition_sample_idx)
-						switch method_string
-							case {'cdf', 'CDF'}
-								delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data(i_reflector, :) = empirical_cdf(CDF_x_vec, (cur_delay_data(cur_load_directon_load_condition_sample_idx) * data_scale_factor));
-							case {'pdf', 'PDF'}
-								delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data(i_reflector, :) = empirical_pdf(CDF_x_vec, (cur_delay_data(cur_load_directon_load_condition_sample_idx) * data_scale_factor));
-						endswitch
-						delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).n(i_reflector) = length(cur_load_directon_load_condition_sample_idx);
-					endif
-				endfor
-			endfor
-		endfor
-	endfor
+% now construct all combinations of delay_measure, load_direction and load_condition
+% and generate the respective sample list and then calculate the method_string for all reflectors
+% report the method, n, and idx? as structure fields
 
-	return
+% pre-allocate data structures
+for i_measure = 1 : length(delay_measure_list)
+  cur_delay_measure_name = delay_measure_list{i_measure};
+  cur_delay_data = delay.(cur_delay_measure_name);
+  for i_load_direction = 1 : length(load_direction_list)
+    cur_load_direction = load_direction_list{i_load_direction};
+    for i_load_condition = 1 : length(load_condition_list);
+      cur_load_condition = load_condition_list{i_load_condition};
+      % allocate the data structures
+      delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data = nan([n_unique_reflectors, length(CDF_x_vec)]);
+      delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).n = zeros([n_unique_reflectors, 1]);
+
+      % now perform the calculation
+      for i_reflector = 1:n_unique_reflectors
+        cur_reflector = unique_reflector_list{i_reflector};
+        cur_reflector_sample_idx = find(ismember(REFLECTOR_by_sample_list, {cur_reflector}));
+        cur_All_sample_idx = intersect(DATA_delays_x_idx, cur_reflector_sample_idx);
+
+        cur_load_directon_load_condition_sample_idx = intersect(cur_All_sample_idx, sample_idx_by_load.(cur_load_direction).(cur_load_condition));
+
+        if ~isempty(cur_load_directon_load_condition_sample_idx)
+          switch method_string
+            case {'cdf', 'CDF'}
+              delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data(i_reflector, :) = empirical_cdf(CDF_x_vec, (cur_delay_data(cur_load_directon_load_condition_sample_idx) * data_scale_factor));
+            case {'pdf', 'PDF'}
+              delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).data(i_reflector, :) = empirical_pdf(CDF_x_vec, (cur_delay_data(cur_load_directon_load_condition_sample_idx) * data_scale_factor));
+          endswitch
+          delay_struct.(cur_delay_measure_name).(cur_load_direction).(cur_load_condition).n(i_reflector) = length(cur_load_directon_load_condition_sample_idx);
+        endif
+      endfor
+    endfor
+  endfor
+endfor
+
+return
 endfunction
 
 
 function [ autorate_CDF_fh ] = fn_plot_CDF_by_measure_and_load_condition( distribution_string, figure_opts, data_struct, cumulative_range_percent, xlabel_string, ylabel_string, cur_plot_FQN )
 
-	data = data_struct;
-	CDF_x_vec = data_struct.CDF_x_vec;
-	unique_reflector_list = data_struct.unique_reflector_list;
-	n_unique_reflectors = length(unique_reflector_list);
+data = data_struct;
+CDF_x_vec = data_struct.CDF_x_vec;
+unique_reflector_list = data_struct.unique_reflector_list;
+n_unique_reflectors = length(unique_reflector_list);
 
-	autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_opts.figure_visibility_string);
-	[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 0.2, 0.2, 45, 15, 1, 'landscape', 'centimeters' );
+autorate_CDF_fh = figure('Name', 'CAKE-autorate log: delay CDFs', 'visible', figure_opts.figure_visibility_string);
+[ output_rect ] = fn_set_figure_outputpos_and_size( autorate_CDF_fh, 0.2, 0.2, 45, 15, 1, 'landscape', 'centimeters' );
 
-	% do a 3 by 2 matrix:
-	% upper row col1: RTT all samples
-	%			col2: DL all samples
-	%			col3: UL all samples
-	% lower row col1: RTT low vs high load
-	%			col2: DL low vs high load
-	%			col3: UL low vs high load
-	% common properties
-	% get unique colors but avoid black and white
-	tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
-	color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
+% do a 3 by 2 matrix:
+% upper row col1: RTT all samples
+%			col2: DL all samples
+%			col3: UL all samples
+% lower row col1: RTT low vs high load
+%			col2: DL low vs high load
+%			col3: UL low vs high load
+% common properties
+% get unique colors but avoid black and white
+tmp_color_by_reflector_list = cubehelix(n_unique_reflectors + 2);
+color_by_reflector_array = tmp_color_by_reflector_list(2:end-1, :);
 
-	cur_sph = subplot(2, 3, 1);
-	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, 'RTT, all samples', ...
-	{''}, {data.RTT.ULorDL.AnyLoad.n}, {data.RTT.ULorDL.AnyLoad.data}, {'-'}, {figure_opts.line_width}, distribution_string);
+cur_sph = subplot(2, 3, 1);
+[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+xlabel_string, ylabel_string, 'RTT, all samples', ...
+{''}, {data.RTT.ULorDL.AnyLoad.n}, {data.RTT.ULorDL.AnyLoad.data}, {'-'}, {figure_opts.line_width}, distribution_string);
 
-	cur_sph = subplot(2, 3, 2);
-	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, 'Download OWD, all samples', ...
-	{''}, {data.DL_OWD.DL.AnyLoad.n}, {data.DL_OWD.DL.AnyLoad.data}, {'-'}, {figure_opts.line_width}, distribution_string);
+cur_sph = subplot(2, 3, 2);
+[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+xlabel_string, ylabel_string, 'Download OWD, all samples', ...
+{''}, {data.DL_OWD.DL.AnyLoad.n}, {data.DL_OWD.DL.AnyLoad.data}, {'-'}, {figure_opts.line_width}, distribution_string);
 
-	cur_sph = subplot(2, 3, 3);
-	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, 'Upload OWD, all samples', ...
-	{''}, {data.UL_OWD.UL.AnyLoad.n}, {data.UL_OWD.UL.AnyLoad.data}, {'-'}, {figure_opts.line_width}, distribution_string);
+cur_sph = subplot(2, 3, 3);
+[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+xlabel_string, ylabel_string, 'Upload OWD, all samples', ...
+{''}, {data.UL_OWD.UL.AnyLoad.n}, {data.UL_OWD.UL.AnyLoad.data}, {'-'}, {figure_opts.line_width}, distribution_string);
 
-	cur_sph = subplot(2, 3, 4);
-	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, 'RTT, high versus low load', ...
-	{': low', ': high'}, {data.RTT.ULorDL.LowLoad.n, data.RTT.ULorDL.HighLoad.n}, {data.RTT.ULorDL.LowLoad.data, data.RTT.ULorDL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width}, distribution_string);
+cur_sph = subplot(2, 3, 4);
+[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+xlabel_string, ylabel_string, 'RTT, high versus low load', ...
+{': low', ': high'}, {data.RTT.ULorDL.LowLoad.n, data.RTT.ULorDL.HighLoad.n}, {data.RTT.ULorDL.LowLoad.data, data.RTT.ULorDL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width}, distribution_string);
 
-	cur_sph = subplot(2, 3, 5);
-	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, 'Download OWD, high versus low load', ...
-	{': low', ': high'}, {data.DL_OWD.DL.LowLoad.n, data.DL_OWD.DL.HighLoad.n}, {data.DL_OWD.DL.LowLoad.data, data.DL_OWD.DL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width}, distribution_string);
+cur_sph = subplot(2, 3, 5);
+[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+xlabel_string, ylabel_string, 'Download OWD, high versus low load', ...
+{': low', ': high'}, {data.DL_OWD.DL.LowLoad.n, data.DL_OWD.DL.HighLoad.n}, {data.DL_OWD.DL.LowLoad.data, data.DL_OWD.DL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width}, distribution_string);
 
-	cur_sph = subplot(2, 3, 6);
-	[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
-	xlabel_string, ylabel_string, 'Upload OWD, high versus low load', ...
-	{': low', ': high'}, {data.UL_OWD.UL.LowLoad.n, data.UL_OWD.UL.HighLoad.n}, {data.UL_OWD.UL.LowLoad.data, data.UL_OWD.UL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width}, distribution_string);
+cur_sph = subplot(2, 3, 6);
+[ cur_sph, legend_list ] = fn_plot_CDF_cell(cur_sph, unique_reflector_list, CDF_x_vec, color_by_reflector_array, cumulative_range_percent, ...
+xlabel_string, ylabel_string, 'Upload OWD, high versus low load', ...
+{': low', ': high'}, {data.UL_OWD.UL.LowLoad.n, data.UL_OWD.UL.HighLoad.n}, {data.UL_OWD.UL.LowLoad.data, data.UL_OWD.UL.HighLoad.data}, {'-', ':'}, {figure_opts.line_width, figure_opts.line_width}, distribution_string);
 
 
-	disp(['INFO: Writing plot as: ', cur_plot_FQN]);
-	write_out_figure(autorate_CDF_fh, cur_plot_FQN, [], []);
+disp(['INFO: Writing plot as: ', cur_plot_FQN]);
+write_out_figure(autorate_CDF_fh, cur_plot_FQN, [], []);
 
-	return
+return
 endfunction
 
 
 function [] = fn_propose_delay_thresholds( delta_CDF, calc_range_ms )
-	% report the delay of the maximal 95%, 99%, 99.99% y-values over all reflectors
-	% for
+% report the delay of the maximal 95%, 99%, 99.99% y-values over all reflectors
+% for
 
-	delay.DL = delta_CDF.DL_OWD.ULandDL.LowLoad.data;
-	delay.UL = delta_CDF.UL_OWD.ULandDL.LowLoad.data;
-	n.DL = delta_CDF.DL_OWD.ULandDL.LowLoad.n;
-	n.UL = delta_CDF.UL_OWD.ULandDL.LowLoad.n;
-	delay_data_list = fieldnames(delay);
+delay.DL = delta_CDF.DL_OWD.ULandDL.LowLoad.data;
+delay.UL = delta_CDF.UL_OWD.ULandDL.LowLoad.data;
+n.DL = delta_CDF.DL_OWD.ULandDL.LowLoad.n;
+n.UL = delta_CDF.UL_OWD.ULandDL.LowLoad.n;
+delay_data_list = fieldnames(delay);
 
-	quantiles_to_report_list = [95, 99, 99.5, 99.9, 99.95, 99.99, 99.999];
-	n_bins = size(delay.UL, 2);
-	CDF_step_size_ms = (calc_range_ms(2) - calc_range_ms(1)) / (n_bins - 1);
-	% here we want the full calculated range if it exists...
-	CDF_x_vec = (calc_range_ms(1):CDF_step_size_ms:calc_range_ms(2));
+quantiles_to_report_list = [95, 99, 99.5, 99.9, 99.95, 99.99, 99.999];
+n_bins = size(delay.UL, 2);
+CDF_step_size_ms = (calc_range_ms(2) - calc_range_ms(1)) / (n_bins - 1);
+% here we want the full calculated range if it exists...
+CDF_x_vec = (calc_range_ms(1):CDF_step_size_ms:calc_range_ms(2));
 
-	unique_reflector_list = delta_CDF.unique_reflector_list;
-	n_unique_reflectors = length(unique_reflector_list);
+unique_reflector_list = delta_CDF.unique_reflector_list;
+n_unique_reflectors = length(unique_reflector_list);
 
-	cur_x_quantile_to_report_id = nan([length(quantiles_to_report_list), n_unique_reflectors]);
+cur_x_quantile_to_report_id = nan([length(quantiles_to_report_list), n_unique_reflectors]);
 
-	disp('Samples per reflector:');
-	for i_reflector = 1:n_unique_reflectors
-		disp(['ReflectorID: ', unique_reflector_list{i_reflector}, '; N: ', num2str(n.UL(i_reflector))]); % for ULandDL both UL and DL will have the same number of samples
-	endfor
+disp('Samples per reflector:');
+for i_reflector = 1:n_unique_reflectors
+  disp(['ReflectorID: ', unique_reflector_list{i_reflector}, '; N: ', num2str(n.UL(i_reflector))]); % for ULandDL both UL and DL will have the same number of samples
+endfor
 
-	for i_delay = 1 : length(delay_data_list)
-		cur_delay = delay_data_list{i_delay};
-		cur_data_CDF = delay.(cur_delay) * 100;
+for i_delay = 1 : length(delay_data_list)
+  cur_delay = delay_data_list{i_delay};
+  cur_data_CDF = delay.(cur_delay) * 100;
 
-		for i_quantile = 1 : length(quantiles_to_report_list)
-			cur_quantile = quantiles_to_report_list(i_quantile);
-			for i_reflector = 1:n_unique_reflectors
-				cur_data_CDF_per_reflector = cur_data_CDF(i_reflector, :);
-				% find the requested quantiles
-				cur_x_quantile = find(cur_data_CDF_per_reflector <= cur_quantile, 1, 'last');
-				if ~isempty(cur_x_quantile)
-					cur_x_quantile_to_report_id(i_quantile, i_reflector) = cur_x_quantile;
-				endif
-			endfor
-			max_delay_for_quantile = CDF_x_vec(max(cur_x_quantile_to_report_id(i_quantile, :)));
-			disp([cur_delay, ': maximum ', num2str(cur_quantile, '%3.3f'), '%-ile delta delay over all ', num2str(n_unique_reflectors), ' reflectors: ', num2str(max_delay_for_quantile, '%4.3f'), ' ms.']);
-		endfor
-	endfor
-	return
+  for i_quantile = 1 : length(quantiles_to_report_list)
+    cur_quantile = quantiles_to_report_list(i_quantile);
+    for i_reflector = 1:n_unique_reflectors
+      cur_data_CDF_per_reflector = cur_data_CDF(i_reflector, :);
+      % find the requested quantiles
+      cur_x_quantile = find(cur_data_CDF_per_reflector <= cur_quantile, 1, 'last');
+      if ~isempty(cur_x_quantile)
+        cur_x_quantile_to_report_id(i_quantile, i_reflector) = cur_x_quantile;
+      endif
+    endfor
+    max_delay_for_quantile = CDF_x_vec(max(cur_x_quantile_to_report_id(i_quantile, :)));
+    disp([cur_delay, ': maximum ', num2str(cur_quantile, '%3.3f'), '%-ile delta delay over all ', num2str(n_unique_reflectors), ' reflectors: ', num2str(max_delay_for_quantile, '%4.3f'), ' ms.']);
+  endfor
+endfor
+return
 endfunction
 
