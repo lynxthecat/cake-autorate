@@ -302,22 +302,21 @@ flush_log_pipe()
 
 kill_maintain_log_file()
 {
-	trap - TERM EXIT
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	flush_log_pipe
-	exit
+	kill_maintain_log_file_signalled=1
+	log_msg "DEBUG" "Killing maintain_log_file."
 }
 
 maintain_log_file()
 {
 	trap '' INT
 	trap 'kill_maintain_log_file' TERM EXIT
-	trap 'export_log_file' USR1
+	trap 'export_log_file_signalled=1' USR1
 	trap 'reset_log_file_signalled=1' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	reset_log_file_signalled=0
+	kill_maintain_log_file_signalled=0 export_log_file_signalled=0 reset_log_file_signalled=0
 
 	while true
 	do
@@ -328,11 +327,13 @@ maintain_log_file()
 
 		t_log_file_start_us=${EPOCHREALTIME/.}
 
-		while read -r -N "${log_file_buffer_size_B}" -u "${log_fd}" log_chunk
+		while true
 		do
+			read -r -N "${log_file_buffer_size_B}" -t 0.5 -u "${log_fd}" log_chunk
+		
 			printf '%s' "${log_chunk}" >&${log_file_fd}
 
-			((log_file_size_bytes+=log_file_buffer_size_B))
+			((log_file_size_bytes+=${#log_chunk}))
 
 			# Verify log file time < configured maximum
 			if (( (${EPOCHREALTIME/.}-t_log_file_start_us) > log_file_max_time_us ))
@@ -346,10 +347,23 @@ maintain_log_file()
 				((log_file_size_KB=log_file_size_bytes/1024))
 				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
 				break
-			elif (( reset_log_file_signalled ))
+			elif (( kill_maintain_log_file_signalled || export_log_file_signalled || reset_log_file_signalled ))
 			then
-				log_msg "DEBUG" "received log file reset signal so flushing and resetting log file."
-				break
+				if ((kill_maintain_log_file_signalled))
+				then
+					flush_log_pipe
+					trap - TERM EXIT
+					exit
+				elif ((export_log_file_signalled))
+				then
+					log_msg "DEBUG" "received log file export signal so exporting log file."
+					export_log_file
+					export_log_file_signalled=0
+				elif ((reset_log_file_signalled))
+				then
+					log_msg "DEBUG" "received log file reset signal so flushing and resetting log file."
+					break
+				fi
 			fi
 		done
 
