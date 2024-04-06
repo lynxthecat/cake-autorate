@@ -1068,7 +1068,7 @@ function [ cur_record_type ] = fn_get_record_type_4_line( current_line, delimite
       elseif strcmp(current_line(1:8), "SUMMARY;")
         cur_record_type = "SUMMARY";
         if ~isfield(log_struct.metainformation, 'SUMMARY_HEADER') || log_struct.metainformation.SUMMARY_HEADER.count < 1
-          # we have not encountered a SUMMARY_HEADER record yet and do not know how to parse REFLECTOR records, so SKIP
+          # we have not encountered a SUMMARY_HEADER record yet and do not know how to parse SUMMARY records, so SKIP
           cur_record_type = "SKIP";
           if ~isfield(log_struct.metainformation, 'SKIP_SUMMARY')
             log_struct.metainformation.SKIP_SUMMARY.count = 1;
@@ -1220,7 +1220,7 @@ endfunction
 function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_string, line_increment)
 global log_struct
 
-if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR'}) % {'DEBUG', 'INFO', 'SJHAPER'}
+if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR', 'SUMMARY'}) % {'DEBUG', 'INFO', 'SJHAPER'}
   return
 endif
 
