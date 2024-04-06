@@ -1220,7 +1220,7 @@ endfunction
 function [ ] = fn_parse_current_line( cur_record_type, current_line, delimiter_string, line_increment)
 global log_struct
 
-if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR'}) % {'DEBUG', 'INFO', 'SJHAPER'}
+if ~ismember(cur_record_type, {'INFO', 'SHAPER', 'DEBUG', 'DATA', 'LOAD', 'REFLECTOR', 'SUMMARY'}) % {'DEBUG', 'INFO', 'SHAPER'}
   return
 endif
 
