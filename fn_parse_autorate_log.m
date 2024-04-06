@@ -33,7 +33,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 
 %if ~(isoctave)
 dbstop if error;
-%end
+%endif
 
 timestamps.(mfilename).start = tic;
 fq_mfilename = mfilename('fullpath');
@@ -153,7 +153,7 @@ try
 		if (n_DATA_samples == 0)
 			x_range.DATA = x_range.LOAD; % needed for plot naming...
 		endif
-	end
+	endif
 	if (do_return)
 		return
 	endif
@@ -223,13 +223,13 @@ try
 		%				rates.LOAD.color_list{end+1} = [241,182,218]/254;
 		%				rates.LOAD.linestyle_list{end+1} = '-';
 		%				rates.LOAD.sign_list{end+1} = 1;
-		%			end
+		%			endif
 		%			if isfield(autorate_log.DATA.LISTS, 'CAKE_UL_RATE_KBPS')
 		%				rates.LOAD.fields_to_plot_list{end+1} = 'CAKE_UL_RATE_KBPS';
 		%				rates.LOAD.color_list{end+1} = [184,225,134]/254;
 		%				rates.LOAD.linestyle_list{end+1} = '-';
 		%				rates.LOAD.sign_list{end+1} = -1;
-		%			end
+		%			endif
 
 		% these can be replaced...
 		if isfield(autorate_log.LOAD.LISTS, 'DL_ACHIEVED_RATE_KBPS')
@@ -242,7 +242,7 @@ try
 			rates.DATA.color_list(rate_DATA_idx) = [];
 			rates.DATA.linestyle_list(rate_DATA_idx) = [];
 			rates.DATA.sign_list(rate_DATA_idx) = [];
-		end
+		endif
 		if isfield(autorate_log.LOAD.LISTS, 'UL_ACHIEVED_RATE_KBPS')
 			rates.LOAD.fields_to_plot_list{end+1} = 'UL_ACHIEVED_RATE_KBPS';
 			rates.LOAD.color_list{end+1} = [77,172,38]/254;
@@ -253,7 +253,7 @@ try
 			rates.DATA.color_list(rate_DATA_idx) = [];
 			rates.DATA.linestyle_list(rate_DATA_idx) = [];
 			rates.DATA.sign_list(rate_DATA_idx) = [];
-		end
+		endif
 	endif
 
 	% create the latency data ollection and configuration
@@ -270,42 +270,42 @@ try
 		delays.DATA.color_list{end+1} = [246, 232, 195]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = 1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'UL_OWD_BASELINE')
 		delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_BASELINE';
 		delays.DATA.color_list{end+1} = [199, 234, 229]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = -1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'DL_OWD_US')
 		delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_US';
 		delays.DATA.color_list{end+1} = [223, 194, 125]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = 1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'UL_OWD_US')
 		delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_US';
 		delays.DATA.color_list{end+1} = [128, 205, 193]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = -1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'DL_OWD_DELTA_US')
 		delays.DATA.fields_to_plot_list{end+1} = 'DL_OWD_DELTA_US';
 		delays.DATA.color_list{end+1} = [191, 129, 45]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = 1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_US')
 		delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_US';
 		delays.DATA.color_list{end+1} = [53, 151, 143]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = -1;
-	end
+	endif
 
 
 	if isfield(autorate_log.DATA.LISTS, 'DL_AVG_OWD_DELTA_US')
@@ -313,14 +313,14 @@ try
 		delays.DATA.color_list{end+1} = [0.33, 0 , 0]; %[191, 129, 45]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = 1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'UL_AVG_OWD_DELTA_US')
 		delays.DATA.fields_to_plot_list{end+1} = 'UL_AVG_OWD_DELTA_US';
 		delays.DATA.color_list{end+1} = [0.33, 0 , 0]; %[53, 151, 143]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = -1;
-	end
+	endif
 
 
 
@@ -375,14 +375,14 @@ try
 		delays.DATA.color_list{end+1} = [140, 81, 10]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = 1;
-	end
+	endif
 
 	if isfield(autorate_log.DATA.LISTS, 'UL_OWD_DELTA_EWMA_US')
 		delays.DATA.fields_to_plot_list{end+1} = 'UL_OWD_DELTA_EWMA_US';
 		delays.DATA.color_list{end+1} = [1, 102, 94]/254;
 		delays.DATA.linestyle_list{end+1} = '-';
 		delays.DATA.sign_list{end+1} = -1;
-	end
+	endif
 
 
 	% get x_vector data and which indices to display for each record type
@@ -460,7 +460,7 @@ try
 		adjusted_ylim_delay(2) = (sign(delays.DATA.sign_list{1}) * dl_max_adj_delay_thr * scale_delay_axis_by_ADJ_DELAY_THR_factor);
 		disp(['INFO: Adjusted y-limits based on ADJ_DELAY_THR_factor: ', num2str(adjusted_ylim_delay)]);
 		%set(AX(2), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
-	end
+	endif
 
 	% find the 99%ile for the actual relevant delay data
 
@@ -611,7 +611,7 @@ try
 
 			if ~isempty(adjusted_ylim_delay)
 				set(AX(1), 'YLim', (adjusted_ylim_delay * delays.DATA.scale_factor));
-			end
+			endif
 
 			hold(AX(2));
 			for i_field = 1 : length(rates.DATA.fields_to_plot_list)
@@ -689,12 +689,12 @@ try
 					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
 				else
 					legend(legend_list, 'Interpreter', 'none', 'numcolumns', 2, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-				end
+				endif
 			catch
 				disp(['Triggered']);
 				legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
 			end_try_catch
-		end
+		endif
 		hold off
 		xlabel(x_label_string);
 		ylabel('Rate [Mbps]');
@@ -719,11 +719,11 @@ try
 						legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
 					else
 						legend(legend_list, 'Interpreter', 'none', 'numcolumns', 3, 'box', 'off', 'location', 'northoutside', 'FontSize', 7);
-					end
+					endif
 				catch
 					legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', 7);
 				end_try_catch
-			end
+			endif
 			hold off
 			xlabel(x_label_string);
 			ylabel('Delay [milliseconds]');
@@ -894,7 +894,7 @@ save(fullfile(log_dir, [log_name, log_ext, '.mat']), 'autorate_log', '-7');
 if ~exist(fullfile(log_dir, [log_name, log_ext, '.gz']), 'file')
 	% compress the uncompressed log
 	FILELIST = gzip(fullfile(log_dir, [log_name, log_ext]));
-end
+endif
 
 if exist(fullfile(log_dir, [log_name, log_ext]), 'file');
 	% delete the uncompressed log
@@ -910,7 +910,7 @@ persistent inout;
 
 if isempty(inout),
 	inout = exist('OCTAVE_VERSION','builtin') ~= 0;
-end
+endif
 in = inout;
 
 return;
@@ -931,7 +931,7 @@ sanitized_name = input_name;
 taboo_first_char_idx = find(ismember(taboo_first_char_list, input_name(1)));
 if ~isempty(taboo_first_char_idx)
 	sanitized_name = [replacement_firts_char_list{taboo_first_char_idx}, input_name(2:end)];
-end
+endif
 
 for i_taboo_char = 1: length(taboo_char_list)
 	current_taboo_string = taboo_char_list{i_taboo_char};
@@ -947,10 +947,10 @@ for i_taboo_char = 1: length(taboo_char_list)
 			% we add one superfluous replacement string at the end, so
 			% remove that
 			tmp_string = tmp_string(1:end-length(current_replacement_string));
-		end
-	end
+		endif
+	endwhile
 	sanitized_name = tmp_string;
-end
+endfor
 
 return
 endfunction
@@ -1333,7 +1333,7 @@ for i_field = 1 : length(cell_array_of_field_names)
 
 	%strcmp(log_struct.DATA.listnames{i_field}, 'TYPE')
 	log_struct.(DATA_RECORD_name).listtypes{i_field} = cur_type_string;
-end
+endfor
 
 log_struct.(DATA_RECORD_name).format_string = fn_compose_format_string(log_struct.(DATA_RECORD_name).listtypes);
 
@@ -1396,7 +1396,7 @@ if (ismember(version('-release'), {'2016a', '2019a', '2019b'}))
 	set(img_fh, 'PaperPositionMode', 'manual');
 	if ~ismember(img_type, {'.png', '.tiff', '.tif'})
 		print_options_str = '-bestfit';
-	end
+	endif
 endif
 
 if ~exist('print_options_str', 'var') || isempty(print_options_str)
@@ -1474,7 +1474,7 @@ output_rect = [];
 
 if ~ ishandle(figure_handle)
 	error(['ERROR: First argument needs to be a figure handle...']);
-end
+endif
 
 cm2inch = 1/2.54;
 fraction = 1;
@@ -1633,7 +1633,7 @@ try
 		legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
 	else
 		legend(legend_list, 'Interpreter', 'none', 'numcolumns', 1, 'box', 'off', 'location', 'eastoutside', 'FontSize', legend_font_size);
-	end
+	endif
 catch
 	disp(['Triggered']);
 	legend(legend_list, 'Interpreter', 'none', 'box', 'off', 'FontSize', legend_font_size);
