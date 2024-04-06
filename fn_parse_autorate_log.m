@@ -186,7 +186,7 @@ function [ ] = fn_parse_autorate_log( log_FQN, plot_FQN, x_range_sec, selected_r
 		min_sequence_number = 1;
 
 		align_rate_and_delay_zeros = 1; % so that delay and rate 0s are aligned
-		output_format_extension = '.png'; % '.pdf', '.png', '.tif', '.ps
+		output_format_extension = '.png'; % '.pdf', '.png', '.tif', '.ps', ...
 		line_width = 1.0;
 		figure_opts.line_width = line_width;
 		figure_opts.output_format_extension = output_format_extension;
@@ -787,7 +787,7 @@ function [ autorate_log, log_FQN ] = fn_parse_autorate_logfile( log_FQN, command
 	log_struct.INFO = [];
 	log_struct.SHAPER = [];
 	log_struct.metainformation = [];
-  log_struct.SUMMARY_HEADER = [];
+	log_struct.SUMMARY_HEADER = [];
 	log_struct.SUMMARY = [];
 
 

@@ -75,7 +75,7 @@ The command below will run the Octave program (see the introductory
 notes in _fn_parse_autorate_log.m_ for more details):
 
 ```bash
-octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./output.pdf")'
+octave -qf --eval 'fn_parse_autorate_log("./log.gz", "./output.png")'
 ```
 
 The script below can be run on a remote machine to extract the log
@@ -84,7 +84,7 @@ machine:
 
 ```bash
 log_file=$(ssh root@192.168.1.1 '/var/run/cake-autorate/primary/log_file_export 1>/dev/null && cat /var/run/cake-autorate/primary/last_log_file_export') && scp -O root@192.168.1.1:${log_file} . && ssh root@192.168.1.1 "rm ${log_file}"
-octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.pdf")'
+octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.png")'
 ```
 
 ### Prometheus cake-autorate exporter
