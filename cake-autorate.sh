@@ -80,7 +80,7 @@ cleanup_and_killall()
 
 	terminate "${proc_pids['monitor_achieved_rates']:-}"
 
-	terminate "${pinger_pids[@]}"
+	terminate "${pinger_pids[*]}"
 
 	[[ -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -95,7 +95,7 @@ cleanup_and_killall()
 	then
 		unset "proc_pids[intercept_stderr]"
 	fi
-	terminate "${proc_pids[@]}"
+	terminate "${proc_pids[*]}"
 
 	# restore original stderr, and terminate intercept_stderr
 	if [[ -n ${intercept_stderr_pid} ]]

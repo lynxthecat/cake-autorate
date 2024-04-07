@@ -124,14 +124,17 @@ terminate()
 {
 	# Send regular kill to processes and monitor terminations;
 	# return as soon as all of the active processes terminate;
-	# if any processes remain active after one second, kill with fire using kill -9;
+	# if any processes remain active after timeout (defaults to one second),
+	# then kill with fire using kill -9;
 	# and, finally, call wait on all processes to reap any zombie processes.
 
-	local pids=("${@:-}")
+	local pids=${1} timeout_ms=${2:-100}
+
+	pids=(${pids})
 
 	kill "${pids[@]}" 2> /dev/null
 
-	for((i=0; i<10; i++))
+	for ((i=0; i<timeout_ms; i+=100))
 	do
 		for process in "${!pids[@]}"
 		do
