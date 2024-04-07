@@ -1,5 +1,11 @@
+# for working with fn_parse_autorate_log.m
 cake-autorate.*.log
 cake-autorate.*.log.gz
 cake-autorate.*.log.mat
 output.*.*
 /.gitattributes
+
+# benchmarking scripts (tend to be named with a 1, 2, or 3 letter prefix)
+[a-z].sh
+[a-z][a-z].sh
+[a-z][a-z][a-z].sh

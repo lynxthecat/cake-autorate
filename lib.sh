@@ -130,7 +130,7 @@ terminate()
 
 	local pids=${1} timeout_ms=${2:-100}
 
-	pids=(${pids})
+	read -r -a pids <<< "${pids}"
 
 	kill "${pids[@]}" 2> /dev/null
 

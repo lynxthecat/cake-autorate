@@ -141,16 +141,18 @@ log_msg()
 			;;
 	esac
 
+	printf -v msg '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
+	((terminal)) && printf '%s' "${msg}"
+
 	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
+	((log_to_file)) || return
 	if (( log_fd >= 0 ))
 	then
-		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >&"${log_fd}"
+		printf '%s' "${msg}" >&"${log_fd}"
 	else
-		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> "${log_file_path}"
+		printf '%s' "${msg}" >> "${log_file_path}"
 	fi
-
-	((terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
 }
 
 print_headers()
@@ -192,11 +194,9 @@ rotate_log_file()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if [[ -f ${log_file_path} ]]
-	then
-		cat "${log_file_path}" > ${log_file_path}.old
-		true > ${log_file_path}
-	fi
+	[[ -f ${log_file_path} ]] || return
+	cat "${log_file_path}" > "${log_file_path}.old"
+	true > "${log_file_path}"
 }
 
 reset_log_file()
@@ -204,12 +204,12 @@ reset_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	rm -f "${log_file_path}.old"
-	true > ${log_file_path}
+	true > "${log_file_path}"
 }
 
 generate_log_file_scripts()
 {
-	cat > ${run_path}/log_file_export <<- EOT
+	cat > "${run_path}/log_file_export" <<- EOT
 	#!${BASH}
 
 	timeout_s=\${1:-20}
@@ -263,7 +263,7 @@ export_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_export_datetime '%(%Y_%m_%d_%H_%M_%S)T'
-	log_file_export_path=${log_file_path/.log/_${log_file_export_datetime}.log}
+	log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
 	log_msg "DEBUG" "Exporting log file with path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 
 	flush_log_pipe
@@ -271,25 +271,20 @@ export_log_file()
 	# Now export with or without compression to the appropriate export path
 	if ((log_file_export_compress))
 	then
-		log_file_export_path=${log_file_export_path}.gz
-		if [[ -f ${log_file_path}.old ]]
-		then
-			gzip -c "${log_file_path}.old" > ${log_file_export_path}
-			gzip -c "${log_file_path}" >> ${log_file_export_path}
-		else
-			gzip -c "${log_file_path}" > ${log_file_export_path}
-		fi
+		log_file_export_path="${log_file_export_path}.gz"
+		export_cmd=("gzip" "-c")
 	else
-		if [[ -f ${log_file_path}.old ]]
-		then
-			cp "${log_file_path}.old" "${log_file_export_path}"
-			cat "${log_file_path}" >> ${log_file_export_path}
-		else
-			cp "${log_file_path}" "${log_file_export_path}"
-		fi
+		export_cmd=("cat")
 	fi
 
-	printf '%s' "${log_file_export_path}" > ${run_path}/last_log_file_export
+	if [[ -f ${log_file_path}.old ]]
+	then
+		"${export_cmd[@]}" "${log_file_path}.old" > "${log_file_export_path}"
+		"${export_cmd[@]}" "${log_file_path}" >> "${log_file_export_path}"
+	else
+		"${export_cmd[@]}" "${log_file_path}" > "${log_file_export_path}"
+	fi
+	printf '%s' "${log_file_export_path}" > "${run_path}/last_log_file_export"
 }
 
 flush_log_pipe()
@@ -303,33 +298,27 @@ flush_log_pipe()
 	done
 }
 
-kill_maintain_log_file()
-{
-	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	kill_maintain_log_file_signalled=1
-	log_msg "DEBUG" "Killing maintain_log_file."
-}
-
 maintain_log_file()
 {
 	trap '' INT
-	trap 'kill_maintain_log_file' TERM EXIT
-	trap 'export_log_file_signalled=1' USR1
-	trap 'reset_log_file_signalled=1' USR2
+	trap 'signal=${kill_signal}' TERM EXIT
+	trap 'signal=${export_signal}' USR1
+	trap 'signal=${reset_log_file_signal}' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}"
-	kill_maintain_log_file_signalled=0 export_log_file_signalled=0 reset_log_file_signalled=0
+	signal=0 kill_signal=1 export_signal=2 reset_log_file_signal=3
 
 	while true
 	do
-		exec {log_file_fd}> ${log_file_path}
+		exec {log_file_fd}> "${log_file_path}"
 
 		print_headers
-		log_file_size_bytes=$(wc -c "${log_file_path}" 2>/dev/null | awk '{print $1}') log_file_size_bytes=${log_file_size_bytes:-0}
+		log_file_size_bytes=$(wc -c "${log_file_path}" 2>/dev/null | awk '{print $1}')
+		log_file_size_bytes=${log_file_size_bytes:-0}
 
-		t_log_file_start_us=${EPOCHREALTIME/.}
+		t_log_file_start_s=${SECONDS}
 
 		while true
 		do
@@ -340,7 +329,7 @@ maintain_log_file()
 			((log_file_size_bytes+=${#log_chunk}))
 
 			# Verify log file time < configured maximum
-			if (( (${EPOCHREALTIME/.}-t_log_file_start_us) > log_file_max_time_us ))
+			if (( SECONDS - t_log_file_start_s > log_file_max_time_s ))
 			then
 
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
@@ -351,24 +340,28 @@ maintain_log_file()
 				((log_file_size_KB=log_file_size_bytes/1024))
 				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
 				break
-			elif (( kill_maintain_log_file_signalled || export_log_file_signalled || reset_log_file_signalled ))
-			then
-				if ((kill_maintain_log_file_signalled))
-				then
+			fi
+
+			# Check for signals
+			case ${signal} in
+				${kill_signal})
+					log_msg "DEBUG" "received log file kill signal so flushing log and exiting."
 					flush_log_pipe
 					trap - TERM EXIT
 					exit
-				elif ((export_log_file_signalled))
-				then
+					;;
+				${export_signal})
 					log_msg "DEBUG" "received log file export signal so exporting log file."
 					export_log_file
-					export_log_file_signalled=0
-				elif ((reset_log_file_signalled))
-				then
+					signal=0
+					;;
+				${reset_log_file_signal})
 					log_msg "DEBUG" "received log file reset signal so flushing and resetting log file."
 					break
-				fi
-			fi
+					;;
+				*)
+					;;
+			esac
 		done
 
 		flush_log_pipe
@@ -388,10 +381,10 @@ export_proc_pids()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	true > ${run_path}/proc_pids
+	true > "${run_path}/proc_pids"
 	for proc_pid in "${!proc_pids[@]}"
 	do
-		printf "%s=%s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> ${run_path}/proc_pids
+		printf "%s=%s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> "${run_path}/proc_pids"
 	done
 }
 
@@ -408,8 +401,8 @@ monitor_achieved_rates()
 
 	compensated_monitor_achieved_rates_interval_us=${monitor_achieved_rates_interval_us}
 
-	{ read -r prev_rx_bytes < ${rx_bytes_path}; } 2> /dev/null || prev_rx_bytes=0
-	{ read -r prev_tx_bytes < ${tx_bytes_path}; } 2> /dev/null || prev_tx_bytes=0
+	{ read -r prev_rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || prev_rx_bytes=0
+	{ read -r prev_tx_bytes < "${tx_bytes_path}"; } 2> /dev/null || prev_tx_bytes=0
 
 	sleep_duration_s=0 t_start_us=0
 
@@ -421,8 +414,8 @@ monitor_achieved_rates()
 
 		# read in rx/tx bytes file, and if this fails then set to prev_bytes
 		# this addresses interfaces going down and back up
-		{ read -r rx_bytes < ${rx_bytes_path}; } 2> /dev/null || rx_bytes=${prev_rx_bytes}
-		{ read -r tx_bytes < ${tx_bytes_path}; } 2> /dev/null || tx_bytes=${prev_tx_bytes}
+		{ read -r rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || rx_bytes=${prev_rx_bytes}
+		{ read -r tx_bytes < "${tx_bytes_path}"; } 2> /dev/null || tx_bytes=${prev_tx_bytes}
 
 		((
 			achieved_rate_kbps[dl] = 8000*(rx_bytes - prev_rx_bytes) / compensated_monitor_achieved_rates_interval_us,
@@ -483,26 +476,24 @@ start_pingers()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if ((pingers_active==0))
-	then
-		case ${pinger_binary} in
+	((pingers_active)) && return
+	case ${pinger_binary} in
 
-			tsping|fping)
-				start_pinger 0
-				;;
-			ping)
-				for ((pinger=0; pinger < no_pingers; pinger++))
-				do
-					start_pinger "${pinger}"
-				done
-				;;
-			*)
-				log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
-				kill $$ 2>/dev/null
-				;;
-		esac
-		pingers_active=1
-	fi
+		tsping|fping)
+			start_pinger 0
+			;;
+		ping)
+			for ((pinger=0; pinger < no_pingers; pinger++))
+			do
+				start_pinger "${pinger}"
+			done
+			;;
+		*)
+			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+			kill $$ 2>/dev/null
+			;;
+	esac
+	pingers_active=1
 }
 
 sleep_until_next_pinger_time_slot()
@@ -540,28 +531,26 @@ stop_pingers()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	if ((pingers_active))
-	then
-		case ${pinger_binary} in
+	((pingers_active)) || return
+	case ${pinger_binary} in
 
-			tsping|fping)
-				log_msg "DEBUG" "Killing ${pinger_binary} instance."
-				kill_pinger 0
-				;;
-			ping)
-				for (( pinger=0; pinger < no_pingers; pinger++))
-				do
-					log_msg "DEBUG" "Killing pinger instance: ${pinger}"
-					kill_pinger "${pinger}"
-				done
-				;;
-			*)
-				log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
-				kill $$ 2>/dev/null
-				;;
-		esac
-		pingers_active=0
-	fi
+		tsping|fping)
+			log_msg "DEBUG" "Killing ${pinger_binary} instance."
+			kill_pinger 0
+			;;
+		ping)
+			for (( pinger=0; pinger < no_pingers; pinger++))
+			do
+				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
+				kill_pinger "${pinger}"
+			done
+			;;
+		*)
+			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+			kill $$ 2>/dev/null
+			;;
+	esac
+	pingers_active=0
 }
 
 
@@ -618,34 +607,33 @@ set_shaper_rate()
 
 	local direction=${1} # 'dl' or 'ul'
 
-	if (( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] ))
+	(( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] )) || return
+
+	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
+
+	if ((adjust_shaper_rate[${direction}]))
 	then
-		((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
-
-		if ((adjust_shaper_rate[${direction}]))
-		then
-			tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
-		else
-			((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
-		fi
-
-		# Compensate for delays imposed by active traffic shaper
-		# This will serve to increase the delay thr at rates below around 12Mbit/s
-		((
-			dl_compensation_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl],
-			ul_compensation_us=(1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
-
-			compensated_owd_delta_thr_us[dl]=dl_owd_delta_thr_us + dl_compensation_us,
-			compensated_owd_delta_thr_us[ul]=ul_owd_delta_thr_us + ul_compensation_us,
-
-			compensated_avg_owd_delta_thr_us[dl]=dl_avg_owd_delta_thr_us + dl_compensation_us,
-			compensated_avg_owd_delta_thr_us[ul]=ul_avg_owd_delta_thr_us + ul_compensation_us,
-
-			max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
-		
-			last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
-		))
+		tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
+	else
+		((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 	fi
+
+	# Compensate for delays imposed by active traffic shaper
+	# This will serve to increase the delay thr at rates below around 12Mbit/s
+	((
+		dl_compensation_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl],
+		ul_compensation_us=(1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
+
+		compensated_owd_delta_thr_us[dl]=dl_owd_delta_thr_us + dl_compensation_us,
+		compensated_owd_delta_thr_us[ul]=ul_owd_delta_thr_us + ul_compensation_us,
+
+		compensated_avg_owd_delta_thr_us[dl]=dl_avg_owd_delta_thr_us + dl_compensation_us,
+		compensated_avg_owd_delta_thr_us[ul]=ul_avg_owd_delta_thr_us + ul_compensation_us,
+
+		max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
+
+		last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
+	))
 }
 
 get_max_wire_packet_size_bits()
@@ -653,7 +641,7 @@ get_max_wire_packet_size_bits()
 	local interface=${1}
 	local -n max_wire_packet_size_bits=${2}
 
-	read -r max_wire_packet_size_bits < /sys/class/net/${interface}/mtu
+	read -r max_wire_packet_size_bits < "/sys/class/net/${interface:?}/mtu"
 	[[ $(tc qdisc show dev "${interface}") =~ (atm|noatm)[[:space:]]overhead[[:space:]]([0-9]+) ]]
 	(( max_wire_packet_size_bits=8*(max_wire_packet_size_bits+BASH_REMATCH[2]) ))
 	# atm compensation = 53*ceil(X/48) bytes = 8*53*((X+8*(48-1)/(8*48)) bits = 424*((X+376)/384) bits
@@ -682,15 +670,14 @@ change_state_main()
 
 	case ${main_next_state} in
 
+		${main_state})
+			log_msg "ERROR" "Received request to change main state to existing state."
+			;;
+
 		RUNNING|IDLE|STALL)
 
-			if [[ ${main_state} != "${main_next_state}" ]]
-			then
-				log_msg "DEBUG" "Changing main state from: ${main_state} to: ${main_next_state}"
-				main_state=${main_next_state}
-			else
-				log_msg "ERROR" "Received request to change main state to existing state."
-			fi
+			log_msg "DEBUG" "Changing main state from: ${main_state} to: ${main_next_state}"
+			main_state=${main_next_state}
 			;;
 
 		*)
@@ -774,9 +761,9 @@ run_path=/var/run/cake-autorate/
 # cake-autorate first argument is config file path
 if [[ -n ${1-} ]]
 then
-	config_path=${1}
+	config_path="${1}"
 else
-	config_path=${PREFIX}/config.primary.sh
+	config_path="${PREFIX}/config.primary.sh"
 fi
 
 if [[ ! -f ${config_path} ]]
@@ -829,7 +816,7 @@ fi
 unset valid_config_entries user_config config_error_count key
 
 # shellcheck source=config.primary.sh
-. ${config_path}
+. "${config_path}"
 
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then
@@ -843,14 +830,14 @@ if [[ -n ${log_file_path_override-} ]]
 then
 	if [[ ! -d ${log_file_path_override} ]]
 	then
-		broken_log_file_path_override=${log_file_path_override} \
-		log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
+		broken_log_file_path_override="${log_file_path_override}"
+		log_file_path="/var/log/cake-autorate${instance_id:+.${instance_id}}.log"
 		log_msg "ERROR" "Log file path override: '${broken_log_file_path_override}' does not exist. Exiting now."
 		exit 1
 	fi
-	log_file_path=${log_file_path_override}/cake-autorate${instance_id:+.${instance_id}}.log
+	log_file_path="${log_file_path_override}/cake-autorate${instance_id:+.${instance_id}}.log"
 else
-	log_file_path=/var/log/cake-autorate${instance_id:+.${instance_id}}.log
+	log_file_path="/var/log/cake-autorate${instance_id:+.${instance_id}}.log"
 fi
 
 rotate_log_file
@@ -906,7 +893,7 @@ command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${p
 if ((log_to_file))
 then
 	((
-		log_file_max_time_us=log_file_max_time_mins*60000000,
+		log_file_max_time_s=log_file_max_time_mins*60,
 		log_file_max_size_bytes=log_file_max_size_KB*1024
 	))
 	exec {log_fd}<> <(:)
@@ -926,13 +913,13 @@ if [[ -z ${rx_bytes_path-} ]]
 then
 	case ${dl_if} in
 		veth*)
-			rx_bytes_path=/sys/class/net/${dl_if}/statistics/tx_bytes
+			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
 			;;
 		ifb*)
-			rx_bytes_path=/sys/class/net/${dl_if}/statistics/tx_bytes
+			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
 			;;
 		*)
-			rx_bytes_path=/sys/class/net/${dl_if}/statistics/tx_bytes
+			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
 			;;
 	esac
 fi
@@ -940,13 +927,13 @@ if [[ -z ${tx_bytes_path-} ]]
 then
 	case ${ul_if} in
 		veth*)
-			tx_bytes_path=/sys/class/net/${ul_if}/statistics/rx_bytes
+			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
 			;;
 		ifb*)
-			tx_bytes_path=/sys/class/net/${ul_if}/statistics/rx_bytes
+			tx_bytes_path="/sys/class/net/${ul_if}/statistics/rx_bytes"
 			;;
 		*)
-			tx_bytes_path=/sys/class/net/${ul_if}/statistics/tx_bytes
+			tx_bytes_path="/sys/class/net/${ul_if}/statistics/tx_bytes"
 			;;
 	esac
 fi
@@ -1135,13 +1122,13 @@ do
 	unset command
 	reflector_response=0
 	read -r -u "${main_fd}" -a command
-	[[ "${#command[@]}" -eq 0 ]] && continue
+	((${#command[@]})) || continue
 
 	case ${command[0]} in
 
 		# Set download and upload achieved rates
 		SARS)
-			if [[ "${#command[@]}" -eq 3 ]]
+			if ((${#command[@]} == 3))
 			then
 				achieved_rate_kbps[dl]=${command[1]} achieved_rate_kbps[ul]=${command[2]} achieved_rate_updated[dl]=1 achieved_rate_updated[ul]=1
 
@@ -1176,19 +1163,19 @@ do
 			case "${pinger_binary}" in
 
 				tsping)
-					if [[ "${#command[@]}" -eq 10 ]]
+					if ((${#command[@]} == 10))
 					then
 						timestamp=${command[0]} reflector=${command[1]}  seq=${command[2]} dl_owd_ms=${command[8]} ul_owd_ms=${command[9]} reflector_response=1
 					fi
 					;;
 				fping)
-					if [[ "${#command[@]}" -eq 12 ]]
+					if ((${#command[@]} == 12))
 					then
 						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
 					fi
 					;;	
 				ping)
-					if [[ "${#command[@]}" -eq 9 ]]
+					if ((${#command[@]} == 9))
 					then
 						timestamp=${command[0]} reflector=${command[4]} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
 					fi
