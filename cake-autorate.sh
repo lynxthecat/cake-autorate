@@ -138,16 +138,18 @@ log_msg()
 			;;
 	esac
 
+	msg=$(printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}")
+	((terminal)) && printf '%s\n' "${msg}"
+	((log_to_file)) || return
+
 	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
 	if (( log_fd >= 0 ))
 	then
-		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >&"${log_fd}"
+		printf '%s\n' "${msg}" >&${log_fd}
 	else
-		((log_to_file)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}" >> "${log_file_path}"
+		printf '%s\n' "${msg}" >> "${log_file_path}"
 	fi
-
-	((terminal)) && printf '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
 }
 
 print_headers()
@@ -326,16 +328,15 @@ maintain_log_file()
 		print_headers
 		log_file_size_bytes=$(wc -c "${log_file_path}" 2>/dev/null | awk '{print $1}') log_file_size_bytes=${log_file_size_bytes:-0}
 
-		t_log_file_start_us=${EPOCHREALTIME/.}
+		t_log_file_start_s=${SECONDS}
 
 		while read -r -N "${log_file_buffer_size_B}" -u "${log_fd}" log_chunk
 		do
 			printf '%s' "${log_chunk}" >&${log_file_fd}
-
-			((log_file_size_bytes+=log_file_buffer_size_B))
+			((log_file_size_bytes+=${#log_chunk}))
 
 			# Verify log file time < configured maximum
-			if (( (${EPOCHREALTIME/.}-t_log_file_start_us) > log_file_max_time_us ))
+			if (( SECONDS - t_log_file_start_s > log_file_max_time_s ))
 			then
 
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
@@ -888,7 +889,7 @@ command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${p
 if ((log_to_file))
 then
 	((
-		log_file_max_time_us=log_file_max_time_mins*60000000,
+		log_file_max_time_s=log_file_max_time_mins*60,
 		log_file_max_size_bytes=log_file_max_size_KB*1024
 	))
 	exec {log_fd}<> <(:)
