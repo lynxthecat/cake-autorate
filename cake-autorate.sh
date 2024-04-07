@@ -82,6 +82,9 @@ cleanup_and_killall()
 
 	terminate "${pinger_pids[*]}"
 
+	((terminate_maintain_log_file_timeout_ms=log_file_buffer_timeout_ms+500))
+	terminate "${proc_pids['maintain_log_file']}" "${terminate_maintain_log_file_timeout_ms}"
+
 	[[ -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
 
