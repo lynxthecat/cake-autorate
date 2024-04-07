@@ -316,6 +316,7 @@ maintain_log_file()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
+	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}"
 	kill_maintain_log_file_signalled=0 export_log_file_signalled=0 reset_log_file_signalled=0
 
 	while true
@@ -329,7 +330,7 @@ maintain_log_file()
 
 		while true
 		do
-			read -r -N "${log_file_buffer_size_B}" -t 0.5 -u "${log_fd}" log_chunk
+			read -r -N "${log_file_buffer_size_B}" -t "${log_file_buffer_timeout_s}" -u "${log_fd}" log_chunk
 		
 			printf '%s' "${log_chunk}" >&${log_file_fd}
 

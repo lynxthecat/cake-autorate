@@ -111,7 +111,8 @@ startup_wait_s=0.0 # number of seconds to wait on startup (e.g. to wait for thin
 
 # *** ADVANCED CONFIGURATION OPTIONS ***
 
-log_file_buffer_size_B=512 # log file buffer size in bytes
+log_file_buffer_size_B=512     # log file buffer size in bytes
+log_file_buffer_timeout_ms=500 # log file buffer timeout in milliseconds
 
 log_file_export_compress=1 # compress log file exports using gzip and append .gz to export filename
 
