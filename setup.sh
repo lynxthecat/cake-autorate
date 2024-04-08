@@ -32,8 +32,8 @@ main() {
 	DEPENDENCIES="jsonfilter uclient-fetch tar grep"
 
 	# Set up remote locations and branch
-	BRANCH=${CAKE_AUTORATE_BRANCH:-${2-master}}
 	REPOSITORY=${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}
+	BRANCH=${CAKE_AUTORATE_BRANCH:-${2-master}}
 	SRC_DIR=https://github.com/${REPOSITORY}/archive/
 	API_URL=https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}
 	DOC_URL=https://github.com/${REPOSITORY}/tree/${BRANCH}#installation-on-openwrt
