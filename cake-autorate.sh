@@ -307,7 +307,7 @@ maintain_log_file()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}"
+	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
 	signal=0 kill_signal=1 export_signal=2 reset_log_file_signal=3
 
 	while true
