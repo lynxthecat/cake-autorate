@@ -301,14 +301,14 @@ flush_log_pipe()
 maintain_log_file()
 {
 	trap '' INT
-	trap 'signal=${kill_signal}' TERM EXIT
-	trap 'signal=${export_signal}' USR1
-	trap 'signal=${reset_log_file_signal}' USR2
+	trap 'signal=KILL' TERM EXIT
+	trap 'signal=EXPORT' USR1
+	trap 'signal=RESET' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
-	signal=0 kill_signal=1 export_signal=2 reset_log_file_signal=3
+	signal=""
 
 	while true
 	do
@@ -333,45 +333,43 @@ maintain_log_file()
 			then
 
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
+				flush_log_pipe
+				rotate_log_file
 				break
 			# Verify log file size < configured maximum
 			elif (( log_file_size_bytes > log_file_max_size_bytes ))
 			then
 				((log_file_size_KB=log_file_size_bytes/1024))
 				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
+				flush_log_pipe
+				rotate_log_file
 				break
 			fi
 
 			# Check for signals
 			case ${signal} in
-				${kill_signal})
+				KILL)
 					log_msg "DEBUG" "received log file kill signal so flushing log and exiting."
 					flush_log_pipe
 					trap - TERM EXIT
 					exit
 					;;
-				${export_signal})
+				EXPORT)
 					log_msg "DEBUG" "received log file export signal so exporting log file."
 					export_log_file
-					signal=0
+					signal=""
 					;;
-				${reset_log_file_signal})
-					log_msg "DEBUG" "received log file reset signal so flushing and resetting log file."
+				RESET)
+					log_msg "DEBUG" "received log file reset signal so flushing log and resetting log file."
+					flush_log_pipe
+					reset_log_file
+					signal=""
 					break
 					;;
 				*)
 					;;
 			esac
 		done
-
-		flush_log_pipe
-		if ((reset_log_file_signalled))
-		then
-			reset_log_file
-			reset_log_file_signalled=0
-		else
-			rotate_log_file
-		fi
 
 		exec {log_file_fd}>&-
 	done
