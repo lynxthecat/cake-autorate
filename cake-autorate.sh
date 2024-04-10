@@ -301,14 +301,13 @@ flush_log_pipe()
 maintain_log_file()
 {
 	trap '' INT
-	trap 'signal=KILL' TERM EXIT
-	trap 'signal=EXPORT' USR1
-	trap 'signal=RESET' USR2
+	trap 'signal+=(KILL)' TERM EXIT
+	trap 'signal+=(EXPORT)' USR1
+	trap 'signal+=(RESET)' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
-	signal=""
 
 	while true
 	do
@@ -347,7 +346,7 @@ maintain_log_file()
 			fi
 
 			# Check for signals
-			case ${signal} in
+			case ${signal[0]-} in
 				KILL)
 					log_msg "DEBUG" "received log file kill signal so flushing log and exiting."
 					flush_log_pipe
@@ -357,13 +356,13 @@ maintain_log_file()
 				EXPORT)
 					log_msg "DEBUG" "received log file export signal so exporting log file."
 					export_log_file
-					signal=""
+					signal=("${signal[@]:1}")
 					;;
 				RESET)
 					log_msg "DEBUG" "received log file reset signal so flushing log and resetting log file."
 					flush_log_pipe
 					reset_log_file
-					signal=""
+					signal=("${signal[@]:1}")
 					break
 					;;
 				*)
