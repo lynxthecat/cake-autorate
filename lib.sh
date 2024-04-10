@@ -147,6 +147,15 @@ terminate()
 	kill -9 "${pids[@]}" 2> /dev/null
 }
 
+hexlify_int()
+{
+	# hexlify_int -- convert an integer to a hexadecimal string
+
+	local int=${1}
+
+	printf "%x" "${int}"
+}
+
 if (( __set_e == 1 ))
 then
     set +e

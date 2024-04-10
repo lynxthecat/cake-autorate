@@ -300,10 +300,11 @@ flush_log_pipe()
 
 maintain_log_file()
 {
+	signal=0
 	trap '' INT
-	trap 'signal+=(KILL)' TERM EXIT
-	trap 'signal+=(EXPORT)' USR1
-	trap 'signal+=(RESET)' USR2
+	trap 'signal=$(hexlify_int $((15<<0 | 0x${signal})))' TERM EXIT  # KILL
+	trap 'signal=$(hexlify_int $((15<<4 | 0x${signal})))' USR1       # EXPORT
+	trap 'signal=$(hexlify_int $((15<<8 | 0x${signal})))' USR2       # RESET
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
@@ -346,26 +347,29 @@ maintain_log_file()
 			fi
 
 			# Check for signals
-			case ${signal[0]-} in
-				KILL)
+			case ${signal} in
+				0)
+					;;
+				*f)
 					log_msg "DEBUG" "received log file kill signal so flushing log and exiting."
 					flush_log_pipe
 					trap - TERM EXIT
 					exit
 					;;
-				EXPORT)
+				*f0)
 					log_msg "DEBUG" "received log file export signal so exporting log file."
 					export_log_file
-					signal=("${signal[@]:1}")
+					signal=$(hexlify_int $((~(15<<4) & 0x${signal})))
 					;;
-				RESET)
+				f00)
 					log_msg "DEBUG" "received log file reset signal so flushing log and resetting log file."
 					flush_log_pipe
 					reset_log_file
-					signal=("${signal[@]:1}")
+					signal=$(hexlify_int $((~(15<<8) & 0x${signal})))
 					break
 					;;
 				*)
+					log_msg "ERROR" "received unknown signal: ${signal}."
 					;;
 			esac
 		done
