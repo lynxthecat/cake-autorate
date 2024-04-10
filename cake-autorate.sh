@@ -300,15 +300,15 @@ flush_log_pipe()
 
 maintain_log_file()
 {
+	signal=""
 	trap '' INT
-	trap 'signal=KILL' TERM EXIT
-	trap 'signal=EXPORT' USR1
-	trap 'signal=RESET' USR2
+	trap 'signal+=KILL' TERM EXIT
+	trap 'signal+=EXPORT' USR1
+	trap 'signal+=RESET' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
-	signal=""
 
 	while true
 	do
@@ -331,7 +331,6 @@ maintain_log_file()
 			# Verify log file time < configured maximum
 			if (( SECONDS - t_log_file_start_s > log_file_max_time_s ))
 			then
-
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
 				flush_log_pipe
 				rotate_log_file
@@ -347,26 +346,30 @@ maintain_log_file()
 			fi
 
 			# Check for signals
-			case ${signal} in
-				KILL)
+			case ${signal-} in
+
+				"")
+					;;
+				*KILL*)
 					log_msg "DEBUG" "received log file kill signal so flushing log and exiting."
 					flush_log_pipe
 					trap - TERM EXIT
 					exit
 					;;
-				EXPORT)
+				*EXPORT*)
 					log_msg "DEBUG" "received log file export signal so exporting log file."
 					export_log_file
-					signal=""
+					signal="${signal//EXPORT}"
 					;;
-				RESET)
+				*RESET*)
 					log_msg "DEBUG" "received log file reset signal so flushing log and resetting log file."
 					flush_log_pipe
 					reset_log_file
-					signal=""
+					signal="${signal//RESET}"
 					break
 					;;
 				*)
+					log_msg "ERROR" "processed unknown signal(s): ${signal}."
 					;;
 			esac
 		done
