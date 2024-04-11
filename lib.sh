@@ -76,7 +76,7 @@ sleep_s()
 	# - https://github.com/lynxthecat/cake-autorate/issues/174#issuecomment-1460074498
 
 	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
-	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || true
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 sleep_us()
