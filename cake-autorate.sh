@@ -70,7 +70,7 @@ cleanup_and_killall()
 	# Do not fail on error for this critical cleanup code
 	set +e
 
-	trap true INT TERM EXIT
+	trap : INT TERM EXIT
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	
@@ -196,7 +196,7 @@ rotate_log_file()
 
 	[[ -f ${log_file_path} ]] || return
 	cat "${log_file_path}" > "${log_file_path}.old"
-	true > "${log_file_path}"
+	: > "${log_file_path}"
 }
 
 reset_log_file()
@@ -204,7 +204,7 @@ reset_log_file()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	rm -f "${log_file_path}.old"
-	true > "${log_file_path}"
+	: > "${log_file_path}"
 }
 
 generate_log_file_scripts()
@@ -310,7 +310,7 @@ maintain_log_file()
 
 	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
 
-	while true
+	while :
 	do
 		exec {log_file_fd}> "${log_file_path}"
 
@@ -320,7 +320,7 @@ maintain_log_file()
 
 		t_log_file_start_s=${SECONDS}
 
-		while true
+		while :
 		do
 			read -r -N "${log_file_buffer_size_B}" -t "${log_file_buffer_timeout_s}" -u "${log_fd}" log_chunk
 		
@@ -382,7 +382,7 @@ export_proc_pids()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	true > "${run_path}/proc_pids"
+	: > "${run_path}/proc_pids"
 	for proc_pid in "${!proc_pids[@]}"
 	do
 		printf "%s=%s\n" "${proc_pid}" "${proc_pids[${proc_pid}]}" >> "${run_path}/proc_pids"
@@ -409,7 +409,7 @@ monitor_achieved_rates()
 
 	declare -A achieved_rate_kbps load_percent
 
-	while true
+	while :
 	do
 		t_start_us=${EPOCHREALTIME/.}
 
@@ -1118,7 +1118,7 @@ start_pingers
 
 log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
-while true
+while :
 do
 	unset command
 	reflector_response=0
@@ -1174,7 +1174,7 @@ do
 					then
 						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
 					fi
-					;;	
+					;;
 				ping)
 					if ((${#command[@]} == 9))
 					then
@@ -1198,10 +1198,7 @@ do
 			then
 				# parse pinger response according to pinger binary
 				case ${pinger_binary} in
-
 					tsping)
-						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${dl_owd_ms-} && ${ul_owd_ms-} ]] || continue
-
 						dl_owd_us=${dl_owd_ms}000 ul_owd_us=${ul_owd_ms}000
 
 						((
@@ -1255,8 +1252,6 @@ do
 
 						;;
 					fping)
-						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${rtt_ms-} ]] || continue
-						
 						seq=${seq//[\[\]]}
 						printf -v rtt_us %.3f "${rtt_ms}"
 
@@ -1284,8 +1279,6 @@ do
 
 						;;
 					ping)
-						[[ ${timestamp-} && ${reflector-} && ${seq-} && ${rtt_ms-} ]] || continue
-
 						reflector=${reflector//:/} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"
@@ -1319,7 +1312,7 @@ do
 						exit 1
 						;;
 				esac
-						
+
 				last_timestamp_reflectors_us[${reflector}]=${timestamp_us} reflectors_last_timestamp_us=${timestamp_us}
 
 				if (( (t_start_us - 10#${reflectors_last_timestamp_us})>500000 ))
@@ -1455,38 +1448,40 @@ do
 				# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 				if (( enable_sleep_function ))
 				then
-					if [[ ${load_condition[dl]} == *idle* && ${load_condition[ul]} == *idle* ]]
-					then
-						if ((sustained_connection_idle))
-						then
-							((
-								t_sustained_connection_idle_us += (t_start_us-t_last_connection_idle_us),
-								t_last_connection_idle_us=t_start_us
-							))
-						else
-							sustained_connection_idle=1 t_last_connection_idle_us=t_start_us
-						fi
-						if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
-						then
-							change_state_main "IDLE"	
-
-							log_msg "DEBUG" "Connection idle. Waiting for minimum load."
-
-							if ((min_shaper_rates_enforcement))
+					case ${load_condition[dl]}${load_condition[ul]} in
+						*idle*idle*)
+							if ((sustained_connection_idle))
 							then
-								log_msg "DEBUG" "Enforcing minimum shaper rates."
-								shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-								set_shaper_rate "dl"
-								set_shaper_rate "ul"
+								((
+									t_sustained_connection_idle_us += (t_start_us-t_last_connection_idle_us),
+									t_last_connection_idle_us=t_start_us
+								))
+							else
+								sustained_connection_idle=1 t_last_connection_idle_us=t_start_us
 							fi
+							if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
+							then
+								change_state_main "IDLE"
 
-							stop_pingers
+								log_msg "DEBUG" "Connection idle. Waiting for minimum load."
 
+								if ((min_shaper_rates_enforcement))
+								then
+									log_msg "DEBUG" "Enforcing minimum shaper rates."
+									shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
+									set_shaper_rate "dl"
+									set_shaper_rate "ul"
+								fi
+
+								stop_pingers
+
+								t_sustained_connection_idle_us=0 sustained_connection_idle=0
+							fi
+							;;
+						*)
 							t_sustained_connection_idle_us=0 sustained_connection_idle=0
-						fi
-					else
-						t_sustained_connection_idle_us=0 sustained_connection_idle=0
-					fi
+							;;
+					esac
 				fi
 			elif (( (t_start_us - reflectors_last_timestamp_us) > stall_detection_timeout_us ))
 			then
