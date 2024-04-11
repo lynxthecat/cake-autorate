@@ -369,6 +369,7 @@ maintain_log_file()
 					break
 					;;
 				*)
+					signal=""
 					log_msg "ERROR" "processed unknown signal(s): ${signal}."
 					;;
 			esac
