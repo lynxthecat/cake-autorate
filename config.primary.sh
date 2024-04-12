@@ -2,8 +2,9 @@
 
 # *** INSTANCE-SPECIFIC CONFIGURATION OPTIONS ***
 # 
-# cake-autorate will run one instance per config file present in the /root/cake-autorate
-# directory in the form: config.instance.sh. Thus multiple instances of cake-autorate
+# cake-autorate will run one instance per config file present in the directory where
+# cake-autorate is found (typically /root/cake-autorate). The config files must be in
+# the directory in the form: config.instance.sh. Thus multiple instances of cake-autorate
 # can be established by setting up appropriate config files like config.primary.sh and 
 # config.secondary.sh for the respective first and second instances of cake-autorate.
 

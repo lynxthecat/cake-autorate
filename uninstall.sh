@@ -13,25 +13,46 @@ main() {
 	# Set correctness options
 	set -eu
 
-	# Check if OS is OpenWRT
+	# Set SCRIPT_PREFIX and CONFIG_PREFIX
+	SCRIPT_PREFIX=${CAKE_AUTORATE_SCRIPT_PREFIX:-}
+	CONFIG_PREFIX=${CAKE_AUTORATE_CONFIG_PREFIX:-}
+
+	# Store what OS we are running on
+	MY_OS=unknown
+
+	# Check if OS is OpenWRT or derivative
 	unset ID_LIKE
-	. /etc/os-release 2>/dev/null || true
-	tainted=1
+	. /etc/os-release 2>/dev/null || :
 	for x in ${ID_LIKE:-}
 	do
-		[ "${x}" = "openwrt" ] && tainted=0
+		if [ "${x}" = "openwrt" ]
+		then
+			MY_OS=openwrt
+			[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/root/cake-autorate
+			[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/root/cake-autorate
+			break
+		fi
 	done
-	if [ "${tainted}" -eq 1 ]
+
+	# Check if OS is ASUSWRT-Merlin
+	if [ "$(uname -o)" = "ASUSWRT-Merlin" ]
 	then
-		printf "This script requires OpenWrt.\n" >&2
+		MY_OS=asuswrt
+		[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/jffs/scripts/cake-autorate
+		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/jffs/configs/cake-autorate
+	fi
+
+	# If we are not running on OpenWRT or ASUSWRT-Merlin, exit
+	if [ "${MY_OS}" = "unknown" ]
+	then
+		printf "This script requires OpenWrt or ASUSWRT-Merlin\n" >&2
 		return 1
 	fi
-	unset tainted
 
 	# Stop cake-autorate before continueing
 	if [ -x /etc/init.d/cake-autorate ]
 	then
-		/etc/init.d/cake-autorate stop || true
+		/etc/init.d/cake-autorate stop || :
 	fi
 	rm -f /etc/init.d/cake-autorate /etc/rc.d/*cake-autorate
 
@@ -44,14 +65,8 @@ main() {
 		exit 1
 	fi
 
-	# Set up CAKE-autorate files
-	# cd to the /root directory
-	cd /root/ || exit 1
-
-	# cd into it
-	cd cake-autorate/ || exit 1
-
 	# remove configuration files if user does not want to keep them
+	cd "${CONFIG_PREFIX}"
 	keepIt=''
 	for file in *config.*.sh*
 	do
@@ -69,6 +84,7 @@ main() {
 	done
 
 	# remove old program files from cake-autorate directory
+	cd "${SCRIPT_PREFIX}"
 	old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
 	for file in ${old_fnames}
 	do
@@ -76,15 +92,15 @@ main() {
 	done
 
 	# remove current program files from the cake-autorate directory
+	cd "${SCRIPT_PREFIX}"
 	files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh uninstall.sh"
 	for file in ${files}
 	do
 		rm -f "${file}"
 	done
 
-	# remove /root/cake-autorate if empty
-	cd ..
-	rmdir cake-autorate 2>/dev/null && printf >&2 "Removed empty /root/cake-autorate directory"
+	# remove ${SCRIPT_PREFIX} and ${CONFIG_PREFIX} directories if empty
+	rmdir "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}" 2>/dev/null || :
 
 	printf '%s\n' "cake-autorate was uninstalled"
 }

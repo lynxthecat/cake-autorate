@@ -24,13 +24,13 @@ then
 	sed -e '/Zep7RkGZ52/a\' -e '\n\n\#\# '"${cur_date}"' - Version '"${version}"'\n\n**Release notes here**' -i CHANGELOG.md
 fi
 ${EDITOR} CHANGELOG.md
-( git add CHANGELOG.md && git commit -sm "Updated CHANGELOG for ${version}"; ) || true
+( git add CHANGELOG.md && git commit -sm "Updated CHANGELOG for ${version}"; ) || :
 
 if sed -E 's/(^cake_autorate_version=\")[^\"]+(\"$)/\1'"${version}"'\2/' -i cake-autorate.sh
 then
 	echo Cake autorate version updated in cake-autorate.sh
 	( git add cake-autorate.sh
-	git commit -sm "Updated cake-autorate.sh version to ${version}"; ) || true
+	git commit -sm "Updated cake-autorate.sh version to ${version}"; ) || :
 fi
 
 if ((is_latest))
@@ -40,5 +40,5 @@ then
 		echo Latest cake autorate version updated in README.md
 	fi
 	( git add README.md
-	git commit -sm "Updated latest version in README.md to ${version}"; ) || true
+	git commit -sm "Updated latest version in README.md to ${version}"; ) || :
 fi

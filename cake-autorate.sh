@@ -53,15 +53,46 @@ set -o pipefail
 # Possible performance improvement
 export LC_ALL=C
 
-# Set PREFIX
-PREFIX=/root/cake-autorate
+# Set SCRIPT_PREFIX and CONFIG_PREFIX
+POSSIBLE_SCRIPT_PREFIXES=(
+	"${CAKE_AUTORATE_PREFIX:-}"    # User defined
+	"/jffs/scripts/cake-autorate"  # Asuswrt-Merlin
+	"/opt/cake-autorate"
+	"/usr/lib/cake-autorate"
+	"/root/cake-autorate"
+)
+for SCRIPT_PREFIX in "${POSSIBLE_SCRIPT_PREFIXES[@]}"
+do
+	[[ -d ${SCRIPT_PREFIX} ]] && break
+done
+if [[ -z ${SCRIPT_PREFIX} || ! -d ${SCRIPT_PREFIX} ]]
+then
+	printf "ERROR: Unable to find a working SCRIPT_PREFIX for cake-autorate. Exiting now.\n" >&2
+	printf "ERROR: Please set the CAKE_AUTORATE_SCRIPT_PREFIX environment variable to the correct path.\n" >&2
+	exit 1
+fi
+POSSIBLE_CONFIG_PREFIXES=(
+	"${CAKE_AUTORATE_CONFIG_PREFIX:-}"   # User defined
+	"/jffs/configs/cake-autorate"        # Asuswrt-Merlin
+	"${SCRIPT_PREFIX}"                   # Default
+)
+for CONFIG_PREFIX in "${POSSIBLE_CONFIG_PREFIXES[@]}"
+do
+	[[ -d ${CONFIG_PREFIX} ]] && break
+done
+if [[ -z ${CONFIG_PREFIX} || ! -d ${CONFIG_PREFIX} ]]
+then
+	printf "ERROR: Unable to find a working CONFIG_PREFIX for cake-autorate. Exiting now.\n" >&2
+	printf "ERROR: Please set the CAKE_AUTORATE_CONFIG_PREFIX environment variable to the correct path.\n" >&2
+	exit 1
+fi
 
 # shellcheck source=lib.sh
-. "${PREFIX}/lib.sh"
+. "${SCRIPT_PREFIX}/lib.sh"
 # shellcheck source=defaults.sh
-. "${PREFIX}/defaults.sh"
+. "${SCRIPT_PREFIX}/defaults.sh"
 # get valid config overrides
-mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${PREFIX}/defaults.sh" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
+mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${SCRIPT_PREFIX}/defaults.sh" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
 
 trap cleanup_and_killall INT TERM EXIT
 
@@ -765,7 +796,7 @@ if [[ -n ${1-} ]]
 then
 	config_path="${1}"
 else
-	config_path="${PREFIX}/config.primary.sh"
+	config_path="${CONFIG_PREFIX}/config.primary.sh"
 fi
 
 if [[ ! -f ${config_path} ]]

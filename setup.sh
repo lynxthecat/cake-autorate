@@ -13,21 +13,6 @@ main() {
 	# Set correctness options
 	set -eu
 
-	# Check if OS is OpenWRT
-	unset ID_LIKE
-	. /etc/os-release 2>/dev/null || true
-	tainted=1
-	for x in ${ID_LIKE:-}
-	do
-		[ "${x}" = "openwrt" ] && tainted=0
-	done
-	if [ "${tainted}" -eq 1 ]
-	then
-		printf "This script requires OpenWrt.\n" >&2
-		return 1
-	fi
-	unset tainted
-
 	# Setup dependencies to check for
 	DEPENDENCIES="jsonfilter uclient-fetch tar grep"
 
@@ -38,6 +23,42 @@ main() {
 	API_URL=https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}
 	DOC_URL=https://github.com/${REPOSITORY}/tree/${BRANCH}#installation-on-openwrt
 
+	# Set SCRIPT_PREFIX and CONFIG_PREFIX
+	SCRIPT_PREFIX=${CAKE_AUTORATE_SCRIPT_PREFIX:-}
+	CONFIG_PREFIX=${CAKE_AUTORATE_CONFIG_PREFIX:-}
+
+	# Store what OS we are running on
+	MY_OS=unknown
+
+	# Check if OS is OpenWRT or derivative
+	unset ID_LIKE
+	. /etc/os-release 2>/dev/null || :
+	for x in ${ID_LIKE:-}
+	do
+		if [ "${x}" = "openwrt" ]
+		then
+			MY_OS=openwrt
+			[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/root/cake-autorate
+			[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/root/cake-autorate
+			break
+		fi
+	done
+
+	# Check if OS is ASUSWRT-Merlin
+	if [ "$(uname -o)" = "ASUSWRT-Merlin" ]
+	then
+		MY_OS=asuswrt
+		[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/jffs/scripts/cake-autorate
+		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/jffs/configs/cake-autorate
+	fi
+
+	# If we are not running on OpenWRT or ASUSWRT-Merlin, exit
+	if [ "${MY_OS}" = "unknown" ]
+	then
+		printf "This script requires OpenWrt or ASUSWRT-Merlin\n" >&2
+		return 1
+	fi
+
 	# Check if an instance of cake-autorate is already running and exit if so
 	if [ -d /var/run/cake-autorate ]
 	then
@@ -47,16 +68,7 @@ main() {
 		exit 1
 	fi
 
-	# Retrieve required packages if not present
-	# shellcheck disable=SC2312
-	if [ "$(opkg list-installed | grep -Ec '^(bash|iputils-ping|fping) ')" -ne 3 ]
-	then
-		printf "Running opkg update to update package lists:\n"
-		opkg update
-		printf "Installing bash, iputils-ping and fping packages:\n"
-		opkg install bash iputils-ping fping
-	fi
-
+	# Check for required setup.sh script dependencies
 	exit_now=0
 	for dep in ${DEPENDENCIES}
 	do
@@ -67,18 +79,18 @@ main() {
 	done
 	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
-	# Set up CAKE-autorate files
-	# cd to the /root directory
-	cd /root/ || exit 1
-
-	# create the cake-autorate directory if it's not present
-	if ! [ -d cake-autorate ]
+	# Retrieve required packages if not present
+	# shellcheck disable=SC2312
+	if [ "$(opkg list-installed | grep -Ec '^(bash|fping) ')" -ne 2 ]
 	then
-		mkdir cake-autorate || exit 1
+		printf "Running opkg update to update package lists:\n"
+		opkg update
+		printf "Installing bash and fping packages:\n"
+		opkg install bash fping
 	fi
 
-	# cd into it
-	cd cake-autorate/ || exit 1
+	# Create the cake-autorate directory if it does not exist
+	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
 	# Get the latest commit to download
 	commit=$(uclient-fetch -qO- "${API_URL}" | jsonfilter -e @.sha)
@@ -88,15 +100,29 @@ main() {
 		exit 1
 	fi
 
-	printf "Installing cake-autorate in /root/cake-autorate...\n"
+	printf "Detected Operating System: %s\n" "${MY_OS}"
+	printf "Installation directories for detected Operating System:\n"
+	printf "  - Script prefix: %s\n" "${SCRIPT_PREFIX}"
+	printf "  - Config prefix: %s\n" "${CONFIG_PREFIX}"
 
-	# Download the files to a temporary directory, so we can move them to the cake-autorate directory
+	printf "Continue with installation? [Y/n] "
+
+	read -r continue_installation
+	if [ "${continue_installation}" = "N" ] || [ "${continue_installation}" = "n" ]
+	then
+		exit
+	fi
+
+	printf "Installing cake-autorate using %s (script) and %s (config) directories...\n" "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
+
+	# Download the files of the latest version of cake-autorate to a temporary directory, so we can move them to the cake-autorate directory
 	tmp=$(mktemp -d)
 	trap 'rm -rf "${tmp}"' EXIT INT TERM
 	uclient-fetch -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
 	mv "${tmp}/cake-autorate-"*/* "${tmp}"
 
 	# Migrate old configuration (and new file) files if present
+	cd "${CONFIG_PREFIX}"
 	for file in cake-autorate_config.*.sh*
 	do
 		[ -e "${file}" ] || continue   # handle case where there are no old config files
@@ -105,12 +131,13 @@ main() {
 	done
 
 	# Check if a configuration file exists, and ask whether to keep it
+	cd "${CONFIG_PREFIX}"
 	editmsg="\nNow edit the config.primary.sh file as described in:\n   ${DOC_URL}"
 	if [ -f config.primary.sh ]
 	then
 		printf "Previous configuration present - keep it? [Y/n] "
-		read -r keepIt
-		if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
+		read -r keep_previous_configuration
+		if [ "${keep_previous_configuration}" = "N" ] || [ "${keep_previous_configuration}" = "n" ]; then
 			mv "${tmp}/config.primary.sh" config.primary.sh
 			rm -f config.primary.sh.new   # delete config.primary.sh.new if exists
 		else
@@ -122,6 +149,7 @@ main() {
 	fi
 
 	# remove old program files from cake-autorate directory
+	cd "${SCRIPT_PREFIX}"
 	old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
 	for file in ${old_fnames}
 	do
@@ -130,22 +158,28 @@ main() {
 
 	# move the program files to the cake-autorate directory
 	# scripts that need to be executable are already marked as such in the tarball
-	files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh uninstall.sh"
+	cd "${SCRIPT_PREFIX}"
+	files="cake-autorate.sh defaults.sh lib.sh setup.sh uninstall.sh"
 	for file in ${files}
 	do
 		mv "${tmp}/${file}" "${file}"
 	done
 
+	# Generate a launcher.sh file from the launcher.sh.template file
+	sed -e "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" -e "s|%%CONFIG_PREFIX%%|${CONFIG_PREFIX}|g" \
+		"${tmp}/launcher.sh.template" > "${SCRIPT_PREFIX}/launcher.sh"
+
+	# Also generate the service file from cake-autorate.template but DO NOT ACTIVATE IT
+	sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/cake-autorate.template" > /etc/init.d/cake-autorate
+	chmod +x /etc/init.d/cake-autorate
+
 	# Get version and generate a file containing version information
-	version=$(grep -m 1 ^cake_autorate_version= /root/cake-autorate/cake-autorate.sh | cut -d= -f2 | cut -d'"' -f2)
+	cd "${SCRIPT_PREFIX}"
+	version=$(grep -m 1 ^cake_autorate_version= "${SCRIPT_PREFIX}/cake-autorate.sh" | cut -d= -f2 | cut -d'"' -f2)
 	cat > version.txt <<-EOF
 		version=${version}
 		commit=${commit}
 	EOF
-
-	# Also copy over the service file but DO NOT ACTIVATE IT
-	mv "${tmp}/cake-autorate" /etc/init.d/
-	chmod +x /etc/init.d/cake-autorate
 
 	# Tell how to handle the config file - use old, or edit the new one
 	# shellcheck disable=SC2059
@@ -153,7 +187,7 @@ main() {
 
 	printf '\n%s\n\n' "${version} successfully installed, but not yet running"
 	printf '%s\n' "Start the software manually with:"
-	printf '%s\n' "   cd /root/cake-autorate; ./cake-autorate.sh"
+	printf '%s\n' "   cd ${SCRIPT_PREFIX}; ./cake-autorate.sh"
 	printf '%s\n' "Run as a service with:"
 	printf '%s\n\n' "   service cake-autorate enable; service cake-autorate start"
 }
