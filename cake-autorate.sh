@@ -1456,12 +1456,15 @@ do
 							kill $$ 2>/dev/null
 							;;
 					esac
-					# make sure to only return rates between cur_min_rate and cur_max_rate
-					((
-						shaper_rate_kbps[${direction}] < min_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}),
-						shaper_rate_kbps[${direction}] > max_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${max_shaper_rate_kbps[${direction}]})
-					))
 				done
+
+				# make sure that updated shaper rates fall between configured minimum and maximum shaper rates
+				((
+					shaper_rate_kbps[dl] < min_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]}) ||
+					shaper_rate_kbps[dl] > max_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${max_shaper_rate_kbps[dl]}),
+					shaper_rate_kbps[ul] < min_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${min_shaper_rate_kbps[ul]}) ||
+					shaper_rate_kbps[ul] > max_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${max_shaper_rate_kbps[ul]})
+				))
 
 				set_shaper_rate "dl"
 				set_shaper_rate "ul"
