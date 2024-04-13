@@ -1199,7 +1199,7 @@ do
 				tsping)
 					if ((${#command[@]} == 10))
 					then
-						timestamp=${command[0]} reflector=${command[1]}  seq=${command[2]} dl_owd_ms=${command[8]} ul_owd_ms=${command[9]} reflector_response=1
+						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_ms=${command[8]} ul_owd_ms=${command[9]} reflector_response=1
 					fi
 					;;
 				fping)
