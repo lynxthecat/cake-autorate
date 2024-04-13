@@ -455,14 +455,15 @@ monitor_achieved_rates()
 			achieved_rate_kbps[ul] = 8000*(tx_bytes - prev_tx_bytes) / compensated_monitor_achieved_rates_interval_us,
 
 			achieved_rate_kbps[dl]<0 && (achieved_rate_kbps[dl]=0),
-			achieved_rate_kbps[ul]<0 && (achieved_rate_kbps[ul]=0)
+			achieved_rate_kbps[ul]<0 && (achieved_rate_kbps[ul]=0),
+
+			prev_rx_bytes=rx_bytes,
+			prev_tx_bytes=tx_bytes,
+
+			compensated_monitor_achieved_rates_interval_us = monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us
 		))
 
 		printf "SARS %s %s\n" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" >&${main_fd}
-
-		prev_rx_bytes=${rx_bytes} prev_tx_bytes=${tx_bytes}
-
-		(( compensated_monitor_achieved_rates_interval_us = monitor_achieved_rates_interval_us>(10*max_wire_packet_rtt_us) ? monitor_achieved_rates_interval_us : 10*max_wire_packet_rtt_us ))
 
 		sleep_remaining_tick_time "${t_start_us}" "${compensated_monitor_achieved_rates_interval_us}"
 	done
