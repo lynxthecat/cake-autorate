@@ -32,7 +32,9 @@ main() {
 
 	# Check if OS is OpenWRT or derivative
 	unset ID_LIKE
-	. /etc/os-release 2>/dev/null || :
+	# We do `set +/-e` here because in some Busybox sh versions
+	# `. /not_found || true` doesn't do anything
+	set +e; . /etc/os-release 2>/dev/null; set -e
 	for x in ${ID_LIKE:-}
 	do
 		if [ "${x}" = "openwrt" ]
