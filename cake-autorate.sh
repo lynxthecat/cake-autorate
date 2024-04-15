@@ -55,8 +55,8 @@ export LC_ALL=C
 
 # Set SCRIPT_PREFIX and CONFIG_PREFIX
 POSSIBLE_SCRIPT_PREFIXES=(
-	"${CAKE_AUTORATE_PREFIX:-}"    # User defined
-	"/jffs/scripts/cake-autorate"  # Asuswrt-Merlin
+	"${CAKE_AUTORATE_SCRIPT_PREFIX:-}"   # User defined
+	"/jffs/scripts/cake-autorate"        # Asuswrt-Merlin
 	"/opt/cake-autorate"
 	"/usr/lib/cake-autorate"
 	"/root/cake-autorate"
