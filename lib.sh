@@ -86,7 +86,7 @@ sleep_us()
 
 	sleep_duration_s=000000${1}
 	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-	sleep_s "${sleep_duration_s}"
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 sleep_remaining_tick_time()
@@ -97,11 +97,14 @@ sleep_remaining_tick_time()
 	# ${2} = tick_duration_us (microseconds)
 
 	# shellcheck disable=SC2154
-	sleep_duration_us=$(( ${1} + ${2} - ${EPOCHREALTIME/.} ))
+	((
+		sleep_duration_us=${1} + ${2} - ${EPOCHREALTIME/.},
+		sleep_duration_us < 0 && (sleep_duration_us=0)
+	))
 
-	if (( sleep_duration_us > 0 )); then
-		sleep_us "${sleep_duration_us}"
-	fi
+	sleep_duration_s=000000${sleep_duration_us}
+	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 randomize_array()
