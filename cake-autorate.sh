@@ -1308,7 +1308,7 @@ do
 							))
 						fi
 
-						timestamp=${timestamp//[\[\]]}0 timestamp_us=${timestamp//[.]}
+						timestamp_us=${timestamp//[\[\].]}0
 
 						;;
 					ping)
@@ -1337,7 +1337,7 @@ do
 							))
 						fi
 
-						timestamp=${timestamp//[\[\]]} timestamp_us=${timestamp//[.]}
+						timestamp_us=${timestamp//[\[\].]}
 
 						;;
 					*)
