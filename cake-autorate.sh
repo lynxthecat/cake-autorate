@@ -1354,7 +1354,7 @@ do
 					continue
 				fi
 
-				# Keep track of delays across detection window
+				# Keep track of delays across detection window, detect any bufferbloat and determine load percentages
 				((
 					dl_delays[delays_idx] && (sum_dl_delays--),
 					dl_delays[delays_idx] = dl_owd_delta_us > compensated_owd_delta_thr_us[dl] ? 1 : 0,
