@@ -1019,6 +1019,9 @@ printf -v bufferbloat_refractory_period_us %.0f "${bufferbloat_refractory_period
 printf -v decay_refractory_period_us %.0f "${decay_refractory_period_ms}e3"
 
 ((
+	reflector_replacement_interval_us=reflector_replacement_interval_mins*60*1000000,
+	reflector_comparison_interval_us=reflector_comparison_interval_mins*60*1000000,
+
 	ping_response_interval_us=reflector_ping_interval_us/no_pingers,
 	ping_response_interval_ms=ping_response_interval_us/1000,
 
@@ -1542,7 +1545,7 @@ do
 
 			if (( t_start_us > t_last_reflector_health_check_us + reflector_health_check_interval_us ))
 			then
-				if (( t_start_us>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) ))
+				if (( t_start_us>(t_last_reflector_replacement_us+reflector_replacement_interval_us) ))
 				then
 					((pinger=RANDOM%no_pingers))
 					log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
@@ -1551,7 +1554,7 @@ do
 					continue
 				fi
 
-				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) ))
+				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_us) ))
 				then
 
 					t_last_reflector_comparison_us=${t_start_us}
