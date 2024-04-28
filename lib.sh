@@ -130,7 +130,7 @@ terminate()
 	# then kill with fire using kill -9;
 	# and, finally, call wait on all processes to reap any zombie processes.
 
-	local pids=${1} timeout_ms=${2:-100}
+	local pids=${1} timeout_ms=${2:-1000}
 
 	read -r -a pids <<< "${pids}"
 
