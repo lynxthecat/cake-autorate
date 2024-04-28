@@ -84,8 +84,7 @@ sleep_us()
 {
 	# ${1} = sleep_duration_us (microseconds)
 
-	sleep_duration_s=000000${1}
-	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
+	printf -v sleep_duration_s %.1f "${1}e-6"
 	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
@@ -102,8 +101,7 @@ sleep_remaining_tick_time()
 		sleep_duration_us < 0 && (sleep_duration_us=0)
 	))
 
-	sleep_duration_s=000000${sleep_duration_us}
-	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
+	printf -v sleep_duration_s %.1f "${sleep_duration_us}e-6"
 	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
