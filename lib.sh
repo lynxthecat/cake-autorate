@@ -75,32 +75,34 @@ sleep_s()
 	# - https://github.com/lynxthecat/cake-autorate/issues/174#issuecomment-1460057382
 	# - https://github.com/lynxthecat/cake-autorate/issues/174#issuecomment-1460074498
 
-	local sleep_duration_s=${1} # (seconds, e.g. 0.5, 1 or 1.5)
-	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
+	# ${1} = sleep_duration_s (seconds, e.g. 0.5, 1 or 1.5)
+
+	read -r -t "${1}" -u "${__sleep_fd}" || :
 }
 
 sleep_us()
 {
-	local sleep_duration_us=${1} # (microseconds)
+	# ${1} = sleep_duration_us (microseconds)
 
-	sleep_duration_s=000000${sleep_duration_us}
-	sleep_duration_s=$((10#${sleep_duration_s::-6})).${sleep_duration_s: -6}
-	sleep_s "${sleep_duration_s}"
+	printf -v sleep_duration_s %.1f "${1}e-6"
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 sleep_remaining_tick_time()
 {
 	# sleeps until the end of the tick duration
 
-	local t_start_us=${1} # (microseconds)
-	local tick_duration_us=${2} # (microseconds)
+	# ${1} = t_start_us (microseconds)
+	# ${2} = tick_duration_us (microseconds)
 
 	# shellcheck disable=SC2154
-	sleep_duration_us=$(( t_start_us + tick_duration_us - ${EPOCHREALTIME/./} ))
+	((
+		sleep_duration_us=${1} + ${2} - ${EPOCHREALTIME/.},
+		sleep_duration_us < 0 && (sleep_duration_us=0)
+	))
 
-	if (( sleep_duration_us > 0 )); then
-		sleep_us "${sleep_duration_us}"
-	fi
+	printf -v sleep_duration_s %.1f "${sleep_duration_us}e-6"
+	read -r -t "${sleep_duration_s}" -u "${__sleep_fd}" || :
 }
 
 randomize_array()
@@ -128,7 +130,7 @@ terminate()
 	# then kill with fire using kill -9;
 	# and, finally, call wait on all processes to reap any zombie processes.
 
-	local pids=${1} timeout_ms=${2:-100}
+	local pids=${1} timeout_ms=${2:-1000}
 
 	read -r -a pids <<< "${pids}"
 

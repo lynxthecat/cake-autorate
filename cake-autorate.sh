@@ -55,8 +55,8 @@ export LC_ALL=C
 
 # Set SCRIPT_PREFIX and CONFIG_PREFIX
 POSSIBLE_SCRIPT_PREFIXES=(
-	"${CAKE_AUTORATE_PREFIX:-}"    # User defined
-	"/jffs/scripts/cake-autorate"  # Asuswrt-Merlin
+	"${CAKE_AUTORATE_SCRIPT_PREFIX:-}"   # User defined
+	"/jffs/scripts/cake-autorate"        # Asuswrt-Merlin
 	"/opt/cake-autorate"
 	"/usr/lib/cake-autorate"
 	"/root/cake-autorate"
@@ -1019,13 +1019,16 @@ printf -v bufferbloat_refractory_period_us %.0f "${bufferbloat_refractory_period
 printf -v decay_refractory_period_us %.0f "${decay_refractory_period_ms}e3"
 
 ((
+	reflector_replacement_interval_us=reflector_replacement_interval_mins*60*1000000,
+	reflector_comparison_interval_us=reflector_comparison_interval_mins*60*1000000,
+
 	ping_response_interval_us=reflector_ping_interval_us/no_pingers,
 	ping_response_interval_ms=ping_response_interval_us/1000,
 
 	stall_detection_timeout_us=stall_detection_thr*ping_response_interval_us
 ))
-stall_detection_timeout_s=000000${stall_detection_timeout_us} \
-stall_detection_timeout_s=$((10#${stall_detection_timeout_s::-6})).${stall_detection_timeout_s: -6}
+
+printf -v stall_detection_timeout_s %.1f "${stall_detection_timeout_us}"
 
 declare -A achieved_rate_kbps \
 achieved_rate_updated \
@@ -1308,7 +1311,7 @@ do
 							))
 						fi
 
-						timestamp=${timestamp//[\[\]]}0 timestamp_us=${timestamp//[.]}
+						timestamp_us=${timestamp//[\[\].]}0
 
 						;;
 					ping)
@@ -1337,7 +1340,7 @@ do
 							))
 						fi
 
-						timestamp=${timestamp//[\[\]]} timestamp_us=${timestamp//[.]}
+						timestamp_us=${timestamp//[\[\].]}
 
 						;;
 					*)
@@ -1354,7 +1357,7 @@ do
 					continue
 				fi
 
-				# Keep track of delays across detection window
+				# Keep track of delays across detection window, detect any bufferbloat and determine load percentages
 				((
 					dl_delays[delays_idx] && (sum_dl_delays--),
 					dl_delays[delays_idx] = dl_owd_delta_us > compensated_owd_delta_thr_us[dl] ? 1 : 0,
@@ -1542,7 +1545,7 @@ do
 
 			if (( t_start_us > t_last_reflector_health_check_us + reflector_health_check_interval_us ))
 			then
-				if (( t_start_us>(t_last_reflector_replacement_us+reflector_replacement_interval_mins*60*1000000) ))
+				if (( t_start_us>(t_last_reflector_replacement_us+reflector_replacement_interval_us) ))
 				then
 					((pinger=RANDOM%no_pingers))
 					log_msg "DEBUG" "reflector: ${reflectors[pinger]} randomly selected for replacement."
@@ -1551,7 +1554,7 @@ do
 					continue
 				fi
 
-				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_mins*60*1000000) ))
+				if (( t_start_us>(t_last_reflector_comparison_us+reflector_comparison_interval_us) ))
 				then
 
 					t_last_reflector_comparison_us=${t_start_us}

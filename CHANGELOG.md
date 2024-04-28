@@ -7,7 +7,7 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
-## 2024-03-30 - Version 3.2.0
+## 2024-04-16 - Version 3.2.0
 
 - This version focuses on reducing CPU usage for everyday use.
 - Fold pinger parsing and pinger maintenance processes into main 
@@ -30,6 +30,7 @@ more about cake-autorate. This is the history of changes.
   to Starlink connections.
 - Add simple CPU benchmark script.
 - Other minor fixes and improvements.
+- Add support for Asus Merlin devices
 
 ## 2023-09-19 - Version 3.1.1
 
