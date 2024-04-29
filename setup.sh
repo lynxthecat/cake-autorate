@@ -85,6 +85,12 @@ main() {
 	done
 	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
+	if ! type "fping" >/dev/null 2>&1; then
+		printf "Warning, fping is required by default, but it is not installed.\n"
+		pritnf "So cake-autorate will not run with default settings.\n"
+		printf "Either install fping or ensure that one of the other supported ping binaries is installed and selected in the config(s).\n"
+	fi
+
 	# Create the cake-autorate directory if it does not exist
 	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
