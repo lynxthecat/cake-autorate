@@ -14,7 +14,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter uclient-fetch tar grep"
+	DEPENDENCIES="jsonfilter wget tar grep"
 
 	# Set up remote locations and branch
 	REPOSITORY=${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}
@@ -32,7 +32,9 @@ main() {
 
 	# Check if OS is OpenWRT or derivative
 	unset ID_LIKE
-	. /etc/os-release 2>/dev/null || :
+	# We do `set +/-e` here because in some Busybox sh versions
+	# `. /not_found || true` doesn't do anything
+	set +e; . /etc/os-release 2>/dev/null; set -e
 	for x in ${ID_LIKE:-}
 	do
 		if [ "${x}" = "openwrt" ]
@@ -93,7 +95,7 @@ main() {
 	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
 	# Get the latest commit to download
-	commit=$(uclient-fetch -qO- "${API_URL}" | jsonfilter -e @.sha)
+	commit=$(wget -qO- "${API_URL}" | jsonfilter -e @.sha)
 	if [ -z "${commit:-}" ];
 	then
 		printf >&2 "Invalid operation occurred, commit variable should not be empty"
@@ -118,7 +120,7 @@ main() {
 	# Download the files of the latest version of cake-autorate to a temporary directory, so we can move them to the cake-autorate directory
 	tmp=$(mktemp -d)
 	trap 'rm -rf "${tmp}"' EXIT INT TERM
-	uclient-fetch -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
+	wget -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
 	mv "${tmp}/cake-autorate-"*/* "${tmp}"
 
 	# Migrate old configuration (and new file) files if present
