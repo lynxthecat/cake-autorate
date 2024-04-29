@@ -203,7 +203,7 @@ main() {
 			;;
 		"asuswrt")
 			printf '%s\n' "Launch script on boot with:"
-			printf '%s\n\n' "   echo ${SCRIPT_PREFIX}/launcher.sh >> /jffs/scripts/post-mount"
+			printf '%s\n\n' "   echo ${SCRIPT_PREFIX}/launcher.sh >> /jffs/scripts/qos-start"
 			;;
 		*)
 			;;
