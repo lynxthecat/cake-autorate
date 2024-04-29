@@ -14,7 +14,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter wget tar grep"
+	DEPENDENCIES="jsonfilter wget tar grep bash"
 
 	# Set up remote locations and branch
 	REPOSITORY=${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}
@@ -80,16 +80,6 @@ main() {
 		fi
 	done
 	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
-
-	# Retrieve required packages if not present
-	# shellcheck disable=SC2312
-	if [ "$(opkg list-installed | grep -Ec '^(bash|fping) ')" -ne 2 ]
-	then
-		printf "Running opkg update to update package lists:\n"
-		opkg update
-		printf "Installing bash and fping packages:\n"
-		opkg install bash fping
-	fi
 
 	# Create the cake-autorate directory if it does not exist
 	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
@@ -171,9 +161,12 @@ main() {
 	sed -e "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" -e "s|%%CONFIG_PREFIX%%|${CONFIG_PREFIX}|g" \
 		"${tmp}/launcher.sh.template" > "${SCRIPT_PREFIX}/launcher.sh"
 
-	# Also generate the service file from cake-autorate.template but DO NOT ACTIVATE IT
-	sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/cake-autorate.template" > /etc/init.d/cake-autorate
-	chmod +x /etc/init.d/cake-autorate
+	# Also for OpenWrt generate the service file from cake-autorate.template but DO NOT ACTIVATE IT
+	if [ "${MY_OS}" = "openwrt" ]
+	then
+		sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/cake-autorate.template" > /etc/init.d/cake-autorate
+		chmod +x /etc/init.d/cake-autorate
+	fi
 
 	# Get version and generate a file containing version information
 	cd "${SCRIPT_PREFIX}"
@@ -190,8 +183,20 @@ main() {
 	printf '\n%s\n\n' "${version} successfully installed, but not yet running"
 	printf '%s\n' "Start the software manually with:"
 	printf '%s\n' "   cd ${SCRIPT_PREFIX}; ./cake-autorate.sh"
-	printf '%s\n' "Run as a service with:"
-	printf '%s\n\n' "   service cake-autorate enable; service cake-autorate start"
+
+	case "${MY_OS}" in
+
+		"openwrt")
+			printf '%s\n' "Run as a service with:"
+			printf '%s\n\n' "   service cake-autorate enable; service cake-autorate start"
+			;;
+		"asuswrt")
+			printf '%s\n' "Launch script on boot with:"
+			printf '%s\n\n' "   echo ${SCRIPT_PREFIX}/launcher.sh >> /jffs/scripts/post-mount"
+			;;
+		*)
+			;;
+	esac
 }
 
 # Now that we are sure all code is loaded, we could execute the function
