@@ -164,6 +164,7 @@ main() {
 	# Generate a launcher.sh file from the launcher.sh.template file
 	sed -e "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" -e "s|%%CONFIG_PREFIX%%|${CONFIG_PREFIX}|g" \
 		"${tmp}/launcher.sh.template" > "${SCRIPT_PREFIX}/launcher.sh"
+	chmod +x "${SCRIPT_PREFIX}/launcher.sh"
 
 	# Also for OpenWrt generate the service file from cake-autorate.template but DO NOT ACTIVATE IT
 	if [ "${MY_OS}" = "openwrt" ]
