@@ -13,11 +13,19 @@ bandwidth connections such as LTE, Starlink, and cable modems and is
 not generally required for use on connections that have a stable,
 fixed bandwidth.
 
-[CAKE Smart Queue Management (SQM)](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
+[CAKE](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
 is an algorithm that manages the buffering of data being sent/received
-by a device such as an [OpenWrt router](https://openwrt.org) so that
+by a device such as an [OpenWrt router](https://openwrt.org) or an 
+[Asus Merlin router](https://www.asuswrt-merlin.net/) so that
 no more data is queued than is necessary, minimizing the latency
-("bufferbloat") and improving the responsiveness of a network.
+("bufferbloat") and improving the responsiveness of a network. 
+An instance of cake on an interface is set up with a certain bandwidth.
+Although this bandwidth can be changed, the cake algorithm itself has 
+no reliable means to adjust the bandwidth on the fly. **cake-autorate**
+bridges this gap.
+
+**cake-autorate** presently supports installation on devices running 
+OpenWrt and Asus Merlin.
 
 ### Status
 
@@ -111,7 +119,7 @@ always testing for the true maximum as explained above).
 The baseline bandwidth is likely optimally either the minimum
 bandwidth or somewhere close thereto (e.g. the compromise bandwidth).
 
-## Installation on OpenWrt
+## Installation on OpenWrt or Asus Merlin
 
 Read the installation instructions in the separate
 [INSTALLATION](./INSTALLATION.md) page.

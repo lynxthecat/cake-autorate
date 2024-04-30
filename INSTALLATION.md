@@ -1,11 +1,11 @@
-# Installing cake-autorate on OpenWrt
+# Installing cake-autorate
 
 **cake-autorate** is a script that minimizes latency by adjusting CAKE
 bandwidth settings based on traffic load and round-trip time
 measurements. See the main [README](./README.md) page for more details
 of the algorithm.
 
-## Installation Steps
+## Installation Steps (OpenWrt)
 
 cake-autorate provides an installation script that installs all the
 required tools. To use it:
@@ -36,21 +36,50 @@ required tools. To use it:
 - The installer script will detect a previous configuration file, and
   ask whether to preserve it.
 
+## Installation Steps (Asus Merlin)
+
+- [SSH into the router](https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSHD)
+
+- Make sure these are installed: entware; bash; iputils-ping; and fping.
+
+- Use the installer script by copying and pasting each of the commands
+  below. The commands retrieve the current version from this repo:
+
+  ```bash
+  wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/cake-autorate/master/setup.sh
+
+  sh /tmp/cake-autorate_setup.sh
+  ```
+
+## Initial Configuration Steps (OpenWrt and Asus Merlin)
+
 - For a fresh install, you will need to undertake the following steps.
 
 - Edit the _config.primary.sh_ script (in the _/root/cake-autorate_
-  directory) using vi or nano to set the configuration parameters
-  below (see comments in _config.primary.sh_ for details).
+  directory for OpenWrt or in the _/jffs/scripts/cake-autorate_ 
+  direction for Asus Merlin) using vi or nano to set the configuration 
+  parameters below (see comments in _config.primary.sh_ for details).
 
   - Change `dl_if` and `ul_if` to match the names of the upload and
-    download interfaces to which CAKE is applied. These can be
-    obtained, for example, by consulting the configured SQM settings
-    in LuCI or by examining the output of `tc qdisc ls`.
+    download interfaces to which CAKE is applied. 
 
     | Variable | Setting                                          |
     | -------: | :----------------------------------------------- |
     |  `dl_if` | Interface that downloads data (often _ifb4-wan_) |
     |  `ul_if` | Interface that uploads (often _wan_)             |
+
+
+  - For OpenWrt installations, these can be obtained, for example, 
+    by consulting the configured SQM settings in LuCi or by examining 
+    the output of `tc qdisc ls`.
+
+  - For Asus Merlin the requisite interfaces can also be obtained
+    by examining the output of `tc qdisc ls`. These are most likely:
+  
+    ```bash
+    dl_if=ifb4eth0 # download interface
+    ul_if=eth0     # upload interface
+    ```
 
   - Choose whether cake-autorate should adjust the shaper rates
     (disable for monitoring only):
@@ -189,7 +218,7 @@ cd /root/cake-autorate     # to the cake-autorate directory
   upload rates as you use the connection.
 - Press ^C to halt the process.
 
-## Install as a service
+## Install as a service (OpenWrt)
 
 You can install cake-autorate as a service that starts up the autorate
 process whenever the router reboots. To do this:
@@ -217,7 +246,18 @@ router to handle selected logging parameters. Consider disabling
 logging or adjusting logging parameters such as 
 `log_file_max_time_mins` or `log_file_max_size_KB` if necessary.
 
-## Preserving cake-autorate files for backup or upgrades
+## Launch on Boot (Asus Merlin)
+
+cake-autorate can be launched on boot by adding an appropriate 
+entry to e.g. post-mount or qos-start -
+see [here](https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts).
+
+
+```bash
+echo /jffs/scripts/cake-autorate/launcher.sh >> /jffs/scripts/qos-start
+```
+
+## Preserving cake-autorate files for backup or upgrades (OpenWrt)
 
 OpenWrt devices can save files across upgrades. Read the
 [Backup and Restore page on the OpenWrt wiki](https://openwrt.org/docs/guide-user/troubleshooting/backup_restore#customize_and_verify)
