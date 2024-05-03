@@ -145,7 +145,7 @@ main() {
 			__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT="${commit}" \
 				exec "${SHELL}" "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		else
-			printf "Self-replacing not fully supported, restarting with the new setup.sh...\n"
+			printf "Self-replacing not fully supported. Restarting with the new setup.sh...\n"
 			rm -rf "${tmp}"
 			exec "${SHELL}" "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		fi
