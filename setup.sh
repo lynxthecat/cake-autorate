@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Capabilities:
+#   - CAKE_AUTORATE_SETUP_SH_SUPPORT_SELF_REPLACING
+
 # Installation script for cake-autorate
 #
 # See https://github.com/lynxthecat/cake-autorate for more details
@@ -134,11 +137,19 @@ main() {
 	if [ -e "${tmp}/setup.sh" ] && [ -e "${0}" ] && ! cmp -s "${0}" "${tmp}/setup.sh"
 	then
 		printf "Local setup.sh differs from the one in the repository\n"
-		printf "Self-replacing setup.sh and restarting...\n"
-		trap - EXIT INT TERM
-		__CAKE_AUTORATE_SETUP_SH_EXEC_TMP="${tmp}" \
-		__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT="${commit}" \
+		if grep -q ' CAKE_AUTORATE_SETUP_SH_SUPPORT_SELF_REPLACING$' "${tmp}/setup.sh"
+		then
+			printf "Self-replacing setup.sh and restarting while preserving the current environment...\n"
+			trap - EXIT INT TERM
+			__CAKE_AUTORATE_SETUP_SH_EXEC_TMP="${tmp}" \
+			__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT="${commit}" \
+				exec "${SHELL}" "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
+		else
+			printf "Self-replacing not fully supported, restarting with the new setup.sh...\n"
+			rm -rf "${tmp}"
 			exec "${SHELL}" "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
+		fi
+
 		exit "${?}"  # should not reach this point
 	fi
 
