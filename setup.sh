@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Capabilities:
+#   - CAKE_AUTORATE_SETUP_SH_SUPPORT_SELF_REPLACING
+
 # Installation script for cake-autorate
 #
 # See https://github.com/lynxthecat/cake-autorate for more details
@@ -14,7 +17,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter wget tar grep bash"
+	DEPENDENCIES="jsonfilter wget tar grep bash cmp"
 
 	# Set up remote locations and branch
 	REPOSITORY=${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}
@@ -85,6 +88,7 @@ main() {
 	done
 	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
+	# Check for fping, which is required by default
 	if ! type "fping" >/dev/null 2>&1; then
 		printf "Warning, fping is required by default, but it is not installed.\n"
 		pritnf "So cake-autorate will not run with default settings.\n"
@@ -95,7 +99,9 @@ main() {
 	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
 	# Get the latest commit to download
-	commit=$(wget -qO- "${API_URL}" | jsonfilter -e @.sha)
+	[ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ] && \
+		commit=$(wget -qO- "${API_URL}" | jsonfilter -e @.sha) || \
+		commit="${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT}"
 	if [ -z "${commit:-}" ];
 	then
 		printf >&2 "Invalid operation occurred, commit variable should not be empty"
@@ -118,10 +124,35 @@ main() {
 	printf "Installing cake-autorate using %s (script) and %s (config) directories...\n" "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
 	# Download the files of the latest version of cake-autorate to a temporary directory, so we can move them to the cake-autorate directory
-	tmp=$(mktemp -d)
+	if [ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_TMP:-}" ]
+	then
+		tmp=$(mktemp -d)
+		wget -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
+		mv "${tmp}/cake-autorate-"*/* "${tmp}"
+	else
+		tmp="${__CAKE_AUTORATE_SETUP_SH_EXEC_TMP}"
+	fi
 	trap 'rm -rf "${tmp}"' EXIT INT TERM
-	wget -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
-	mv "${tmp}/cake-autorate-"*/* "${tmp}"
+
+	# Compare local setup.sh with the one from the repository
+	if [ -e "${tmp}/setup.sh" ] && [ -e "${0}" ] && ! cmp -s "${0}" "${tmp}/setup.sh"
+	then
+		printf "Local setup.sh differs from the one in the repository\n"
+		if grep -q ' CAKE_AUTORATE_SETUP_SH_SUPPORT_SELF_REPLACING$' "${tmp}/setup.sh"
+		then
+			printf "Self-replacing setup.sh and restarting while preserving the current environment...\n"
+			trap - EXIT INT TERM
+			__CAKE_AUTORATE_SETUP_SH_EXEC_TMP="${tmp}" \
+			__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT="${commit}" \
+				exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
+		else
+			printf "Self-replacing not fully supported. Restarting with the new setup.sh...\n"
+			rm -rf "${tmp}"
+			exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
+		fi
+
+		exit "${?}"  # should not reach this point
+	fi
 
 	# Migrate old configuration (and new file) files if present
 	cd "${CONFIG_PREFIX}"
