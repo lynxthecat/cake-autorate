@@ -91,7 +91,7 @@ main() {
 	# Check for fping, which is required by default
 	if ! type "fping" >/dev/null 2>&1; then
 		printf "Warning, fping is required by default, but it is not installed.\n"
-		pritnf "So cake-autorate will not run with default settings.\n"
+		printf "So cake-autorate will not run with default settings.\n"
 		printf "Either install fping or ensure that one of the other supported ping binaries is installed and selected in the config(s).\n"
 	fi
 
