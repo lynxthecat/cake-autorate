@@ -55,10 +55,14 @@ required tools. To use it:
 
 - For a fresh install, you will need to undertake the following steps.
 
-- Edit the _config.primary.sh_ script (in the _/root/cake-autorate_
-  directory for OpenWrt or in the _/jffs/scripts/cake-autorate_ 
-  direction for Asus Merlin) using vi or nano to set the configuration 
+- Edit the _config.primary.sh_ script using vi or nano to set the configuration 
   parameters below (see comments in _config.primary.sh_ for details).
+  - **OpenWrt:** in the _/root/cake-autorate_
+  directory 
+  - **Asus Merlin:** in the _/jffs/scripts/cake-autorate_ 
+  directory
+
+In the configuration file:
 
   - Change `dl_if` and `ul_if` to match the names of the upload and
     download interfaces to which CAKE is applied. 
