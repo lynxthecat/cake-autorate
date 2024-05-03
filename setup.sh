@@ -123,6 +123,16 @@ main() {
 	wget -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
 	mv "${tmp}/cake-autorate-"*/* "${tmp}"
 
+	# Check locally run setup.sh matches remote setup.sh
+	sha256sum_setup_local=$(cat "${0}" | sha256sum | awk '{print $1}')
+	sha256sum_setup_remote=$(cat "${tmp}/setup.sh" | sha256sum | awk '{print $1}')
+	if [ "${sha256sum_setup_local}" != "${sha256sum_setup_remote}" ]
+	then
+		printf "Local setup.sh does not match remote setup.sh.\n"
+		printf "Please manually update setup.sh and re-run the installer.\n"
+		exit
+	fi
+
 	# Migrate old configuration (and new file) files if present
 	cd "${CONFIG_PREFIX}"
 	for file in cake-autorate_config.*.sh*
