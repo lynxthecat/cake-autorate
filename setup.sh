@@ -88,6 +88,7 @@ main() {
 	done
 	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
+	# Check for fping, which is required by default
 	if ! type "fping" >/dev/null 2>&1; then
 		printf "Warning, fping is required by default, but it is not installed.\n"
 		pritnf "So cake-autorate will not run with default settings.\n"
@@ -143,11 +144,11 @@ main() {
 			trap - EXIT INT TERM
 			__CAKE_AUTORATE_SETUP_SH_EXEC_TMP="${tmp}" \
 			__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT="${commit}" \
-				exec "${SHELL}" "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
+				exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		else
 			printf "Self-replacing not fully supported. Restarting with the new setup.sh...\n"
 			rm -rf "${tmp}"
-			exec "${SHELL}" "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
+			exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		fi
 
 		exit "${?}"  # should not reach this point
