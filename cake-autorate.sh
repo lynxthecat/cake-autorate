@@ -1250,7 +1250,7 @@ do
 						# The timestamps are supposed to relate to milliseconds past midnight UTC, albeit implementation varies, and,
 						# in any case, timestamps rollover at the local and/or remote ends, and the rollover may not be synchronized.
 						#
-						# Such an event would result in a huge spike in dl_owd_us or ul_owd_us and a lare delta relative to the baseline.
+						# Such an event would result in a huge spike in dl_owd_us or ul_owd_us and a large delta relative to the baseline.
 						#
 						# So, to compensate, in the event that delta > 50 mins, immediately reset the baselines to the new dl_owd_us and ul_owd_us.
 						#
