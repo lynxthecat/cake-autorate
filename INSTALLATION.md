@@ -40,7 +40,7 @@ required tools. To use it:
 
 - [SSH into the router](https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSHD)
 
-- Make sure these are installed: entware; bash; iputils-ping; and fping.
+- Make sure these are installed: entware; coreutils-mktemp; bash; iputils-ping; and fping.
 
 - Use the installer script by copying and pasting each of the commands
   below. The commands retrieve the current version from this repo:

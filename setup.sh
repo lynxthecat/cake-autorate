@@ -17,7 +17,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter wget tar grep bash cmp"
+	DEPENDENCIES="jsonfilter wget tar grep cmp mktemp bash"
 
 	# Set up remote locations and branch
 	REPOSITORY=${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}
