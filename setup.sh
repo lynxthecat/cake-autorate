@@ -234,7 +234,9 @@ main() {
 			;;
 		"asuswrt")
 			printf '%s\n' "Launch script on boot with:"
-			printf '%s\n\n' "   echo ${SCRIPT_PREFIX}/launcher.sh >> /jffs/scripts/qos-start"
+			printf '%s\n' "   echo ${SCRIPT_PREFIX}/launcher.sh > /opt/etc/init.d/S99cake-autorate"
+			printf '%s\n' "   chmod +x /opt/etc/init.d/S99cake-autorate"
+			printf '%s\n\n' "See also: https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts"
 			;;
 		*)
 			;;
