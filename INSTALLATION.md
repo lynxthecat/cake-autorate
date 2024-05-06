@@ -42,6 +42,12 @@ required tools. To use it:
 
 - Make sure these are installed: entware; coreutils-mktemp; bash; iputils-ping; and fping.
 
+  - Firstly, if not already installed, [install entware](https://github.com/RMerl/asuswrt-merlin.ng/wiki/Entware); 
+  - and then run:
+  ```bash
+  opkg install coreutils-mktemp bash iputils-ping fping
+  ```
+
 - Use the installer script by copying and pasting each of the commands
   below. The commands retrieve the current version from this repo:
 
