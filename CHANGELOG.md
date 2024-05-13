@@ -7,7 +7,7 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
-## 2024-05-03 - Version 3.2.0
+## 2024-05-13 - Version 3.2.0
 
 - This version focuses on reducing CPU usage for everyday use.
 - Fold pinger parsing and pinger maintenance processes into main 
