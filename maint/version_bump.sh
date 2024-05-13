@@ -18,6 +18,8 @@ version=${1:?}
 is_latest=${2:-1}
 EDITOR=${EDITOR:-nano}
 
+version_major=${version:0:3}
+
 if asker "Would you like to create a new changelog entry? (y/n) "
 then
 	cur_date=$(date -I)
@@ -35,7 +37,8 @@ fi
 
 if ((is_latest))
 then
-	if sed -E 's|(<span id=\"version\">)[^\<]+(</span>)|\1'"${version}"'\2|' -i README.md
+	if sed -E 's|(<span id=\"version\">)[^\<]+(</span>)|\1'"${version}"'\2|' -i README.md && \
+	   sed -E 's|\[v[^\<]+( branch[^\<]+tree\/v)([^\<]+)|\[v'${version_major}'\1'${version_major}'|' -i README.md
 	then
 		echo Latest cake autorate version updated in README.md
 	fi
