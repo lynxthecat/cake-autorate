@@ -20,7 +20,7 @@ main() {
 	DEPENDENCIES="jsonfilter wget tar grep cmp mktemp bash"
 
 	# Set up remote locations and branch
-	BRANCH="${CAKE_AUTORATE_BRANCH:-${2-master}}"
+	BRANCH="${CAKE_AUTORATE_BRANCH:-${2-v3.2}}"
 	REPOSITORY="${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}"
 	SRC_DIR="https://github.com/${REPOSITORY}/archive/"
 	API_URL="https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}"
