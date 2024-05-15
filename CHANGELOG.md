@@ -10,8 +10,8 @@ more about cake-autorate. This is the history of changes.
 ## 2024-05-13 - Version 3.2.0
 
 - This version focuses on reducing CPU usage for everyday use.
-- Fold pinger parsing and pinger maintenance processes into main 
-  process thereby to reduce IPC overhead. This involved a significant 
+- Fold pinger parsing and pinger maintenance processes into main
+  process thereby to reduce IPC overhead. This involved a significant
   restructure of the code.
 - Reduce overhead associated with achieved rate monitoring.
 - Improve IPC read efficiency of the main process.
@@ -20,14 +20,14 @@ more about cake-autorate. This is the history of changes.
 - Disable costly logging options by default.
 - Improve efficiency of load classification.
 - Reduce frequency of shaper rate updates on high load by only
-  permitting shaper rate increases on load updates and increasing
-  the default shaper rate increase factor to give the same overall 
-  increase rate. 
-- Only print log file headers to log file corresponding with toggled 
+  permitting shaper rate increases on load updates and increasing the
+  default shaper rate increase factor to give the same overall
+  increase rate.
+- Only print log file headers to log file corresponding with toggled
   logging stats.
-- Remove Starlink satellite switching code given insufficient
-  evidence that it helps especially given recent improvements
-  to Starlink connections.
+- Remove Starlink satellite switching code given insufficient evidence
+  that it helps especially given recent improvements to Starlink
+  connections.
 - Add simple CPU benchmark script.
 - Add support for devices running Asus Merlin.
 - Other minor fixes and improvements.

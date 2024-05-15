@@ -1,8 +1,9 @@
 # ⚡CAKE with Adaptive Bandwidth - "cake-autorate"
 
-If you like cake-autorate and can benefit from it, then please leave a ⭐ (top right) 
-and become a [stargazer](https://github.com/lynxthecat/cake-autorate/stargazers)!
-And feel free to post any feedback on the official OpenWrt thread 
+If you like cake-autorate and can benefit from it, then please leave a
+⭐ (top right) and become a
+[stargazer](https://github.com/lynxthecat/cake-autorate/stargazers)!
+And feel free to post any feedback on the official OpenWrt thread
 [here](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/135379).
 Thank you for your support.
 
@@ -13,18 +14,18 @@ bandwidth connections such as LTE, Starlink, and cable modems and is
 not generally required for use on connections that have a stable,
 fixed bandwidth.
 
-[CAKE](https://www.bufferbloat.net/projects/codel/wiki/Cake/)
-is an algorithm that manages the buffering of data being sent/received
-by a device such as an [OpenWrt router](https://openwrt.org) or an 
-[Asus Merlin router](https://www.asuswrt-merlin.net/) so that
-no more data is queued than is necessary, minimizing the latency
-("bufferbloat") and improving the responsiveness of a network. 
-An instance of cake on an interface is set up with a certain bandwidth.
-Although this bandwidth can be changed, the cake algorithm itself has 
-no reliable means to adjust the bandwidth on the fly. **cake-autorate**
-bridges this gap.
+[CAKE](https://www.bufferbloat.net/projects/codel/wiki/Cake/) is an
+algorithm that manages the buffering of data being sent/received by a
+device such as an [OpenWrt router](https://openwrt.org) or an
+[Asus Merlin router](https://www.asuswrt-merlin.net/) so that no more
+data is queued than is necessary, minimizing the latency
+("bufferbloat") and improving the responsiveness of a network. An
+instance of cake on an interface is set up with a certain bandwidth.
+Although this bandwidth can be changed, the cake algorithm itself has
+no reliable means to adjust the bandwidth on the fly.
+**cake-autorate** bridges this gap.
 
-**cake-autorate** presently supports installation on devices running 
+**cake-autorate** presently supports installation on devices running
 OpenWrt and Asus Merlin.
 
 ### Status
@@ -165,8 +166,8 @@ monitor_achieved_rates=1878
 main=1733
 ```
 
-It is useful to keep an htop or atop instance running and run some speed 
-tests and check the maximum CPU utilisation of the processes:
+It is useful to keep an htop or atop instance running and run some
+speed tests and check the maximum CPU utilisation of the processes:
 
 ![image](https://github.com/lynxthecat/cake-autorate/assets/10721999/732ecdc0-e847-48db-baa5-c10616c2ad1b)
 
@@ -177,7 +178,7 @@ with 0.3 seconds between pings). Reducing the number of pingers to
 three will give a ping response rate of 10 Hz and approximately half
 the CPU load.
 
-Also, for everyday use, consider disabling any unecessary logging 
+Also, for everyday use, consider disabling any unecessary logging
 options, and especially: `output_summary_stats`,
 `output_processing_stats` and `output_load_stats`.
 

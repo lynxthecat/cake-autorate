@@ -40,10 +40,13 @@ required tools. To use it:
 
 - [SSH into the router](https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSHD)
 
-- Make sure these are installed: entware; coreutils-mktemp; bash; iputils-ping; and fping.
+- Make sure these are installed: entware; coreutils-mktemp; bash;
+  iputils-ping; and fping.
 
-  - Firstly, if not already installed, [install entware](https://github.com/RMerl/asuswrt-merlin.ng/wiki/Entware); 
+  - Firstly, if not already installed,
+    [install entware](https://github.com/RMerl/asuswrt-merlin.ng/wiki/Entware);
   - and then run:
+
   ```bash
   opkg install coreutils-mktemp bash iputils-ping fping
   ```
@@ -61,84 +64,83 @@ required tools. To use it:
 
 - For a fresh install, you will need to undertake the following steps.
 
-- Edit the _config.primary.sh_ script using vi or nano to set the configuration 
-  parameters below (see comments in _config.primary.sh_ for details).
-  - **OpenWrt:** in the _/root/cake-autorate_
-  directory 
-  - **Asus Merlin:** in the _/jffs/scripts/cake-autorate_ 
-  directory
+- Edit the _config.primary.sh_ script using vi or nano to set the
+  configuration parameters below (see comments in _config.primary.sh_
+  for details).
+
+  - **OpenWrt:** in the _/root/cake-autorate_ directory
+  - **Asus Merlin:** in the _/jffs/scripts/cake-autorate_ directory
 
 In the configuration file:
 
-  - Change `dl_if` and `ul_if` to match the names of the upload and
-    download interfaces to which CAKE is applied. 
+- Change `dl_if` and `ul_if` to match the names of the upload and
+  download interfaces to which CAKE is applied.
 
-    | Variable | Setting                                          |
-    | -------: | :----------------------------------------------- |
-    |  `dl_if` | Interface that downloads data (often _ifb4-wan_) |
-    |  `ul_if` | Interface that uploads (often _wan_)             |
+  | Variable | Setting                                          |
+  | -------: | :----------------------------------------------- |
+  |  `dl_if` | Interface that downloads data (often _ifb4-wan_) |
+  |  `ul_if` | Interface that uploads (often _wan_)             |
 
+- For OpenWrt installations, these can be obtained, for example, by
+  consulting the configured SQM settings in LuCi or by examining the
+  output of `tc qdisc ls`.
 
-  - For OpenWrt installations, these can be obtained, for example, 
-    by consulting the configured SQM settings in LuCi or by examining 
-    the output of `tc qdisc ls`.
+- For Asus Merlin the requisite interfaces can also be obtained by
+  examining the output of `tc qdisc ls`. These are most likely:
 
-  - For Asus Merlin the requisite interfaces can also be obtained
-    by examining the output of `tc qdisc ls`. These are most likely:
-  
-    ```bash
-    dl_if=ifb4eth0 # download interface
-    ul_if=eth0     # upload interface
-    ```
+  ```bash
+  dl_if=ifb4eth0 # download interface
+  ul_if=eth0     # upload interface
+  ```
 
-  - Choose whether cake-autorate should adjust the shaper rates
-    (disable for monitoring only):
+- Choose whether cake-autorate should adjust the shaper rates (disable
+  for monitoring only):
 
-    |                Variable | Setting                                    |
-    | ----------------------: | :----------------------------------------- |
-    | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
-    | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
+  |                Variable | Setting                                    |
+  | ----------------------: | :----------------------------------------- |
+  | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
+  | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
 
-  - Set bandwidth variables as described in _config.primary.sh_.
+- Set bandwidth variables as described in _config.primary.sh_.
 
-    | Type | Download                   | Upload                     |
-    | ---: | :------------------------- | :------------------------- |
-    | Min. | `min_dl_shaper_rate_kbps`  | `min_ul_shaper_rate_kbps`  |
-    | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
-    | Max. | `max_dl_shaper_rate_kbps`  | `max_ul_shaper_rate_kbps`  |
+  | Type | Download                   | Upload                     |
+  | ---: | :------------------------- | :------------------------- |
+  | Min. | `min_dl_shaper_rate_kbps`  | `min_ul_shaper_rate_kbps`  |
+  | Base | `base_dl_shaper_rate_kbps` | `base_ul_shaper_rate_kbps` |
+  | Max. | `max_dl_shaper_rate_kbps`  | `max_ul_shaper_rate_kbps`  |
 
-  - Set connection idle variable as described in _config.primary.sh_.
+- Set connection idle variable as described in _config.primary.sh_.
 
-    |                     Variable | Setting                                                  |
-    | ---------------------------: | :------------------------------------------------------- |
-    | `connection_active_thr_kbps` | threshold in Kbit/s below which dl/ul is considered idle |
+  |                     Variable | Setting                                                  |
+  | ---------------------------: | :------------------------------------------------------- |
+  | `connection_active_thr_kbps` | threshold in Kbit/s below which dl/ul is considered idle |
 
 ## Configuration of cake-autorate
 
-  cake-autorate is highly configurable and almost every aspect of it
-  can be (and is ideally) fine-tuned. 
+cake-autorate is highly configurable and almost every aspect of it can
+be (and is ideally) fine-tuned.
 
-- The file _defaults.sh_ has sensible default
-  settings. After cake-autorate has been installed, you may wish to
-  override some of these by providing corresponding entries inside
-  _config.primary.sh_.
+- The file _defaults.sh_ has sensible default settings. After
+  cake-autorate has been installed, you may wish to override some of
+  these by providing corresponding entries inside _config.primary.sh_.
 
-  - For example, to set a different `dl_owd_delta_thr_ms`, then add a line
-    to the config file _config.primary.sh_ like:
+  - For example, to set a different `dl_owd_delta_thr_ms`, then add a
+    line to the config file _config.primary.sh_ like:
 
     ```bash
     dl_owd_delta_thr_ms=100
     ```
-- Users are encouraged to look at  _defaults.sh_, which documents
-  the many configurable parameters of cake-autorate.
-   
-    ## Delay thresholds
+
+- Users are encouraged to look at _defaults.sh_, which documents the
+  many configurable parameters of cake-autorate.
+
+  ## Delay thresholds
 
   - At least the following variables relating to the delay thresholds
-    may warrant overriding depending on the connection particulars. 
+    may warrant overriding depending on the connection particulars.
 
-    |                Variable | Setting                                      |
-    | ------------------------: | :----------------------------------------- |
+    |                  Variable | Setting                                                                                                      |
+    | ------------------------: | :----------------------------------------------------------------------------------------------------------- |
     |     `dl_owd_delta_thr_ms` | extent of download OWD increase to classify as a delay                                                       |
     |     `ul_owd_delta_thr_ms` | extent of upload OWD increase to classify as a delay                                                         |
     | `dl_avg_owd_delta_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
@@ -149,54 +151,53 @@ In the configuration file:
     Bufferbloat is detected when there are `bufferbloat_detection_thr`
     delays out of the last`bufferbloat_detection_window` reflector
     responses. Upon bufferbloat detection, the extent of the average
-    OWD delta taken across the reflectors governs how much the
-    shaper rate is adjusted down (scaled by average delta OWD /
+    OWD delta taken across the reflectors governs how much the shaper
+    rate is adjusted down (scaled by average delta OWD /
     `xl_avg_owd_delta_thr_ms`).
- 
-    Avoiding bufferbloat requires throttling the connection,
-    and thus there is a trade-off between bandwidth and latency. 
 
-    The delay thresholds affect how much the shaper rate is
-    punished responsive to latency increase. Users that want
-    very low latency at all times (at the expense of bandwidth)
-    will want lower values. Users that can tolerate higher
-    latency excursions (facilitating greater bandwidth).
+    Avoiding bufferbloat requires throttling the connection, and thus
+    there is a trade-off between bandwidth and latency.
 
-    Although the default parameters have been designed
-    to offer something that might work out of the box
-    for certain connections, some analysis is likely required
-    to optimize cake-autorate for the specific use-case.
+    The delay thresholds affect how much the shaper rate is punished
+    responsive to latency increase. Users that want very low latency
+    at all times (at the expense of bandwidth) will want lower values.
+    Users that can tolerate higher latency excursions (facilitating
+    greater bandwidth).
+
+    Although the default parameters have been designed to offer
+    something that might work out of the box for certain connections,
+    some analysis is likely required to optimize cake-autorate for the
+    specific use-case.
 
     Read about this in the [ANALYSIS](./ANALYSIS.md) page.
 
     ## Reflectors
 
-  - Additionally, the following variables relating to reflectors
-    may also warrant overriding:
+  - Additionally, the following variables relating to reflectors may
+    also warrant overriding:
 
-    |                Variable | Setting                                      |
-    | ------------------------: | :----------------------------------------- |
+    |                  Variable | Setting                                 |
+    | ------------------------: | :-------------------------------------- |
     |              `reflectors` | list of reflectors                      |
     |              `no_pingers` | number of reflectors to ping            |
     | `reflector_ping_interval` | interval between pinging each reflector |
- 
+
     Reflector choice is a crucial parameter for cake-autorate.
 
-    By default, cake-autorate sends ICMPs to various large anycast
-    DNS hosts (Cloudflare, Google, Quad9, etc.).
+    By default, cake-autorate sends ICMPs to various large anycast DNS
+    hosts (Cloudflare, Google, Quad9, etc.).
 
-    It is the responsibility of the user to ensure that the
-    configured reflectors provide stable, low-latency responses.
- 
-    Some governments appear to block DNS hosts like Google.
-    Users affected by the same will need to determine
-    appropriate alternative reflectors. 
- 
-    cake-autorate monitors the responses from reflectors
-    and automatically kicks out bad reflectors. The
-    parameters governing the same are configurable
-    in the config file (see _defaults.sh_).
-    
+    It is the responsibility of the user to ensure that the configured
+    reflectors provide stable, low-latency responses.
+
+    Some governments appear to block DNS hosts like Google. Users
+    affected by the same will need to determine appropriate
+    alternative reflectors.
+
+    cake-autorate monitors the responses from reflectors and
+    automatically kicks out bad reflectors. The parameters governing
+    the same are configurable in the config file (see _defaults.sh_).
+
     ## Logging
 
   - The following variables control logging:
@@ -251,17 +252,16 @@ _/var/log/cake-autorate.primary.log_ (observing the instance
 identifier _cake-autorate_config.identifier.sh_ set in the config file
 name).
 
-WARNING: Take care to ensure sufficient free memory exists on
-router to handle selected logging parameters. Consider disabling
-logging or adjusting logging parameters such as 
-`log_file_max_time_mins` or `log_file_max_size_KB` if necessary.
+WARNING: Take care to ensure sufficient free memory exists on router
+to handle selected logging parameters. Consider disabling logging or
+adjusting logging parameters such as `log_file_max_time_mins` or
+`log_file_max_size_KB` if necessary.
 
 ## Launch on Boot (Asus Merlin)
 
-cake-autorate can be launched on boot by adding an appropriate 
-entry to e.g. post-mount or qos-start -
-see [here](https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts).
-
+cake-autorate can be launched on boot by adding an appropriate entry
+to e.g. post-mount or qos-start - see
+[here](https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts).
 
 ```bash
 echo /jffs/scripts/cake-autorate/launcher.sh >> /jffs/scripts/qos-start
