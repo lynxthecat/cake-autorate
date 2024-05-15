@@ -30,12 +30,11 @@ OpenWrt and Asus Merlin.
 
 ### Status
 
-This is the **development** (`master`) branch. New work on
-cake-autorate appears here. It is not guaranteed to be stable.
+This is the **stable version <span id="version">3.2.0</span>**
+suitable for production/every day use.
 
-The **stable version** for production/every day use is
-<span id="version">3.1.1</span> available from the
-[v3.1 branch](https://github.com/lynxthecat/cake-autorate/tree/v3.1).
+The **development** (`master`) branch is available at
+https://github.com/lynxthecat/cake-autorate/tree/master.
 
 ## The Problem: CAKE on variable speed connections forces an unpalatable compromise
 
