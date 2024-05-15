@@ -17,8 +17,7 @@ git reset --hard
 version=${1:?}
 is_latest=${2:-1}
 EDITOR=${EDITOR:-nano}
-
-version_major=${version:0:3}
+version_major=$(cut -d. -f1,2 <<<"${version}")
 
 if asker "Would you like to create a new changelog entry? (y/n) "
 then
