@@ -37,8 +37,8 @@ fi
 
 if ((is_latest))
 then
-	if sed -E 's|(<span id=\"version\">)[^\<]+(</span>)|\1'"${version}"'\2|' -i README.md && \
-	   sed -E 's|\[v[^\<]+( branch[^\<]+tree\/v)([^\<]+)|\[v'${version_major}'\1'${version_major}'|' -i README.md
+	if sed -E -e 's|(<span id=\"version\">)[^\<]+(</span>)|\1'"${version}"'\2|' \
+			  -e 's|\[v[^\<]+( branch[^\<]+tree\/v)([^\)]+)|\[v'${version_major}'\1'${version_major}'|' -i README.md
 	then
 		echo Latest cake autorate version updated in README.md
 	fi
