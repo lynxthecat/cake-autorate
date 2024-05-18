@@ -22,7 +22,7 @@ main() {
 	# Set up remote locations and branch
 	BRANCH="${CAKE_AUTORATE_BRANCH:-${2-master}}"
 	REPOSITORY="${CAKE_AUTORATE_REPO:-${1-lynxthecat/cake-autorate}}"
-	SRC_DIR="https://github.com/${REPOSITORY}/archive/"
+	SRC_DIR="https://codeload.github.com/${REPOSITORY}/tar.gz"
 	API_URL="https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}"
 	DOC_URL="https://github.com/${REPOSITORY}/tree/${BRANCH}#installation-on-openwrt"
 
@@ -127,7 +127,7 @@ main() {
 	if [ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_TMP:-}" ]
 	then
 		tmp=$(mktemp -d)
-		wget -qO- "${SRC_DIR}/${commit}.tar.gz" | tar -xozf - -C "${tmp}"
+		wget -qO- "${SRC_DIR}/${commit}" | tar -xozf - -C "${tmp}"
 		mv "${tmp}/cake-autorate-"*/* "${tmp}"
 	else
 		tmp="${__CAKE_AUTORATE_SETUP_SH_EXEC_TMP}"
