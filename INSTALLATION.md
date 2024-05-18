@@ -36,7 +36,6 @@ required tools. To use it:
 
   ```bash
   wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/cake-autorate/master/setup.sh
-
   sh /tmp/cake-autorate_setup.sh
   ```
 
@@ -64,7 +63,6 @@ required tools. To use it:
 
   ```bash
   wget -O /tmp/cake-autorate_setup.sh https://raw.githubusercontent.com/lynxthecat/cake-autorate/master/setup.sh
-
   sh /tmp/cake-autorate_setup.sh
   ```
 
