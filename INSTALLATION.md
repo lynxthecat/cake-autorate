@@ -24,6 +24,13 @@ required tools. To use it:
 
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
 
+- Install bash and fping by running:
+
+  ```bash
+  opkg update
+  opkg install bash fping
+  ```
+
 - Use the installer script by copying and pasting each of the commands
   below. The commands retrieve the current version from this repo:
 
@@ -48,7 +55,8 @@ required tools. To use it:
   - and then run:
 
   ```bash
-  opkg install coreutils-mktemp bash iputils-ping fping
+  opkg update
+  opkg install coreutils-mktemp bash fping
   ```
 
 - Use the installer script by copying and pasting each of the commands
