@@ -30,7 +30,7 @@ OpenWrt and Asus Merlin.
 
 ### Status
 
-This is the **stable version <span id="version">3.2.0</span>**
+This is the **stable version <span id="version">3.2.1</span>**
 suitable for production/every day use.
 
 The **development** (`master`) branch is available at
