@@ -7,6 +7,14 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## 2024-05-18 - Version 3.2.1
+
+- This release fixes setup.sh on OpenWRT and some documentation
+  issues. If your installation worked fine there is no need to switch
+  to this release as it only affects very specific and recent uclient
+  versions only when downloading the tarballs. It would fail with an
+  obvious error (`SSL error: SSL - Bad input parameters to function`).
+
 ## 2024-05-13 - Version 3.2.0
 
 - This version focuses on reducing CPU usage for everyday use.
