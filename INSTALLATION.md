@@ -130,15 +130,19 @@ be (and is ideally) fine-tuned.
   cake-autorate has been installed, you may wish to override some of
   these by providing corresponding entries inside _config.primary.sh_.
 
-  - For example, to set a different `dl_owd_delta_thr_ms`, then add a
-    line to the config file _config.primary.sh_ like:
+  - For example, to set a different `dl_owd_delta_delay_thr_ms`, then 
+    add a line to the config file _config.primary.sh_ like:
 
     ```bash
-    dl_owd_delta_thr_ms=100
+    dl_owd_delta_delay_thr_ms=100.0
     ```
 
 - Users are encouraged to look at _defaults.sh_, which documents the
   many configurable parameters of cake-autorate.
+
+- The type of variable: integer, float, string used in any config file
+  must reflect the same type used in _defaults.sh_, and otherwise 
+  cake-autorate will throw an error on startup.
 
   ## Delay thresholds
 
@@ -147,20 +151,36 @@ be (and is ideally) fine-tuned.
 
     |                  Variable | Setting                                                                                                      |
     | ------------------------: | :----------------------------------------------------------------------------------------------------------- |
-    |     `dl_owd_delta_thr_ms` | extent of download OWD increase to classify as a delay                                                       |
-    |     `ul_owd_delta_thr_ms` | extent of upload OWD increase to classify as a delay                                                         |
-    | `dl_avg_owd_delta_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
-    | `ul_avg_owd_delta_thr_ms` | average upload OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied   |
+    |                  `dl_owd_delta_delay_thr_ms` | extent of download OWD increase to classify as a delay                                                       |
+    |                  `ul_owd_delta_delay_thr_ms` | extent of upload OWD increase to classify as a delay                                                         |
+    |      `dl_avg_owd_delta_max_adjust_up_thr_ms` | average download OWD threshold across reflectors at which maximum upward shaper rate adjustment is applied   |
+    |      `ul_avg_owd_delta_max_adjust_up_thr_ms` | average upload OWD threshold across reflectors at which maximum upward shaper rate adjustment is applied     |
+    |    `dl_avg_owd_delta_max_adjust_down_thr_ms` | average download OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied |
+    |    `ul_avg_owd_delta_max_adjust_down_thr_ms` | average upload OWD threshold across reflectors at which maximum downward shaper rate adjustment is applied   |
+
 
     An OWD measurement to an individual reflector that exceeds
-    `xl_owd_delta_thr_ms` from its baseline is classified as a delay.
-    Bufferbloat is detected when there are `bufferbloat_detection_thr`
-    delays out of the last`bufferbloat_detection_window` reflector
-    responses. Upon bufferbloat detection, the extent of the average
-    OWD delta taken across the reflectors governs how much the shaper
-    rate is adjusted down (scaled by average delta OWD /
-    `xl_avg_owd_delta_thr_ms`).
+    `xl_owd_delta_delay_thr_ms` from its baseline is classified as a 
+    delay. Bufferbloat is detected when there are 
+    `bufferbloat_detection_thr` delays out of the last
+    `bufferbloat_detection_window` reflector responses. 
 
+    Prior to bufferbloat detection, the extent of the average OWD
+    delta taken across the reflectors governs how much the shaper
+    rate is adjusted up. The adjustment is scaled linearly from 
+    `shaper_rate_max_adjust_up_load_high` (at or below
+    xl_avg_owd_delta_max_adjust_up_thr_ms)
+    to `shaper_rate_min_adjust_up_load_high` (at 
+    xl_owd_delta_thr_ms).
+
+    Upon bufferbloat detection, the extent of the average OWD delta 
+    taken across the reflectors governs how much the shaper rate is 
+    adjusted down. The adjustment is scaled linearly from 
+    `shaper_rate_min_adjust_down_bufferbloat` (at
+    xl_owd_delta_thr_ms) 
+    to `shaper_rate_min_adjust_down_bufferbloat` (at or above
+    xl_avg_owd_delta_max_adjust_down_thr_ms).
+    
     Avoiding bufferbloat requires throttling the connection, and thus
     there is a trade-off between bandwidth and latency.
 

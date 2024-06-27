@@ -76,15 +76,23 @@ randomize_reflectors=1 # enable (1) or disable (0) randomization of reflectors o
 no_pingers=6 # number of pingers to maintain
 reflector_ping_interval_s=0.3 # (seconds, e.g. 0.2s or 2s)
 
+# average owd delta threshold in ms up to which the maximum adjust_up_load_high is applied to the shaper rate adjustment
+# for average owd deltas between avg_owd_delta_max_adjust_up_thr_ms and owd_delta_thr_ms, the adjustment is scaled linearly
+# from max_adjust_up_load_high (at avg_owd_delta_max_adjust_up_thr_ms) to min_adjust_up_load_high (at owd_delta_thr_ms)
+dl_avg_owd_delta_max_adjust_up_thr_ms=10.0 # (milliseconds)
+ul_avg_owd_delta_max_adjust_up_thr_ms=10.0 # (milliseconds)
+
 # owd delta threshold in ms is the extent of OWD increase to classify as a delay
 # these are automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)
-dl_owd_delta_thr_ms=30.0 # (milliseconds)
-ul_owd_delta_thr_ms=30.0 # (milliseconds)
+dl_owd_delta_delay_thr_ms=30.0 # (milliseconds)
+ul_owd_delta_delay_thr_ms=30.0 # (milliseconds)
 
-# average owd delta threshold in ms at which maximum adjust_down_bufferbloat is applied
-dl_avg_owd_delta_thr_ms=60.0 # (milliseconds)
-ul_avg_owd_delta_thr_ms=60.0 # (milliseconds)
+# average owd delta threshold in ms beyond which the maximum adjust_down_bufferbloat is applied to the shaper rate adjustment
+# for average owd deltas between owd_delta_thr_ms and avg_owd_delta_max_adjust_up_thr_ms, the adjustment is scaled linearly
+# from min_adjust_down_bufferbloat (at owd_delta_thr_ms) to min_adjust_up_load_high (at avg_owd_delta_max_adjust_down_thr_ms)
+dl_avg_owd_delta_max_adjust_down_thr_ms=60.0 # (milliseconds)
+ul_avg_owd_delta_max_adjust_down_thr_ms=60.0 # (milliseconds)
 
 # Set either of the below to 0 to adjust one direction only
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
@@ -171,7 +179,8 @@ alpha_delta_ewma=0.095
 # otherwise shaper rate is adjusted up on load high, and down on load idle or low
 shaper_rate_min_adjust_down_bufferbloat=0.99    # how rapidly to reduce shaper rate upon detection of bufferbloat (min reduction)
 shaper_rate_max_adjust_down_bufferbloat=0.75	# how rapidly to reduce shaper rate upon detection of bufferbloat (max reduction)
-shaper_rate_adjust_up_load_high=1.04		# how rapidly to increase shaper rate upon high load detected
+shaper_rate_min_adjust_up_load_high=1.0		# how rapidly to increase shaper rate upon high load detected (min increase)
+shaper_rate_max_adjust_up_load_high=1.04	# how rapidly to increase shaper rate upon high load detected (max increase)
 shaper_rate_adjust_down_load_low=0.99		# how rapidly to return down to base shaper rate upon idle or low load detected
 shaper_rate_adjust_up_load_low=1.01		# how rapidly to return up to base shaper rate upon idle or low load detected
 

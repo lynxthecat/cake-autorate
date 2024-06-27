@@ -7,6 +7,19 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## 2024-06-17 - Version 3.3.0
+
+- Improve shaper rate controller by reducing the shaper rate increases
+  on high load as the average OWD delta approaches the delay threshold.
+  For this purpose, a new lower average OWD delta threshold has been 
+  introduced beyond which the shaper rate increases are reduced from
+  a maximum increase rate at the threshold to a minimum increase rate
+  at the delay treshold.
+
+- Rename the various thresholds in the light of the new lower average
+  OWD threshold for readability and consistency and add appropriate 
+  documentation for their use.
+
 ## 2024-05-18 - Version 3.2.1
 
 - This release fixes setup.sh on OpenWRT and some documentation
