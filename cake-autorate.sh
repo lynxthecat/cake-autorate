@@ -1699,7 +1699,12 @@ do
 
 			if (( reflector_response || achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
 			then
-
+				if ((reflector_response))
+				then
+					log_msg "DEBUG" "Reflector response detected."
+				else
+					log_msg "DEBUG" "dl achieved rate: ${achieved_rate_kbps[dl]} kbps and ul achieved rate: ${achieved_rate_kbps[ul]} kbps exceeded connection stall threshold: ${connection_stall_thr_kbps} kbps."
+				fi
 				log_msg "DEBUG" "Connection stall ended. Resuming normal operation."
 				change_state_main "RUNNING"
 			fi
