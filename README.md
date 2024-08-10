@@ -132,10 +132,19 @@ discerning performance.
 
 Read about this in the [ANALYSIS](./ANALYSIS.md) page.
 
-## CPU load monitoring
+## CPU usage monitoring
 
-The user should verify that CPU load is kept within acceptable ranges,
-especially for devices with weaker CPUs.
+The user should verify that total CPU usage is kept within acceptable
+ranges, especially for higher bandwidth connections and devices with
+weaker CPUs. On CPU saturation, bandwidth on a running CAKE qdisc is
+throttled. A CAKE qdisc is run on a specific CPU core and thus care
+should be taken to ensure that the CPU core(s) on which CAKE qdiscs
+are run are not saturated during normal use.
+
+cake-autorate includes logging options `output_cpu_stats` and
+`output_cpu_raw_stats` to monitor and log CPU total usage across all
+detected CPU cores. This can be leveraged to verify that sufficient
+spare CPU cycles exist for CAKE to avoid any bandwidth throttling.
 
 cake-autorate uses inter-process communication between multiple
 concurrent processes and incorporates various optimisations to reduce

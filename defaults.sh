@@ -20,6 +20,8 @@ output_load_stats=0       	# enable (1) or disable (0) output monitoring lines s
 output_reflector_stats=0  	# enable (1) or disable (0) output monitoring lines showing reflector stats
 output_summary_stats=0          # enable (1) or disable (0) output monitoring lines showing summary stats
 output_cake_changes=0     	# enable (1) or disable (0) output monitoring lines showing cake bandwidth changes
+output_cpu_stats=0		# enable (1) or disable (0) output monitoring lines showing CPU usage percentages
+output_cpu_raw_stats=0		# enable (1) or disable (0) output monitoring lines showing raw CPU usage lines
 debug=1 		  	# enable (1) or disable (0) out of debug lines
 
 # This can generate a LOT of records so be careful:
@@ -157,6 +159,9 @@ ping_prefix_string=""
 # this is automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)
 monitor_achieved_rates_interval_ms=200 # (milliseconds)
+
+# interval in ms for monitoring CPU usage
+monitor_cpu_usage_interval_ms=2000
 
 # bufferbloat is detected when (bufferbloat_detection_thr) samples
 # out of the last (bufferbloat detection window) samples are delayed
