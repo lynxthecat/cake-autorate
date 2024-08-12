@@ -217,6 +217,21 @@ print_headers()
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
 		((terminal)) && printf '%s\n' "${header}"
 	fi
+
+	if ((output_cpu_stats))
+	then
+		header="CPU_HEADER; LOG_DATETIME; LOG_TIMESTAMP; STATS_READ_TIME; ${cpu_ids// /_USAGE; }_USAGE"
+		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
+		((terminal)) && printf '%s\n' "${header}"
+	fi
+
+	if ((output_cpu_raw_stats))
+	then
+		header="CPU_RAW_HEADER; LOG_DATETIME; LOG_TIMESTAMP; STATS_READ_TIME; CPU_ID; USER; NICE; SYSTEM; IDLE; IOWAIT; IRQ; SIRQ; STEAL; GUEST; GUEST_NICE"
+		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
+		((terminal)) && printf '%s\n' "${header}"
+	fi
+
 }
 
 # MAINTAIN_LOG_FILE + HELPER FUNCTIONS
@@ -927,6 +942,27 @@ command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${p
 
 # Passed error checks
 
+cpu_idx=0
+while :
+do
+	read -r cpu_id rem
+	case ${cpu_id} in
+		cpu*)
+			cpu_ids[cpu_idx]=${cpu_id^^}
+			((cpu_idx++))
+			;;
+		*)
+			break
+			;;
+	esac
+done</proc/stat
+cpu_ids="${cpu_ids[@]}"
+((cpu_cores=cpu_idx-1))
+log_msg "DEBUG" "Detected ${cpu_cores} CPU cores."
+mapfile -t cpu_usage < <(for ((i=0; i <= cpu_cores; i++)); do echo 0; done)
+mapfile -t last_cpu_sum < <(for ((i=0; i <= cpu_cores; i++)); do echo 0; done)
+mapfile -t last_cpu_idle < <(for ((i=0; i <= cpu_cores; i++)); do echo 0; done)
+
 if ((log_to_file))
 then
 	((
@@ -1015,6 +1051,7 @@ printf -v reflector_ping_interval_ms %.0f "${reflector_ping_interval_s}e3"
 printf -v reflector_ping_interval_us %.0f "${reflector_ping_interval_s}e6"
 printf -v reflector_health_check_interval_us %.0f "${reflector_health_check_interval_s}e6"
 printf -v monitor_achieved_rates_interval_us %.0f "${monitor_achieved_rates_interval_ms}e3"
+printf -v monitor_cpu_usage_interval_us %.0f "${monitor_cpu_usage_interval_ms}e3"
 printf -v sustained_idle_sleep_thr_us %.0f "${sustained_idle_sleep_thr_s}e6"
 printf -v reflector_response_deadline_us %.0f "${reflector_response_deadline_s}e6"
 printf -v reflector_sum_owd_baselines_delta_thr_us %.0f "${reflector_sum_owd_baselines_delta_thr_ms}e3"
@@ -1137,6 +1174,7 @@ then
 fi
 
 t_start_us=${EPOCHREALTIME/.} \
+t_last_cpu_usage_check_us=${t_start_us} \
 t_last_bufferbloat_us[dl]=${t_start_us} t_last_bufferbloat_us[ul]=${t_start_us} \
 t_last_decay_us[dl]=${t_start_us} t_last_decay_us[ul]=${t_start_us} \
 t_last_reflector_health_check_us=${t_start_us} \
@@ -1494,6 +1532,39 @@ do
 
 				set_shaper_rate "dl"
 				set_shaper_rate "ul"
+
+				# update CPU usage stats if CPU monitoring interval exceeded
+				if (( (output_cpu_stats || output_cpu_raw_stats) && t_start_us > t_last_cpu_usage_check_us + monitor_cpu_usage_interval_us ))
+				then
+					stats_read_time_us=${EPOCHREALTIME}
+					for (( cpu_idx=0; cpu_idx<=cpu_cores; cpu_idx++ ))
+					do
+						read -r -a cpu_stats
+						if (( output_cpu_stats ))
+						then
+							cpu_stats_vals=${cpu_stats[@]:1}
+							((
+								cpu_sum=${cpu_stats_vals// /+},
+								cpu_delta=cpu_sum-last_cpu_sum[cpu_idx],
+								cpu_idle=${cpu_stats[4]}-last_cpu_idle[cpu_idx],
+								cpu_usage[cpu_idx]=(100*(cpu_delta-cpu_idle)/cpu_delta),
+								last_cpu_sum[cpu_idx]=cpu_sum,
+								last_cpu_idle[cpu_idx]=${cpu_stats[4]}
+							))
+						fi
+						if (( output_cpu_raw_stats ))
+						then
+							cpu_raw_stats="${cpu_stats[@]}"	cpu_raw_stats="${stats_read_time_us}; ${cpu_raw_stats// /; }"
+							log_msg "CPU_RAW" "${cpu_raw_stats}"
+						fi
+					done</proc/stat
+					if (( output_cpu_stats ))
+					then
+						cpu_stats="${cpu_usage[@]}" cpu_stats="${stats_read_time_us}; ${cpu_stats// /; }"
+						log_msg "CPU" "${cpu_stats}"
+					fi
+					t_last_cpu_usage_check_us=${t_start_us}
+				fi
 
 				if (( output_processing_stats ))
 				then

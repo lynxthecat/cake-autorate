@@ -35,6 +35,8 @@ output_processing_stats=0 # enable (1) or disable (0) output monitoring lines sh
 output_load_stats=0       # enable (1) or disable (0) output monitoring lines showing achieved loads
 output_reflector_stats=0  # enable (1) or disable (0) output monitoring lines showing reflector stats
 output_summary_stats=0    # enable (1) or disable (0) output monitoring lines showing summary stats
+output_cpu_stats=0        # enable (1) or disable (0) output monitoring lines showing CPU usage percentages
+output_cpu_raw_stats=0    # enable (1) or disable (0) output monitoring lines showing raw CPU usage lines
 
 # *** OVERRIDES ***
 

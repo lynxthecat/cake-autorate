@@ -15,10 +15,10 @@ more about cake-autorate. This is the history of changes.
   introduced beyond which the shaper rate increases are reduced from
   a maximum increase rate at the threshold to a minimum increase rate
   at the delay treshold.
-
 - Rename the various thresholds in the light of the new lower average
   OWD threshold for readability and consistency and add appropriate 
   documentation for their use.
+- Include option to output CPU stats showing percentage usage per core.
 
 ## 2024-05-18 - Version 3.2.1
 
