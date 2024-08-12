@@ -1396,6 +1396,8 @@ do
 						;;
 				esac
 
+				timestamp=${timestamp//[\[\]]}
+
 				last_timestamp_reflectors_us[${reflector}]=${timestamp_us} reflectors_last_timestamp_us=${timestamp_us}
 
 				if (( (t_start_us - 10#${reflectors_last_timestamp_us})>500000 ))
