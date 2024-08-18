@@ -1,12 +1,5 @@
 # ⚡CAKE with Adaptive Bandwidth - "cake-autorate"
 
-If you like cake-autorate and can benefit from it, then please leave a
-⭐ (top right) and become a
-[stargazer](https://github.com/lynxthecat/cake-autorate/stargazers)!
-And feel free to post any feedback on the official OpenWrt thread
-[here](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/135379).
-Thank you for your support.
-
 **cake-autorate** is a script that automatically adjusts CAKE
 bandwidth settings based on traffic load and one-way-delay or
 round-trip-time measurements. cake-autorate is intended for variable
@@ -16,8 +9,7 @@ fixed bandwidth.
 
 [CAKE](https://www.bufferbloat.net/projects/codel/wiki/Cake/) is an
 algorithm that manages the buffering of data being sent/received by a
-device such as an [OpenWrt router](https://openwrt.org) or an
-[Asus Merlin router](https://www.asuswrt-merlin.net/) so that no more
+device so that no more
 data is queued than is necessary, minimizing the latency
 ("bufferbloat") and improving the responsiveness of a network. An
 instance of cake on an interface is set up with a certain bandwidth.
@@ -26,7 +18,8 @@ no reliable means to adjust the bandwidth on the fly.
 **cake-autorate** bridges this gap.
 
 **cake-autorate** presently supports installation on devices running
-OpenWrt and Asus Merlin.
+on an [OpenWrt router](https://openwrt.org) or an
+[Asus Merlin router](https://www.asuswrt-merlin.net/).
 
 ### Status
 
@@ -36,6 +29,13 @@ cake-autorate appears here. It is not guaranteed to be stable.
 The **stable version** for production/every day use is
 <span id="version">3.2.1</span> available from the
 [v3.2 branch](https://github.com/lynxthecat/cake-autorate/tree/v3.2).
+
+If you like cake-autorate and can benefit from it, then please leave a
+⭐ (top right) and become a
+[stargazer](https://github.com/lynxthecat/cake-autorate/stargazers)!
+And feel free to post any feedback on the official OpenWrt thread
+[here](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/135379).
+Thank you for your support.
 
 ## The Problem: CAKE on variable speed connections forces an unpalatable compromise
 
