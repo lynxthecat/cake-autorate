@@ -9,7 +9,7 @@
 # each cake-autorate instance must be configured using a corresponding config file
 
 # Project homepage: https://github.com/lynxthecat/cake-autorate
-# Licence details:  https://github.com/lynxthecat/cake-autorate/blob/master/LICENCE.md
+# Licence details:  https://github.com/lynxthecat/cake-autorate/blob/v3.2/LICENCE.md
 
 # Author and maintainer: lynxthecat
 # Contributors:  rany2; moeller0; richb-hanover
