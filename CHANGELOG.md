@@ -7,6 +7,12 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## 2024-11-27 - Version 3.2.2
+
+- This release updates the documentation to mention that the `apk`
+  command should be used to install dependencies if `opkg` is not
+  found.
+
 ## 2024-05-18 - Version 3.2.1
 
 - This release fixes setup.sh on OpenWRT and some documentation
