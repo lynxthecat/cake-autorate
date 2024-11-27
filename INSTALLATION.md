@@ -24,11 +24,21 @@ required tools. To use it:
 
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
 
-- Install bash and fping by running:
+- Ensure `bash` and `fping` are installed.
+
+  On most OpenWrt installations, you can install them by running:
 
   ```bash
   opkg update
   opkg install bash fping
+  ```
+
+  If the `opkg` command is not found, you may need to use `apk`
+  instead:
+
+  ```bash
+  apk update
+  apk add bash fping
   ```
 
 - Use the installer script by copying and pasting each of the commands
