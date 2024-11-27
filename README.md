@@ -34,7 +34,7 @@ If you like cake-autorate and can benefit from it, then please leave a
 ⭐ (top right) and become a
 [stargazer](https://github.com/lynxthecat/cake-autorate/stargazers)!
 And feel free to post any feedback on the official OpenWrt thread
-[here](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/135379).
+[here](https://forum.openwrt.org/t/cake-w-adaptive-bandwidth/191049).
 Thank you for your support.
 
 ## The Problem: CAKE on variable speed connections forces an unpalatable compromise
