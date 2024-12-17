@@ -139,7 +139,7 @@ Read the installation instructions in the separate
 
 ## Analysis of the cake-autorate logs
 
-cake-autorate maintains a detailed log file thats is helpful in
+cake-autorate maintains a detailed log file that is helpful in
 examining performance.
 
 Read about this in the [ANALYSIS](./ANALYSIS.md) page.
