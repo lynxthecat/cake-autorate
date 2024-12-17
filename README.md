@@ -1,8 +1,10 @@
 # ⚡CAKE with Adaptive Bandwidth - "cake-autorate"
 
-**cake-autorate** is a script that automatically adjusts CAKE
-bandwidth settings based on traffic load and one-way-delay or
-round-trip-time measurements. cake-autorate is intended for variable
+**cake-autorate** is a script that minimizes latency in routers 
+by adjusting CAKE bandwidth settings.
+It uses traffic load, one-way-delay, and
+round-trip time measurements to adjust the CAKE parameters.
+**cake-autorate** is intended for variable
 bandwidth connections such as LTE, Starlink, and cable modems and is
 not generally required for use on connections that have a stable,
 fixed bandwidth.
@@ -65,17 +67,26 @@ settings for the CAKE algorithm.
 
 `cake-autorate.sh` monitors load (receive and transmit utilization)
 and ping response times from one or more reflectors (hosts on the
-internet), and adjusts the download and upload bandwidth settings for
+internet), and adjusts the download and upload rate (bandwidth) settings for
 CAKE.
 
-cake-autorate uses this simple approach:
+cake-autorate uses this algorithm for each direction of traffic:
 
-- with low load, decay rate back to the configured baseline (and
-  subject to refractory period)
-- with high load, increase rate subject to the configured maximum
-- if bufferbloat (increased latency) is detected, decrease rate
-  subject to the configured min (and subject to refractory period)
-
+- In periods of high traffic, ramp up the rate setting
+  toward the configured maximum
+  to take advantage of the increase throughput
+- Anytime bufferbloat (increased latency) is detected,
+  ramp down the rate setting until the latency stabilizes,
+  but not below the configured minimum 
+- In periods of low traffic, gradually ramp the rate setting
+  back toward the configured baseline.
+  A subsequent burst of traffic will begin a new search for
+  the proper rate setting.
+- This algorithm typically adjusts to new traffic conditions
+  in well under one second.
+  To avoid oscillation, there is a _refractory period_
+  during which no further change will be made. 
+ 
 <img src="images/cake-bandwidth-autorate-rate-control.png" width=80% height=80%>
 
 cake-autorate requires three configuration values for each direction,
@@ -90,19 +101,20 @@ below this level.
 **Setting the baseline bandwidth:** This is the steady state bandwidth
 to be maintained under no or low load. This is likely the compromise
 bandwidth described above, i.e. the value you would set CAKE to that
-is bufferbloat free most, but not necessarily all, of the time.
+is bufferbloat-free most, but not necessarily all, of the time.
 
 **Setting the maximum bandwidth:** The maximum bandwidth should be set
-to the maximum bandwidth the connection can provide or lower. When
-there is heavy traffic, the script will adjust the bandwidth up to
+to the maximum bandwidth the connection can provide (or slightly lower). 
+When there is heavy traffic, the script will adjust the bandwidth up to
 this limit, and then back off if an OWD or RTT spike is detected.
-Since repeatedly testing for the maximum bandwidth on load necessarily
-involves letting some excess latency through, reducing the maximum
-bandwidth to a level below the maximum possible bandwidth has the
-benefit of reducing that excess latency associated with testing for
-the maximum bandwidth, and may allow for some degree of cruising along
-at that upper limit whilst the true connection capacity is higher than
-the set maximum bandwidth.
+Since the algorithm repeatedly tests for the maximum rate available,
+it may permit some excess latency at a traffic peak.
+Reducing the cake-autorate maximum to a value
+slightly below the link's maximum has the
+benefit of avoiding that excess latency,
+and may allow the traffic to cruise along with low latency
+at that configured maximum, 
+even though the true connection capacity might be slightly higher.
 
 To elaborate on setting the minimum and maximum, a variable bandwidth
 connection may be most ideally divided up into a known fixed, stable
@@ -127,8 +139,8 @@ Read the installation instructions in the separate
 
 ## Analysis of the cake-autorate logs
 
-cake-autorate maintains a detailed log file thats is helpful in
-discerning performance.
+cake-autorate maintains a detailed log file that is helpful in
+examining performance.
 
 Read about this in the [ANALYSIS](./ANALYSIS.md) page.
 
