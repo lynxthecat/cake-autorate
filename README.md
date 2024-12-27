@@ -199,7 +199,7 @@ with 0.3 seconds between pings). Reducing the number of pingers to
 three will give a ping response rate of 10 Hz and approximately half
 the CPU load.
 
-Also, for everyday use, consider disabling any unecessary logging
+Also, for everyday use, consider disabling any unnecessary logging
 options, and especially: `output_summary_stats`,
 `output_processing_stats` and `output_load_stats`.
 
