@@ -85,7 +85,7 @@ required tools. To use it:
   for details).
 
   - **OpenWrt:** in the _/root/cake-autorate_ directory
-  - **Asus Merlin:** in the _/jffs/scripts/cake-autorate_ directory
+  - **Asus Merlin:** in the _/jffs/configs/cake-autorate_ directory
 
 In the configuration file:
 
