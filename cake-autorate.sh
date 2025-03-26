@@ -1071,7 +1071,7 @@ printf -v decay_refractory_period_us %.0f "${decay_refractory_period_ms}e3"
 	stall_detection_timeout_us=stall_detection_thr*ping_response_interval_us
 ))
 
-printf -v stall_detection_timeout_s %.1f "${stall_detection_timeout_us}"
+printf -v stall_detection_timeout_s %.2f "${stall_detection_timeout_us}e-6"
 
 declare -A achieved_rate_kbps \
 achieved_rate_updated \
