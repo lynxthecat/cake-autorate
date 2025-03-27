@@ -54,10 +54,12 @@ required tools. To use it:
 
 ## Installation Steps (Asus Merlin)
 
+- From the Asus Merlin GUI: enable adaptive QOS and select cake.
+
 - [SSH into the router](https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSHD)
 
-- Make sure these are installed: entware; coreutils-mktemp; bash;
-  iputils-ping; and fping.
+- Make sure these are installed: entware; coreutils-mktemp; jsonfilter; bash;
+  and iputils-ping or fping.
 
   - Firstly, if not already installed,
     [install entware](https://github.com/RMerl/asuswrt-merlin.ng/wiki/Entware);
@@ -65,7 +67,7 @@ required tools. To use it:
 
   ```bash
   opkg update
-  opkg install coreutils-mktemp bash fping
+  opkg install coreutils-mktemp jsonfilter bash fping
   ```
 
 - Use the installer script by copying and pasting each of the commands
