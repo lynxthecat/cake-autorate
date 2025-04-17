@@ -300,11 +300,14 @@ adjusting logging parameters such as `log_file_max_time_mins` or
 ## Launch on Boot (Asus Merlin)
 
 cake-autorate can be launched on boot by adding an appropriate entry
-to e.g. post-mount or qos-start - see
+to e.g. post-mount - see
 [here](https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts).
 
+For example, add these lines to /jffs/scripts/post-mount:
+
 ```bash
-echo /jffs/scripts/cake-autorate/launcher.sh >> /jffs/scripts/qos-start
+source /etc/profile
+/jffs/scripts/cake-autorate/launcher.sh
 ```
 
 ## Preserving cake-autorate files for backup or upgrades (OpenWrt)
