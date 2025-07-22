@@ -494,6 +494,61 @@ start_pinger()
 
 	case ${pinger_binary} in
 
+		irtt)
+			sleep_until_next_pinger_time_slot "${pinger}"
+
+			local pinger_pid=$( (
+				set -m
+				${ping_prefix_string} gawk -v extra_args="${ping_extra_args}" -v interval_s="${reflector_ping_interval_s}" -v duration_m="${irtt_session_duration_m}" -v reflector="${reflectors[$pinger]}" -f <(cat <<-'EOT'
+				@load "time"
+
+				function to_us(val, mult)
+				{
+					mult = (val ~ /ms$/) ? 1000    : \
+						   (val ~ /s$/)  ? 1000000 : \
+						   (val ~ /µs$/) ? 1       : \
+						   (val ~ /ns$/) ? 0.001   : -1
+
+					if (val ~ /^-/ || mult < 0) return -1
+					return sprintf("%.0f", val * mult)
+				}
+
+				BEGIN {
+					FS = "[= ]+"
+
+					irtt_cmd = sprintf("stdbuf -oL irtt client %s -i '%ss' -d '%sm' '%s'", extra_args, interval_s, duration_m, (reflector ~ /:/ ? "[" reflector "]" : reflector))
+
+					while (1)
+					{
+						start_time = systime()
+
+						while ((irtt_cmd | getline) > 0)
+						{
+							if (/seq=/ && /rd=/ && /sd=/)
+							{
+								ts = gensub(/\./, "", 1, sprintf("%.6f", gettimeofday()))
+								seq = $2; dl_owd = to_us($6); ul_owd = to_us($8)
+
+								if (dl_owd >= 0 && ul_owd >= 0)
+								{
+									printf("%s %s %d %d %d\n", ts, reflector, seq, dl_owd, ul_owd)
+									fflush("")
+								}
+							}
+						}
+
+						close(irtt_cmd)
+						if (systime() - start_time < 3) system("sleep 1")
+					}
+				}
+				EOT
+				) 2> /dev/null >&"${main_fd}" &
+				echo $!
+			) )
+
+			pinger_pids["${pinger}"]=-${pinger_pid}
+			proc_pids["irtt_${pinger}_pinger"]=${pinger_pid}
+			;;
 		tsping)
 			# accommodate present tsping interval/sleep handling to prevent ping flood with only one pinger
 			(( tsping_sleep_time = no_pingers == 1 ? ping_response_interval_ms : 0 ))
@@ -531,7 +586,7 @@ start_pingers()
 		tsping|fping)
 			start_pinger 0
 			;;
-		ping)
+		ping|irtt)
 			for ((pinger=0; pinger < no_pingers; pinger++))
 			do
 				start_pinger "${pinger}"
@@ -587,7 +642,7 @@ stop_pingers()
 			log_msg "DEBUG" "Killing ${pinger_binary} instance."
 			kill_pinger 0
 			;;
-		ping)
+		ping|irtt)
 			for (( pinger=0; pinger < no_pingers; pinger++))
 			do
 				log_msg "DEBUG" "Killing pinger instance: ${pinger}"
@@ -1246,6 +1301,12 @@ do
 		*)
 			case "${pinger_binary}" in
 
+				irtt)
+					if ((${#command[@]} == 5))
+					then
+						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_us=${command[3]} ul_owd_us=${command[4]} reflector_response=1
+					fi
+					;;
 				tsping)
 					if ((${#command[@]} == 10))
 					then
@@ -1281,6 +1342,29 @@ do
 			then
 				# parse pinger response according to pinger binary
 				case ${pinger_binary} in
+					irtt)
+						((
+							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+							ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+
+							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
+							ul_owd_baselines_us[${reflector}]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[${reflector}])/1000000,
+
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
+							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+						))
+
+						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						then
+							((
+								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
+								ul_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[${reflector}])/1000000
+							))
+						fi
+						
+						timestamp_us=${timestamp}
+						
+						;;
 					tsping)
 						dl_owd_us=${dl_owd_ms}000 ul_owd_us=${ul_owd_ms}000
 
