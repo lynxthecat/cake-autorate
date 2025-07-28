@@ -47,12 +47,13 @@ log_file_path_override=""
 dl_if=ifb-wan # download interface
 ul_if=wan     # upload interface
 
-# pinger binary selection can be any of:
+# pinger method selection can be any of:
 # fping - round robin pinging (rtts)
+# fping-ts - round robin pinging using ICMP type 13 (owds)
 # tsping - round robin pinging using ICMP type 13 (owds)
 # irtt - individual pinging (owds)
 # ping - (iputils-ping) individual pinging (rtts)
-pinger_binary=fping
+pinger_method=fping
 
 # list of reflectors to use and number of pingers to initiate
 # pingers will be initiated with reflectors in the order specified in the list

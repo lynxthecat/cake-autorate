@@ -492,7 +492,7 @@ start_pinger()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	case ${pinger_binary} in
+	case ${pinger_method} in
 
 		irtt)
 			sleep_until_next_pinger_time_slot "${pinger}"
@@ -561,6 +561,11 @@ start_pinger()
 			pinger_pids[0]=${!}
 			proc_pids['fping_pinger']=${pinger_pids[0]}
 			;;
+		fping-ts)
+			${ping_prefix_string} fping ${ping_extra_args} --timestamp --loop --period "${reflector_ping_interval_ms}" --interval "${ping_response_interval_ms}" --timeout 10000 --icmp-timestamp "${reflectors[@]:0:${no_pingers}}" 2> /dev/null >&"${main_fd}" &
+			pinger_pids[0]=${!}
+			proc_pids['fping_pinger']=${pinger_pids[0]}
+			;;
 		ping)
 			sleep_until_next_pinger_time_slot "${pinger}"
 			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
@@ -568,7 +573,7 @@ start_pinger()
 			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[0]}
 			;;
 		*)
-			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
 			kill $$ 2>/dev/null
 			;;
 	esac
@@ -581,9 +586,9 @@ start_pingers()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	((pingers_active)) && return
-	case ${pinger_binary} in
+	case ${pinger_method} in
 
-		tsping|fping)
+		tsping|fping|fping-ts)
 			start_pinger 0
 			;;
 		ping|irtt)
@@ -593,7 +598,7 @@ start_pingers()
 			done
 			;;
 		*)
-			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
 			kill $$ 2>/dev/null
 			;;
 	esac
@@ -619,8 +624,8 @@ kill_pinger()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	case ${pinger_binary} in
-		tsping|fping)
+	case ${pinger_method} in
+		tsping|fping|fping-ts)
 			pinger=0
 			;;
 
@@ -636,10 +641,10 @@ stop_pingers()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	((pingers_active)) || return
-	case ${pinger_binary} in
+	case ${pinger_method} in
 
-		tsping|fping)
-			log_msg "DEBUG" "Killing ${pinger_binary} instance."
+		tsping|fping|fping-ts)
+			log_msg "DEBUG" "Killing ${pinger_method} instance."
 			kill_pinger 0
 			;;
 		ping|irtt)
@@ -650,7 +655,7 @@ stop_pingers()
 			done
 			;;
 		*)
-			log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
 			kill $$ 2>/dev/null
 			;;
 	esac
@@ -980,7 +985,15 @@ proc_pids['main']=${BASHPID}
 no_reflectors=${#reflectors[@]}
 
 # Check ping binary exists
-command -v "${pinger_binary}" &> /dev/null || { log_msg "ERROR" "ping binary ${pinger_binary} does not exist. Exiting script."; exit 1; }
+case ${pinger_method} in
+
+	fping-ts)
+		command -v "fping" &> /dev/null || { log_msg "ERROR" "ping binary fping does not exist. Exiting script."; exit 1; }
+		;;
+	*)
+		command -v "${pinger_method}" &> /dev/null || { log_msg "ERROR" "ping binary ${pinger_method} does not exist. Exiting script."; exit 1; }
+		;;
+esac
 
 # Check no_pingers <= no_reflectors
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
@@ -1072,7 +1085,7 @@ then
 	log_msg "DEBUG" "config_path: ${config_path}"
 	log_msg "DEBUG" "run_path: ${run_path}"
 	log_msg "DEBUG" "log_file_path: ${log_file_path}"
-	log_msg "DEBUG" "pinger_binary:${pinger_binary}"
+	log_msg "DEBUG" "pinger_method:${pinger_method}"
 	log_msg "DEBUG" "download interface: ${dl_if} (${min_dl_shaper_rate_kbps} / ${base_dl_shaper_rate_kbps} / ${max_dl_shaper_rate_kbps})"
 	log_msg "DEBUG" "upload interface: ${ul_if} (${min_ul_shaper_rate_kbps} / ${base_ul_shaper_rate_kbps} / ${max_ul_shaper_rate_kbps})"
 	log_msg "DEBUG" "rx_bytes_path: ${rx_bytes_path}"
@@ -1299,7 +1312,7 @@ do
 			fi
 			;;
 		*)
-			case "${pinger_binary}" in
+			case "${pinger_method}" in
 
 				irtt)
 					if ((${#command[@]} == 5))
@@ -1319,6 +1332,12 @@ do
 						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
 					fi
 					;;
+				fping-ts)
+					if ((${#command[@]} == 17))
+					then
+						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} originate=${command[13]#Originate=}000 received=${command[14]#Receive=}000 transmit=${command[15]#Transmit=}000 finished=${command[16]#Localreceive=}000 reflector_response=1
+					fi
+					;;
 				ping)
 					if ((${#command[@]} == 9))
 					then
@@ -1326,7 +1345,7 @@ do
 					fi
 					;;
 				*)
-					log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+					log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
 					kill $$ 2>/dev/null
 				;;
 			esac
@@ -1340,8 +1359,29 @@ do
 		RUNNING)
 			if ((reflector_response))
 			then
-				# parse pinger response according to pinger binary
-				case ${pinger_binary} in
+				# ICMP type 13 pings work with timestamps:
+				# Originate; Received; Transmit; and Finished,
+				#
+				# such that:
+				#
+				# dl_owd_us = Finished - Transmit
+				# ul_owd_us = Received - Originate
+				#
+				# The timestamps are supposed to relate to milliseconds past midnight UTC, albeit implementation varies, and,
+				# in any case, timestamps rollover at the local and/or remote ends, and the rollover may not be synchronized.
+				#
+				# Such an event would result in a huge spike in dl_owd_us or ul_owd_us and a large delta relative to the baseline.
+				#
+				# So, to compensate, in the event that delta > 50 mins, immediately reset the baselines to the new dl_owd_us and ul_owd_us.
+				#
+				# Happilly, the sum of dl_owd_baseline_us and ul_owd_baseline_us will roughly equal rtt_baseline_us.
+				# And since Transmit is approximately equal to Received, RTT is approximately equal to Finished - Originate.
+				# And thus the sum of dl_owd_baseline_us and ul_owd_baseline_us should not be affected by the rollover/compensation.
+				# Hence working with this sum, rather than the individual components, is useful for the reflector health check.
+				
+				# parse pinger response according to pinger method
+				case ${pinger_method} in
+
 					irtt)
 						((
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
@@ -1373,22 +1413,6 @@ do
 							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
 						))
 
-						# tsping employs ICMP type 13 and works with timestamps: Originate; Received; Transmit; and Finished, such that:
-						#
-						# dl_owd_us = Finished - Transmit
-						# ul_owd_us = Received - Originate
-						#
-						# The timestamps are supposed to relate to milliseconds past midnight UTC, albeit implementation varies, and,
-						# in any case, timestamps rollover at the local and/or remote ends, and the rollover may not be synchronized.
-						#
-						# Such an event would result in a huge spike in dl_owd_us or ul_owd_us and a large delta relative to the baseline.
-						#
-						# So, to compensate, in the event that delta > 50 mins, immediately reset the baselines to the new dl_owd_us and ul_owd_us.
-						#
-						# Happilly, the sum of dl_owd_baseline_us and ul_owd_baseline_us will roughly equal rtt_baseline_us.
-						# And since Transmit is approximately equal to Received, RTT is approximately equal to Finished - Originate.
-						# And thus the sum of dl_owd_baseline_us and ul_owd_baseline_us should not be affected by the rollover/compensation.
-						# Hence working with this sum, rather than the individual components, is useful for the reflector health check.
 
 						if (( (${dl_owd_delta_us#-} + ${ul_owd_delta_us#-}) < 3000000000 ))
 						then
@@ -1445,6 +1469,45 @@ do
 						timestamp_us=${timestamp//[\[\].]}0
 
 						;;
+
+					fping-ts)
+						seq=${seq//[\[\]]}
+
+						((
+							dl_owd_us=finished-transmit,
+							ul_owd_us=received-originate,
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
+							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+						))
+
+						if (( (${dl_owd_delta_us#-} + ${ul_owd_delta_us#-}) < 3000000000 ))
+						then
+
+							((
+								dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+								ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+
+								dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
+								ul_owd_baselines_us[${reflector}]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[${reflector}])/1000000,
+
+								dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
+								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+							))
+						else
+							dl_owd_baselines_us[${reflector}]=${dl_owd_us} ul_owd_baselines_us[${reflector}]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
+						fi
+
+						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						then
+							((
+								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
+								ul_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[${reflector}])/1000000
+							))
+						fi
+
+						timestamp_us=${timestamp//[\[\].]}0
+
+						;;
 					ping)
 						reflector=${reflector//:/} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
@@ -1475,7 +1538,7 @@ do
 
 						;;
 					*)
-						log_msg "ERROR" "Unknown pinger binary: ${pinger_binary}"
+						log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
 						exit 1
 						;;
 				esac
