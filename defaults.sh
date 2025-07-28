@@ -50,6 +50,7 @@ ul_if=wan     # upload interface
 # pinger binary selection can be any of:
 # fping - round robin pinging (rtts)
 # tsping - round robin pinging using ICMP type 13 (owds)
+# irtt - individual pinging (owds)
 # ping - (iputils-ping) individual pinging (rtts)
 pinger_binary=fping
 
@@ -154,6 +155,12 @@ ping_extra_args=""
 # Running ping or fping as a subprocess will lead to problems stopping it.
 # WARNING: no error checking - so use at own risk!
 ping_prefix_string=""
+
+# duration in minutes for each irtt session
+# irtt stores all results in-memory during a session
+# longer durations increase memory usage
+# lower values reduce memory but can cause gaps in data during session restarts
+irtt_session_duration_m=10 # (minutes)
 
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
