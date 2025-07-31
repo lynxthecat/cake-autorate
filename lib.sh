@@ -108,17 +108,16 @@ sleep_remaining_tick_time()
 randomize_array()
 {
 	# randomize the order of the elements of an array
+	# see: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
 
 	local -n array=${1}
 
-	subset=("${array[@]}")
-	array=()
-	for ((set=${#subset[@]}; set>0; set--))
+	for ((set=${#array[@]}-1; set>0; set--))
 	do
 		idx=$((RANDOM%set))
-		array+=("${subset[idx]}")
-		unset "subset[idx]"
-		subset=("${subset[@]}")
+		temp=${array[set]}
+		array[set]=${array[idx]}
+		array[idx]=${temp}
 	done
 }
 

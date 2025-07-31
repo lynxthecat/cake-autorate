@@ -1209,6 +1209,7 @@ mapfile -t ul_owd_deltas_us < <(for ((i=0; i < bufferbloat_detection_window; i++
 delays_idx=0 sum_dl_delays=0 sum_ul_delays=0 sum_dl_owd_deltas_us=0 sum_ul_owd_deltas_us=0
 
 # Randomize reflectors array providing randomize_reflectors set to 1
+log_msg "DEBUG" "Randomizing reflectors."
 ((randomize_reflectors)) && randomize_array reflectors
 
 for (( reflector=0; reflector<no_pingers; reflector++ ))
