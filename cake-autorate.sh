@@ -982,6 +982,15 @@ fi
 
 proc_pids['main']=${BASHPID}
 
+log_msg "DEBUG" "Local list of reflectors contains ${#reflectors[*]} entries."
+
+if [[ -n ${reflectors_url} ]]
+then
+	log_msg "DEBUG" "Appending local list of reflectors with remote list of reflectors at: ${reflectors_url}."
+	readarray -t -s ${reflectors_url_skip_lines} -O ${#reflectors[*]} reflectors < <( wget -O - ${reflectors_url} 2>/dev/null | awk -F "," '{ print $1 }' )
+	log_msg "DEBUG" "Local list of reflectors now contains ${#reflectors[*]} entries."
+fi
+
 no_reflectors=${#reflectors[@]}
 
 # Check ping binary exists

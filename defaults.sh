@@ -71,6 +71,11 @@ reflectors=(
 "185.228.168.9" "185.228.168.10" # CleanBrowsing
 )
 
+# URL of list of reflectors (may be first column of CSV file)
+# if set, remote reflector list is appended to the end of the local reflector list as set above
+reflectors_url=""
+reflectors_url_skip_lines=1 # skip initial lines (e.g. header lines)
+
 randomize_reflectors=1 # enable (1) or disable (0) randomization of reflectors on startup
 
 # Think carefully about the following settings
