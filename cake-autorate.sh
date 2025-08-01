@@ -1946,6 +1946,15 @@ do
 				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded."
 				log_msg "DEBUG" "Restarting pingers."
 				stop_pingers
+				# For each pinger reset record of offences
+				log_msg "DEBUG" "Resetting reflector offences associated with all pingers."
+				for ((pinger=0; pinger < no_pingers; pinger++))
+				do
+					# shellcheck disable=SC2178
+					declare -n reflector_offences=reflector_${pinger}_offences
+					for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+					sum_reflector_offences[pinger]=0
+				done
 				start_pingers
 			fi
 			;;
