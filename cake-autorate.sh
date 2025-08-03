@@ -689,7 +689,7 @@ replace_pinger_reflector()
 		# shellcheck disable=SC2206
 		reflectors+=(${bad_reflector})
 		# reset array indices
-		mapfile -t reflectors < <(for i in "${reflectors[@]}"; do printf '%s\n' "${i}"; done)
+		reflectors=(${reflectors[@]})
 		# set up the new pinger with the new reflector and retain pid
 		dl_owd_baselines_us[${reflectors[pinger]}]=${dl_owd_baselines_us[${reflectors[pinger]}]:-100000} \
 		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000} \
