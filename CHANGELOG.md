@@ -7,6 +7,17 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## 2025-08-04 - Version 3.4.0
+
+- Introduce support for fping's new ICMP type 13 mode to obtain OWDs.
+- Introduce support for irtt to leverage its custom, high resolution 
+UDP packet-based OWD measurements. 
+- Add option to download and load in even very large remote reflector
+lists with e.g. > 30k reflectors. 
+- Incorporate faster reflector randomization to support large reflector
+lists.
+- Several fixes and improvements.
+
 ## 2024-06-17 - Version 3.3.0
 
 - Improve shaper rate controller by reducing the shaper rate increases

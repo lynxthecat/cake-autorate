@@ -48,11 +48,11 @@ dl_if=ifb-wan # download interface
 ul_if=wan     # upload interface
 
 # pinger method selection can be any of:
-# fping - round robin pinging (rtts)
-# fping-ts - round robin pinging using ICMP type 13 (owds)
-# tsping - round robin pinging using ICMP type 13 (owds)
-# irtt - individual pinging (owds)
-# ping - (iputils-ping) individual pinging (rtts)
+# fping - round robin pinging (RTTs)
+# fping-ts - round robin pinging using ICMP type 13 (OWDs)
+# tsping - round robin pinging using ICMP type 13 (OWDs)
+# irtt - individual pinging (OWDs)
+# ping - (iputils-ping) individual pinging (RTTs)
 pinger_method=fping
 
 # list of reflectors to use and number of pingers to initiate

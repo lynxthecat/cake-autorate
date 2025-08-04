@@ -338,24 +338,49 @@ config.instance.sh
 
 where 'instance' is replaced with e.g. 'primary', 'secondary', etc.
 
-## Selecting a "ping binary"
+## Selecting a pinger method
 
-cake-autorate reads the `$pinger_binary` variable in the config file
-to select the ping binary. Choices include:
+cake-autorate reads the `${pinger_method}` variable in the config file
+to select the pinger method. Choices include:
 
-- **fping** (DEFAULT) round robin pinging to multiple reflectors with
-  tightly controlled timings
-- **tsping** round robin ICMP type 13 pinging to multiple reflectors
-  with tightly controlled timings
-- **iputils-ping** more advanced pinging than the default busybox ping
-  with sub 1s ping frequency
+| Pinger Method    | Delay Type | Target Mode            | Description                                                                  |
+|------------------|------------|------------------------|------------------------------------------------------------------------------|
+| **fping**        | RTT        | Round Robin            | Regular pinging to multiple reflectors with tightly controlled timings.      |
+| **fping-ts**     | OWD        | Round Robin            | ICMP Type 13 pinging to multiple reflectors with tightly controlled timings. |
+| **tsping**       | OWD        | Round Robin            | ICMP Type 13 pinging to multiple reflectors with tightly controlled timings. |
+| **irtt**         | OWD        | Individual             | Custom UDP packet-based latency testing to a single reflector.               |
+| **iputils-ping** | RTT        | Individual             | Advanced pinging with sub-1s frequency and more features than BusyBox ping.  |
 
-**About tsping** @Lochnair has coded up an elegant ping utility in C
-that sends out ICMP type 13 requests in a round robin manner, thereby
-facilitating determination of one way delays (OWDs), i.e. not just
-round trip time (RTT), but the constituent download and upload delays,
-relative to multiple reflectors. Presently this must be compiled
-manually (although we can expect an official OpenWrt package soon).
+Pinger methods with 'delay type' RTT (round trip time) can only determine
+the sum total of the upload and download latency (A->B and B->A). The
+OWD (one way delay) is then simply set as RTT/2. This has the drawback that
+the directionality of the bufferbloat cannot be ascertained and so both
+download and upload rates will be punished during detected latency increases.
+In practice, despite this limitation, cake-autorate still performs very well
+when working with RTTs. This is in part because connections are most often 
+saturated in one direction rather than both directions. Also, these pinger 
+methods use regular ICMPs, which are very reliable. 
+
+By contrast, pinger methods with 'delay type' OWD (one way delay) facilitate
+determinining the individual upload and download latencies. This has the 
+benefit that the directionality of the bufferbloat can be ascertained and so
+only the direction associated with bufferbloat is punished during detected
+latency increases. A drawback of these pinger methods is the use of irregular
+pinging techniques like ICMP type 13 (only IPV4, not all hosts will respond
+to these, and local/remote clock issues) or irtt's custom UDP packet (requires
+dedicated irtt server). 
+
+**About fping-ts**: thanks to [@moeller0](https://github.com/moeller0)'s
+request - see here: https://github.com/schweikert/fping/issues/265, 
+fping introduced ICMP type 13 pinging with version 5.3.
+
+**About tsping**: [@Lochnair](https://github.com/Lochnair) has coded up 
+an elegant ping utility in C that sends out ICMP type 13 requests in a
+round robin manner, thereby facilitating determination of one way delays
+(OWDs), i.e. not just round trip time (RTT), but the constituent 
+download and upload delays, relative to multiple reflectors. Presently
+this must be compiled manually (although we can expect an official 
+OpenWrt package soon).
 
 Instructions for building a `tsping` OpenWrt package are available
 [from github.](https://github.com/Lochnair/tsping)
