@@ -679,7 +679,7 @@ replace_pinger_reflector()
 	if ((no_reflectors > no_pingers))
 	then
 		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
-		kill_pinger "${pinger}"
+		((pingers_active)) && kill_pinger "${pinger}"
 		bad_reflector=${reflectors[pinger]}
 		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..${no_pingers}-1)
 		reflectors[pinger]=${reflectors[no_pingers]}
@@ -697,7 +697,7 @@ replace_pinger_reflector()
 		ul_owd_delta_ewmas_us[${reflectors[pinger]}]=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0} \
 		last_timestamp_reflectors_us[${reflectors[pinger]}]=${t_start_us}
 
-		start_pinger "${pinger}"
+		((pingers_active)) && start_pinger "${pinger}"
 	else
 		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[pinger]}."
 	fi
