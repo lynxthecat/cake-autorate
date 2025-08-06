@@ -535,6 +535,10 @@ start_pinger()
 									fflush("")
 								}
 							}
+							else if (/WaitForPackets/)
+							{
+								break
+							}
 						}
 
 						close(irtt_cmd)
