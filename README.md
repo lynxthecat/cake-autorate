@@ -92,18 +92,18 @@ cake-autorate uses this algorithm for each direction of traffic:
 cake-autorate requires three configuration values for each direction,
 upload and download.
 
-**Setting the minimum bandwidth:** Set the minimum value to the lowest
+**Setting the minimum bandwidth (`min_dl_shaper_rate_kbps` and `min_ul_shaper_rate_kbps`):** Set the minimum value to the lowest
 possible observed bufferbloat-free bandwidth. Ideally this setting
 should never result in bufferbloat even under the worst conditions.
 This is a hard minimum - the script will never reduce the bandwidth
 below this level.
 
-**Setting the baseline bandwidth:** This is the steady state bandwidth
+**Setting the baseline bandwidth (`base_dl_shaper_rate_kbps` and `base_ul_shaper_rate_kbps`):** This is the steady state bandwidth
 to be maintained under no or low load. This is likely the compromise
 bandwidth described above, i.e. the value you would set CAKE to that
 is bufferbloat-free most, but not necessarily all, of the time.
 
-**Setting the maximum bandwidth:** The maximum bandwidth should be set
+**Setting the maximum bandwidth (`max_dl_shaper_rate_kbps` and `max_ul_shaper_rate_kbps`):** The maximum bandwidth should be set
 to the maximum bandwidth the connection can provide (or slightly lower). 
 When there is heavy traffic, the script will adjust the bandwidth up to
 this limit, and then back off if an OWD or RTT spike is detected.
