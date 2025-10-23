@@ -7,6 +7,21 @@
 #
 # See https://github.com/lynxthecat/cake-autorate for more details
 
+# Tries curl first, then falls back to wget.
+# This is so that users can specify proxy settings via
+# environment variables like http_proxy, https_proxy, etc.
+download_url() {
+	url="${1}"
+	if type curl >/dev/null 2>&1; then
+		curl -sSL "${url}"
+	elif type wget >/dev/null 2>&1; then
+		wget -qO- "${url}"
+	else
+		printf >&2 "Error: Neither curl nor wget is available\n"
+		return 1
+	fi
+}
+
 # This needs to be encapsulated into a function so that we are sure that
 # sh reads all the contents of the shell file before we potentially erase it.
 #
@@ -17,7 +32,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter wget tar grep cmp mktemp bash"
+	DEPENDENCIES="jsonfilter tar grep cmp mktemp bash"
 
 	# Set up remote locations and branch
 	BRANCH="${CAKE_AUTORATE_BRANCH:-${2-master}}"
@@ -86,6 +101,18 @@ main() {
 			exit_now=1
 		fi
 	done
+	dep_found=0
+	for dep in curl wget
+	do
+		if type "${dep}" >/dev/null 2>&1; then
+			dep_found=1
+			break
+		fi
+	done
+	if [ "${dep_found}" -eq 0 ]; then
+		printf >&2 "Either curl or wget is required, please install one of them and rerun the script!\n"
+		exit_now=1
+	fi
 	[ "${exit_now}" -ge 1 ] && exit "${exit_now}"
 
 	# Check for fping, which is required by default
@@ -100,7 +127,7 @@ main() {
 
 	# Get the latest commit to download
 	[ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ] && \
-		commit=$(wget -qO- "${API_URL}" | jsonfilter -e @.sha) || \
+		commit=$(download_url "${API_URL}" | jsonfilter -e @.sha) || \
 		commit="${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT}"
 	if [ -z "${commit:-}" ];
 	then
@@ -127,7 +154,7 @@ main() {
 	if [ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_TMP:-}" ]
 	then
 		tmp=$(mktemp -d)
-		wget -qO- "${SRC_DIR}/${commit}" | tar -xozf - -C "${tmp}"
+		download_url "${SRC_DIR}/${commit}" | tar -xozf - -C "${tmp}"
 		mv "${tmp}/cake-autorate-"*/* "${tmp}"
 	else
 		tmp="${__CAKE_AUTORATE_SETUP_SH_EXEC_TMP}"
