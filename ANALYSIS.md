@@ -87,6 +87,10 @@ log_file=$(ssh root@192.168.1.1 '/var/run/cake-autorate/primary/log_file_export 
 octave -qf --eval 'fn_parse_autorate_log("./*primary*log.gz", "./output.png")'
 ```
 
+### MQTT Publisher
+
+The mqtt-publisher service file and the mqtt-publisher.sh script can be used to send cake-autorate data to an MQTT broker to facilitate remote data monitoring and analysis. For example, data can be sent to a machine running Home Assistant and plotted in Grafana.
+
 ### Prometheus cake-autorate exporter
 
 Check out [bairhys](https://github.com/bairhys)'
