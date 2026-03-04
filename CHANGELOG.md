@@ -7,6 +7,10 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## 2026-03-04 - Version 3.5.0
+
+- Introduce MQTT data export functionality
+
 ## 2025-08-04 - Version 3.4.0
 
 - Introduce support for fping's new ICMP type 13 mode to obtain OWDs.
