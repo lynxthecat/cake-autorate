@@ -56,7 +56,12 @@ main() {
 	then
 		/etc/init.d/cake-autorate stop || :
 	fi
+	if [ -x /etc/init.d/mqtt-publisher ]
+	then
+		/etc/init.d/mqtt-publisher stop || :
+	fi
 	rm -f /etc/init.d/cake-autorate /etc/rc.d/*cake-autorate
+	rm -f /etc/init.d/mqtt-publisher /etc/rc.d/*mqtt-publisher
 
 	# Check if an instance of cake-autorate is already running and exit if so
 	if [ -d /var/run/cake-autorate ]
@@ -95,7 +100,7 @@ main() {
 
 	# remove current program files from the cake-autorate directory
 	cd "${SCRIPT_PREFIX}"
-	files="cake-autorate.sh defaults.sh launcher.sh lib.sh setup.sh uninstall.sh"
+	files="cake-autorate.sh defaults.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
 	for file in ${files}
 	do
 		rm -f "${file}"
