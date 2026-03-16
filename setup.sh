@@ -219,7 +219,7 @@ main() {
 	# move the program files to the cake-autorate directory
 	# scripts that need to be executable are already marked as such in the tarball
 	cd "${SCRIPT_PREFIX}"
-	files="cake-autorate.sh defaults.sh lib.sh setup.sh uninstall.sh"
+	files="cake-autorate.sh defaults.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
 	for file in ${files}
 	do
 		mv "${tmp}/${file}" "${file}"
@@ -230,11 +230,13 @@ main() {
 		"${tmp}/launcher.sh.template" > "${SCRIPT_PREFIX}/launcher.sh"
 	chmod +x "${SCRIPT_PREFIX}/launcher.sh"
 
-	# Also for OpenWrt generate the service file from cake-autorate.template but DO NOT ACTIVATE IT
+	# Also for OpenWrt generate the service files from templates but DO NOT ACTIVATE THEM
 	if [ "${MY_OS}" = "openwrt" ]
 	then
 		sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/cake-autorate.template" > /etc/init.d/cake-autorate
 		chmod +x /etc/init.d/cake-autorate
+		sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/mqtt-publisher.template" > /etc/init.d/mqtt-publisher
+		chmod +x /etc/init.d/mqtt-publisher
 	fi
 
 	# Get version and generate a file containing version information
