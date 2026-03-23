@@ -694,7 +694,17 @@ replace_pinger_reflector()
 		reflectors+=(${bad_reflector})
 		# reset array indices
 		reflectors=(${reflectors[@]})
-		# set up the new pinger with the new reflector and retain pid
+		if ((retain_reflector_stats==0))
+		then
+			log_msg "DEBUG" "Discarding reflector stats associated with ${bad_reflector}"
+			unset dl_owd_baselines_us[${bad_reflector}]
+			unset ul_owd_baselines_us[${bad_reflector}]
+			unset dl_owd_delta_ewmas_us[${bad_reflector}]
+			unset ul_owd_delta_ewmas_us[${bad_reflector}]
+			unset last_timestamp_reflectors_us[${bad_reflector}]
+		else
+			log_msg "DEBUG" "Retaining reflector stats associated with: ${bad_reflector}"
+		fi
 		dl_owd_baselines_us[${reflectors[pinger]}]=${dl_owd_baselines_us[${reflectors[pinger]}]:-100000} \
 		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000} \
 		dl_owd_delta_ewmas_us[${reflectors[pinger]}]=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0} \

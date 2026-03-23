@@ -78,6 +78,12 @@ reflectors_url_skip_lines=1 # skip initial lines (e.g. header lines)
 
 randomize_reflectors=1 # enable (1) or disable (0) randomization of reflectors on startup
 
+# If enabled, reflector stats are retained whenever a reflector is rotated out of the active set such
+# that if that reflector is reused the previously stored statistics for that reflector are retrieved
+# If using a large number of reflectors then consider disabling retention of reflector stats
+# to avoid excessive resource use associatd with retaining huge numbers of statistics
+retain_reflector_stats=1 # enable (1) or disable (0) retention of reflector stats
+
 # Think carefully about the following settings
 # to avoid excessive CPU use (proportional with ping interval / number of pingers)
 # and to avoid abusive network activity (excessive ICMP frequency to one reflector)
