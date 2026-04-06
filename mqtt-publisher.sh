@@ -20,6 +20,8 @@ cleanup()
 {
     trap - INT TERM EXIT
     # Publish offline status for all instances on graceful shutdown
+    local log_file_path
+    shopt -s nullglob
     for log_file_path in /var/log/cake-autorate.*.log; do
         local instance="$(basename "${log_file_path}" | sed -E 's/^cake-autorate\.([^.]+)\.log$/\1/')"
         mosquitto_pub \
@@ -29,6 +31,7 @@ cleanup()
             -t "${BASE_MQTT_TOPIC}/${instance}/availability" \
             -m "offline" 2>/dev/null || true
     done
+    shopt -u nullglob
     for pid in "${publish_stats_pids[@]}"; do
         kill -- -"$pid" 2>/dev/null || true
     done
@@ -106,15 +109,16 @@ publish_stats()
 
     publish_discovery "${instance}"
 
-    # Publish birth message (retained) to mark sensors as available
-    mosquitto_pub \
-        -h "$MQTT_HOST" -p "$MQTT_PORT" \
-        -u "$MQTT_USER" -P "$MQTT_PASS" \
-        -r -q 1 \
-        -t "$AVAIL_TOPIC" \
-        -m "online"
-
     while true; do
+        # Publish birth message (retained) to mark sensors as available
+        # on initial connect and after any reconnect.
+        mosquitto_pub \
+            -h "$MQTT_HOST" -p "$MQTT_PORT" \
+            -u "$MQTT_USER" -P "$MQTT_PASS" \
+            -r -q 1 \
+            -t "$AVAIL_TOPIC" \
+            -m "online"
+
         tail -F "${log_file_path}" 2>/dev/null | \
         awk -F'; ' -v min_int="$MIN_INTERVAL_S" '
         BEGIN {
@@ -192,6 +196,7 @@ publish_stats()
             -t "$MQTT_TOPIC" -l -q 1 \
             --will-topic "$AVAIL_TOPIC" \
             --will-payload "offline" \
+            --will-qos 1 \
             --will-retain
 
         sleep 5
@@ -202,9 +207,11 @@ trap cleanup INT TERM EXIT
 
 publish_stats_pids=()
 
+shopt -s nullglob
 for log_file_path in /var/log/cake-autorate.*.log; do
     ( publish_stats "$log_file_path" ) &
     publish_stats_pids+=($!)
 done
+shopt -u nullglob
 
 wait
