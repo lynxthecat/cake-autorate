@@ -12,7 +12,7 @@ BASE_DEVICE_ID="cake_autorate"
 BASE_DEVICE_NAME="cake-autorate"
 BASE_MQTT_TOPIC="cake-autorate"
 
-MIN_INTERVAL_S=0
+MIN_INTERVAL_S=1
 
 set -m
 
@@ -145,6 +145,7 @@ publish_stats()
                     cpu_core0,
                     cpu_core1,
                     cpu_core2
+                fflush("")
             }
         }
         ' | mosquitto_pub \
