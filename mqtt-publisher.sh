@@ -12,7 +12,7 @@ BASE_DEVICE_ID="cake_autorate"
 BASE_DEVICE_NAME="cake-autorate"
 BASE_MQTT_TOPIC="cake-autorate"
 
-MIN_INTERVAL_S=0
+MIN_INTERVAL_S=1
 
 set -m
 
@@ -147,7 +147,13 @@ publish_stats()
                     cake_ul_rate_kbps,
                     cpu_total,
                     cpu_core0,
+<<<<<<< fix/mqtt-publisher-cpu-labels
                     cpu_core1
+=======
+                    cpu_core1,
+                    cpu_core2
+                fflush("")
+>>>>>>> master
             }
         }
         ' | mosquitto_pub \
