@@ -75,9 +75,12 @@ publish_discovery()
     publish_config "$DEVICE_ID" "ul_load_condition" \
     "{\"name\":\"UL Load Condition\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_load_condition }}\",\"unique_id\":\"${DEVICE_ID}_ul_condition\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
-    for c in $(seq 0 "$CPU_CORES"); do
+    publish_config "$DEVICE_ID" "cpu_total" \
+    "{\"name\":\"CPU Total\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_total }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_total\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+
+    for c in $(seq 0 $((CPU_CORES - 1))); do
         publish_config "$DEVICE_ID" "cpu_core$c" \
-        "{\"name\":\"CPU Core $c\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_core$c }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_$c\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+        "{\"name\":\"CPU Core $c\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_core$c }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_core$c\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
     done
 }
 
@@ -101,7 +104,7 @@ publish_stats()
             dl_avg_owd_delta_us = ul_avg_owd_delta_us = 0
             dl_load_condition = ul_load_condition = "unknown"
             cake_dl_rate_kbps = cake_ul_rate_kbps = 0
-            cpu_core0 = cpu_core1 = cpu_core2 = 0
+            cpu_total = cpu_core0 = cpu_core1 = 0
             summary_epoch = cpu_epoch = 0
         }
 
@@ -121,16 +124,16 @@ publish_stats()
 
         $1=="CPU" && NF>=7 {
             cpu_epoch = $3+0
-            cpu_core0 = $5
-            cpu_core1 = $6
-            cpu_core2 = $7
+            cpu_total = $5
+            cpu_core0 = $6
+            cpu_core1 = $7
         }
 
         {
             event_epoch = (summary_epoch > cpu_epoch) ? summary_epoch : cpu_epoch
             if (event_epoch > 0 && event_epoch - last_emit >= min_int) {
                 last_emit = event_epoch
-                printf "{\"event_epoch\":%.6f,\"dl_achieved_rate_kbps\":%s,\"ul_achieved_rate_kbps\":%s,\"dl_sum_delays\":%s,\"ul_sum_delays\":%s,\"dl_avg_owd_delta_us\":%s,\"ul_avg_owd_delta_us\":%s,\"dl_load_condition\":\"%s\",\"ul_load_condition\":\"%s\",\"cake_dl_rate_kbps\":%s,\"cake_ul_rate_kbps\":%s,\"cpu_core0\":%s,\"cpu_core1\":%s,\"cpu_core2\":%s}\n",
+                printf "{\"event_epoch\":%.6f,\"dl_achieved_rate_kbps\":%s,\"ul_achieved_rate_kbps\":%s,\"dl_sum_delays\":%s,\"ul_sum_delays\":%s,\"dl_avg_owd_delta_us\":%s,\"ul_avg_owd_delta_us\":%s,\"dl_load_condition\":\"%s\",\"ul_load_condition\":\"%s\",\"cake_dl_rate_kbps\":%s,\"cake_ul_rate_kbps\":%s,\"cpu_total\":%s,\"cpu_core0\":%s,\"cpu_core1\":%s}\n",
                     event_epoch,
                     dl_achieved_rate_kbps,
                     ul_achieved_rate_kbps,
@@ -142,10 +145,15 @@ publish_stats()
                     ul_load_condition,
                     cake_dl_rate_kbps,
                     cake_ul_rate_kbps,
+                    cpu_total,
                     cpu_core0,
+<<<<<<< fix/mqtt-publisher-cpu-labels
+                    cpu_core1
+=======
                     cpu_core1,
                     cpu_core2
                 fflush("")
+>>>>>>> master
             }
         }
         ' | mosquitto_pub \
