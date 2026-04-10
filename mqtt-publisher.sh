@@ -19,6 +19,19 @@ set -m
 cleanup() 
 {
     trap - INT TERM EXIT
+    # Publish offline status for all instances on graceful shutdown
+    local log_file_path
+    shopt -s nullglob
+    for log_file_path in /var/log/cake-autorate.*.log; do
+        local instance="$(basename "${log_file_path}" | sed -E 's/^cake-autorate\.([^.]+)\.log$/\1/')"
+        mosquitto_pub \
+            -h "$MQTT_HOST" -p "$MQTT_PORT" \
+            -u "$MQTT_USER" -P "$MQTT_PASS" \
+            -r -q 1 \
+            -t "${BASE_MQTT_TOPIC}/${instance}/availability" \
+            -m "offline" 2>/dev/null || true
+    done
+    shopt -u nullglob
     for pid in "${publish_stats_pids[@]}"; do
         kill -- -"$pid" 2>/dev/null || true
     done
@@ -44,43 +57,44 @@ publish_discovery()
     local DEVICE_ID="${BASE_DEVICE_ID}_${1}"
     local DEVICE_NAME="${BASE_DEVICE_NAME} (${1})"
     local MQTT_TOPIC="${BASE_MQTT_TOPIC}/${1}"
+    local AVAIL_TOPIC="${BASE_MQTT_TOPIC}/${1}/availability"
 
     publish_config "$DEVICE_ID" "dl_achieved_rate_kbps" \
-    "{\"name\":\"DL Achieved Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_achieved_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_dl_achieved_rate\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"DL Achieved Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_achieved_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_dl_achieved_rate\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "ul_achieved_rate_kbps" \
-    "{\"name\":\"UL Achieved Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_achieved_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_ul_achieved_rate\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"UL Achieved Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_achieved_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_ul_achieved_rate\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "cake_dl_rate_kbps" \
-    "{\"name\":\"CAKE DL Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cake_dl_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_cake_dl_rate\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"CAKE DL Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cake_dl_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_cake_dl_rate\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "cake_ul_rate_kbps" \
-    "{\"name\":\"CAKE UL Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cake_ul_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_cake_ul_rate\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"CAKE UL Rate\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cake_ul_rate_kbps }}\",\"unit_of_measurement\":\"kbps\",\"unique_id\":\"${DEVICE_ID}_cake_ul_rate\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "dl_sum_delays" \
-    "{\"name\":\"DL Delay Sum\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_sum_delays }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_dl_delay\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"DL Delay Sum\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_sum_delays }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_dl_delay\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "ul_sum_delays" \
-    "{\"name\":\"UL Delay Sum\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_sum_delays }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_ul_delay\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"UL Delay Sum\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_sum_delays }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_ul_delay\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "dl_avg_owd_delta_us" \
-    "{\"name\":\"DL OWD Delta\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_avg_owd_delta_us }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_dl_owd\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"DL OWD Delta\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_avg_owd_delta_us }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_dl_owd\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "ul_avg_owd_delta_us" \
-    "{\"name\":\"UL OWD Delta\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_avg_owd_delta_us }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_ul_owd\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"UL OWD Delta\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_avg_owd_delta_us }}\",\"unit_of_measurement\":\"us\",\"unique_id\":\"${DEVICE_ID}_ul_owd\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "dl_load_condition" \
-    "{\"name\":\"DL Load Condition\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_load_condition }}\",\"unique_id\":\"${DEVICE_ID}_dl_condition\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"DL Load Condition\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.dl_load_condition }}\",\"unique_id\":\"${DEVICE_ID}_dl_condition\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "ul_load_condition" \
-    "{\"name\":\"UL Load Condition\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_load_condition }}\",\"unique_id\":\"${DEVICE_ID}_ul_condition\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"UL Load Condition\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.ul_load_condition }}\",\"unique_id\":\"${DEVICE_ID}_ul_condition\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     publish_config "$DEVICE_ID" "cpu_total" \
-    "{\"name\":\"CPU Total\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_total }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_total\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+    "{\"name\":\"CPU Total\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_total }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_total\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
 
     for c in $(seq 0 $((CPU_CORES - 1))); do
         publish_config "$DEVICE_ID" "cpu_core$c" \
-        "{\"name\":\"CPU Core $c\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_core$c }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_core$c\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
+        "{\"name\":\"CPU Core $c\",\"state_topic\":\"$MQTT_TOPIC\",\"value_template\":\"{{ value_json.cpu_core$c }}\",\"unit_of_measurement\":\"%\",\"unique_id\":\"${DEVICE_ID}_cpu_core$c\",\"availability_topic\":\"$AVAIL_TOPIC\",\"device\":{\"identifiers\":[\"$DEVICE_ID\"],\"name\":\"$DEVICE_NAME\"}}"
     done
 }
 
@@ -91,10 +105,20 @@ publish_stats()
     local instance="$(basename "${log_file_path}" | sed -E 's/^cake-autorate\.([^.]+)\.log$/\1/')"
 
     local MQTT_TOPIC="${BASE_MQTT_TOPIC}/${instance}"
+    local AVAIL_TOPIC="${BASE_MQTT_TOPIC}/${instance}/availability"
 
     publish_discovery "${instance}"
 
     while true; do
+        # Publish birth message (retained) to mark sensors as available
+        # on initial connect and after any reconnect.
+        mosquitto_pub \
+            -h "$MQTT_HOST" -p "$MQTT_PORT" \
+            -u "$MQTT_USER" -P "$MQTT_PASS" \
+            -r -q 1 \
+            -t "$AVAIL_TOPIC" \
+            -m "online"
+
         tail -F "${log_file_path}" 2>/dev/null | \
         awk -F'; ' -v min_int="$MIN_INTERVAL_S" '
         BEGIN {
@@ -169,7 +193,11 @@ publish_stats()
         ' | mosquitto_pub \
             -h "$MQTT_HOST" -p "$MQTT_PORT" \
             -u "$MQTT_USER" -P "$MQTT_PASS" \
-            -t "$MQTT_TOPIC" -l -q 1
+            -t "$MQTT_TOPIC" -l -q 1 \
+            --will-topic "$AVAIL_TOPIC" \
+            --will-payload "offline" \
+            --will-qos 1 \
+            --will-retain
 
         sleep 5
     done
@@ -179,9 +207,11 @@ trap cleanup INT TERM EXIT
 
 publish_stats_pids=()
 
+shopt -s nullglob
 for log_file_path in /var/log/cake-autorate.*.log; do
     ( publish_stats "$log_file_path" ) &
     publish_stats_pids+=($!)
 done
+shopt -u nullglob
 
 wait
