@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CPU_CORES=2
+CPU_CORES=$(grep -c '^processor' /proc/cpuinfo) || { echo "ERROR: failed to detect CPU core count from /proc/cpuinfo" >&2; exit 1; }
 
 MQTT_HOST=""
 MQTT_PORT=""
@@ -96,20 +96,22 @@ publish_stats()
 
     while true; do
         tail -F "${log_file_path}" 2>/dev/null | \
-        awk -F'; ' -v min_int="$MIN_INTERVAL_S" '
+        awk -F'; ' -v min_int="$MIN_INTERVAL_S" -v default_cores="$CPU_CORES" '
         BEGIN {
             last_emit = 0
             # Accumulators for mean-averaged fields
             s_dl_rate = s_ul_rate = 0
             s_dl_delays = s_ul_delays = 0
             s_dl_owd = s_ul_owd = 0
-            s_cpu_total = s_cpu_c0 = s_cpu_c1 = 0
+            s_cpu_total = 0
             sn = cn = 0
             # Latest-wins fields (categorical / discrete)
             dl_load = ul_load = "unknown"
             cake_dl = cake_ul = 0
             # Carry-forward for CPU (only ~1Hz vs ~20Hz SUMMARY)
-            prev_cpu_total = prev_cpu_c0 = prev_cpu_c1 = 0
+            prev_cpu_total = 0
+            num_cores = default_cores + 0
+            for (i = 0; i < num_cores; i++) s_cpu_core[i] = 0
             summary_epoch = cpu_epoch = 0
         }
 
@@ -128,11 +130,12 @@ publish_stats()
             sn++
         }
 
-        $1=="CPU" && NF>=7 {
+        $1=="CPU" && NF>=6 {
             cpu_epoch = $3+0
             s_cpu_total += $5+0
-            s_cpu_c0   += $6+0
-            s_cpu_c1   += $7+0
+            if (num_cores == 0) num_cores = NF - 5
+            for (i = 0; i < num_cores; i++)
+                s_cpu_core[i] += $(6+i)+0
             cn++
         }
 
@@ -145,23 +148,27 @@ publish_stats()
                 # CPU: use new mean if available, else carry forward
                 if (cn > 0) {
                     prev_cpu_total = s_cpu_total / cn
-                    prev_cpu_c0 = s_cpu_c0 / cn
-                    prev_cpu_c1 = s_cpu_c1 / cn
+                    for (i = 0; i < num_cores; i++)
+                        prev_cpu_core[i] = s_cpu_core[i] / cn
                 }
-                printf "{\"event_epoch\":%.6f,\"dl_achieved_rate_kbps\":%.1f,\"ul_achieved_rate_kbps\":%.1f,\"dl_sum_delays\":%.1f,\"ul_sum_delays\":%.1f,\"dl_avg_owd_delta_us\":%.1f,\"ul_avg_owd_delta_us\":%.1f,\"dl_load_condition\":\"%s\",\"ul_load_condition\":\"%s\",\"cake_dl_rate_kbps\":%.0f,\"cake_ul_rate_kbps\":%.0f,\"cpu_total\":%.1f,\"cpu_core0\":%.1f,\"cpu_core1\":%.1f,\"samples\":%d}\n",
+                cpu_json = ""
+                for (i = 0; i < num_cores; i++)
+                    cpu_json = cpu_json sprintf(",\"cpu_core%d\":%.1f", i, prev_cpu_core[i])
+                printf "{\"event_epoch\":%.6f,\"dl_achieved_rate_kbps\":%.1f,\"ul_achieved_rate_kbps\":%.1f,\"dl_sum_delays\":%.1f,\"ul_sum_delays\":%.1f,\"dl_avg_owd_delta_us\":%.1f,\"ul_avg_owd_delta_us\":%.1f,\"dl_load_condition\":\"%s\",\"ul_load_condition\":\"%s\",\"cake_dl_rate_kbps\":%.0f,\"cake_ul_rate_kbps\":%.0f,\"cpu_total\":%.1f%s,\"samples\":%d}\n",
                     event_epoch,
                     s_dl_rate / sd, s_ul_rate / sd,
                     s_dl_delays / sd, s_ul_delays / sd,
                     s_dl_owd / sd, s_ul_owd / sd,
                     dl_load, ul_load,
                     cake_dl, cake_ul,
-                    prev_cpu_total, prev_cpu_c0, prev_cpu_c1,
+                    prev_cpu_total, cpu_json,
                     sn
                 # Reset accumulators
                 s_dl_rate = s_ul_rate = 0
                 s_dl_delays = s_ul_delays = 0
                 s_dl_owd = s_ul_owd = 0
-                s_cpu_total = s_cpu_c0 = s_cpu_c1 = 0
+                s_cpu_total = 0
+                for (i = 0; i < num_cores; i++) s_cpu_core[i] = 0
                 sn = cn = 0
                 fflush("")
             }
