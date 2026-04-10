@@ -99,61 +99,71 @@ publish_stats()
         awk -F'; ' -v min_int="$MIN_INTERVAL_S" '
         BEGIN {
             last_emit = 0
-            dl_achieved_rate_kbps = ul_achieved_rate_kbps = 0
-            dl_sum_delays = ul_sum_delays = 0
-            dl_avg_owd_delta_us = ul_avg_owd_delta_us = 0
-            dl_load_condition = ul_load_condition = "unknown"
-            cake_dl_rate_kbps = cake_ul_rate_kbps = 0
-            cpu_total = cpu_core0 = cpu_core1 = 0
+            # Accumulators for mean-averaged fields
+            s_dl_rate = s_ul_rate = 0
+            s_dl_delays = s_ul_delays = 0
+            s_dl_owd = s_ul_owd = 0
+            s_cpu_total = s_cpu_c0 = s_cpu_c1 = 0
+            sn = cn = 0
+            # Latest-wins fields (categorical / discrete)
+            dl_load = ul_load = "unknown"
+            cake_dl = cake_ul = 0
+            # Carry-forward for CPU (only ~1Hz vs ~20Hz SUMMARY)
+            prev_cpu_total = prev_cpu_c0 = prev_cpu_c1 = 0
             summary_epoch = cpu_epoch = 0
         }
 
         $1=="SUMMARY" && NF>=13 {
             summary_epoch = $3+0
-            dl_achieved_rate_kbps = $4
-            ul_achieved_rate_kbps = $5
-            dl_sum_delays = $6
-            ul_sum_delays = $7
-            dl_avg_owd_delta_us = $8
-            ul_avg_owd_delta_us = $9
-            dl_load_condition = $10
-            ul_load_condition = $11
-            cake_dl_rate_kbps = $12
-            cake_ul_rate_kbps = $13
+            s_dl_rate  += $4+0
+            s_ul_rate  += $5+0
+            s_dl_delays += $6+0
+            s_ul_delays += $7+0
+            s_dl_owd   += $8+0
+            s_ul_owd   += $9+0
+            dl_load  = $10
+            ul_load  = $11
+            cake_dl  = $12+0
+            cake_ul  = $13+0
+            sn++
         }
 
         $1=="CPU" && NF>=7 {
             cpu_epoch = $3+0
-            cpu_total = $5
-            cpu_core0 = $6
-            cpu_core1 = $7
+            s_cpu_total += $5+0
+            s_cpu_c0   += $6+0
+            s_cpu_c1   += $7+0
+            cn++
         }
 
         {
             event_epoch = (summary_epoch > cpu_epoch) ? summary_epoch : cpu_epoch
             if (event_epoch > 0 && event_epoch - last_emit >= min_int) {
                 last_emit = event_epoch
-                printf "{\"event_epoch\":%.6f,\"dl_achieved_rate_kbps\":%s,\"ul_achieved_rate_kbps\":%s,\"dl_sum_delays\":%s,\"ul_sum_delays\":%s,\"dl_avg_owd_delta_us\":%s,\"ul_avg_owd_delta_us\":%s,\"dl_load_condition\":\"%s\",\"ul_load_condition\":\"%s\",\"cake_dl_rate_kbps\":%s,\"cake_ul_rate_kbps\":%s,\"cpu_total\":%s,\"cpu_core0\":%s,\"cpu_core1\":%s}\n",
+                # Compute means; guard div-by-zero
+                sd = (sn > 0) ? sn : 1
+                # CPU: use new mean if available, else carry forward
+                if (cn > 0) {
+                    prev_cpu_total = s_cpu_total / cn
+                    prev_cpu_c0 = s_cpu_c0 / cn
+                    prev_cpu_c1 = s_cpu_c1 / cn
+                }
+                printf "{\"event_epoch\":%.6f,\"dl_achieved_rate_kbps\":%.1f,\"ul_achieved_rate_kbps\":%.1f,\"dl_sum_delays\":%.1f,\"ul_sum_delays\":%.1f,\"dl_avg_owd_delta_us\":%.1f,\"ul_avg_owd_delta_us\":%.1f,\"dl_load_condition\":\"%s\",\"ul_load_condition\":\"%s\",\"cake_dl_rate_kbps\":%.0f,\"cake_ul_rate_kbps\":%.0f,\"cpu_total\":%.1f,\"cpu_core0\":%.1f,\"cpu_core1\":%.1f,\"samples\":%d}\n",
                     event_epoch,
-                    dl_achieved_rate_kbps,
-                    ul_achieved_rate_kbps,
-                    dl_sum_delays,
-                    ul_sum_delays,
-                    dl_avg_owd_delta_us,
-                    ul_avg_owd_delta_us,
-                    dl_load_condition,
-                    ul_load_condition,
-                    cake_dl_rate_kbps,
-                    cake_ul_rate_kbps,
-                    cpu_total,
-                    cpu_core0,
-<<<<<<< fix/mqtt-publisher-cpu-labels
-                    cpu_core1
-=======
-                    cpu_core1,
-                    cpu_core2
+                    s_dl_rate / sd, s_ul_rate / sd,
+                    s_dl_delays / sd, s_ul_delays / sd,
+                    s_dl_owd / sd, s_ul_owd / sd,
+                    dl_load, ul_load,
+                    cake_dl, cake_ul,
+                    prev_cpu_total, prev_cpu_c0, prev_cpu_c1,
+                    sn
+                # Reset accumulators
+                s_dl_rate = s_ul_rate = 0
+                s_dl_delays = s_ul_delays = 0
+                s_dl_owd = s_ul_owd = 0
+                s_cpu_total = s_cpu_c0 = s_cpu_c1 = 0
+                sn = cn = 0
                 fflush("")
->>>>>>> master
             }
         }
         ' | mosquitto_pub \
@@ -175,4 +185,3 @@ for log_file_path in /var/log/cake-autorate.*.log; do
 done
 
 wait
-
