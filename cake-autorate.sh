@@ -1467,7 +1467,7 @@ do
 
 						;;
 					fping)
-						seq=${seq//[\[\]]}
+						seq=${seq#[} seq=${seq%]}
 						printf -v rtt_us %.3f "${rtt_ms}"
 
 						((
@@ -1490,12 +1490,13 @@ do
 							))
 						fi
 
-						timestamp_us=${timestamp//[\[\].]}0
+						timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
+						timestamp_us=${timestamp_us//.}0
 
 						;;
 
 					fping-ts)
-						seq=${seq//[\[\]]}
+						seq=${seq#[} seq=${seq%]}
 
 						((
 							dl_owd_us=finished-transmit,
@@ -1529,7 +1530,8 @@ do
 							))
 						fi
 
-						timestamp_us=${timestamp//[\[\].]}0
+						timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
+						timestamp_us=${timestamp_us//.}0
 
 						;;
 					ping)
@@ -1558,7 +1560,8 @@ do
 							))
 						fi
 
-						timestamp_us=${timestamp//[\[\].]}
+						timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
+						timestamp_us=${timestamp_us//.}
 
 						;;
 					*)
@@ -1566,8 +1569,6 @@ do
 						exit 1
 						;;
 				esac
-
-				timestamp=${timestamp//[\[\]]}
 
 				last_timestamp_reflectors_us[${reflector}]=${timestamp_us} reflectors_last_timestamp_us=${timestamp_us}
 
