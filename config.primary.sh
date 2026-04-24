@@ -15,6 +15,9 @@
 dl_if=ifb-wan # download interface
 ul_if=wan     # upload interface
 
+# Set to 1 to run without a download shaping interface and control upload only.
+upload_only=0
+
 # Set either of the below to 0 to adjust one direction only
 # or alternatively set both to 0 to simply use cake-autorate to monitor a connection
 adjust_dl_shaper_rate=1 # enable (1) or disable (0) actually changing the dl shaper rate

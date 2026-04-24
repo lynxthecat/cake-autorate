@@ -444,12 +444,20 @@ monitor_achieved_rates()
 	# to determine achieved dl and ul transfer rates
 
 	local rx_bytes_path=${1} tx_bytes_path=${2} monitor_achieved_rates_interval_us=${3}
+	local monitor_download=0
+
+	[[ -n ${rx_bytes_path} ]] && monitor_download=1
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	compensated_monitor_achieved_rates_interval_us=${monitor_achieved_rates_interval_us}
 
-	{ read -r prev_rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || prev_rx_bytes=0
+	if (( monitor_download ))
+	then
+		{ read -r prev_rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || prev_rx_bytes=0
+	else
+		prev_rx_bytes=0
+	fi
 	{ read -r prev_tx_bytes < "${tx_bytes_path}"; } 2> /dev/null || prev_tx_bytes=0
 
 	sleep_duration_s=0 t_start_us=0
@@ -462,7 +470,12 @@ monitor_achieved_rates()
 
 		# read in rx/tx bytes file, and if this fails then set to prev_bytes
 		# this addresses interfaces going down and back up
-		{ read -r rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || rx_bytes=${prev_rx_bytes}
+		if (( monitor_download ))
+		then
+			{ read -r rx_bytes < "${rx_bytes_path}"; } 2> /dev/null || rx_bytes=${prev_rx_bytes}
+		else
+			rx_bytes=${prev_rx_bytes}
+		fi
 		{ read -r tx_bytes < "${tx_bytes_path}"; } 2> /dev/null || tx_bytes=${prev_tx_bytes}
 
 		((
@@ -780,9 +793,9 @@ verify_ifs_up()
 	# This will block if ifs never come up
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	while [[ ! -f ${rx_bytes_path} || ! -f ${tx_bytes_path} ]]
+	while { [[ -n ${rx_bytes_path} ]] && [[ ! -f ${rx_bytes_path} ]]; } || [[ ! -f ${tx_bytes_path} ]]
 	do
-		[[ -f ${rx_bytes_path} ]] || log_msg "DEBUG" "Warning: The configured download interface: '${dl_if}' does not appear to be present. Waiting ${if_up_check_interval_s} seconds for the interface to come up."
+		[[ -z ${rx_bytes_path} || -f ${rx_bytes_path} ]] || log_msg "DEBUG" "Warning: The configured download interface: '${dl_if}' does not appear to be present. Waiting ${if_up_check_interval_s} seconds for the interface to come up."
 		[[ -f ${tx_bytes_path} ]] || log_msg "DEBUG" "Warning: The configured upload interface: '${ul_if}' does not appear to be present. Waiting ${if_up_check_interval_s} seconds for the interface to come up."
 		sleep_s "${if_up_check_interval_s}"
 	done
@@ -1021,8 +1034,13 @@ esac
 # Check no_pingers <= no_reflectors
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
 
-# Check dl/if interface not the same
-[[ "${dl_if}" == "${ul_if}" ]] && { log_msg "ERROR" "download interface and upload interface are both set to: '${dl_if}', but cannot be the same. Exiting script."; exit 1; }
+if (( upload_only ))
+then
+	adjust_dl_shaper_rate=0
+else
+	# Check dl/if interface not the same
+	[[ "${dl_if}" == "${ul_if}" ]] && { log_msg "ERROR" "download interface and upload interface are both set to: '${dl_if}', but cannot be the same. Exiting script."; exit 1; }
+fi
 
 # Check bufferbloat detection threshold not greater than window length
 (( bufferbloat_detection_thr > bufferbloat_detection_window )) && { log_msg "ERROR" "bufferbloat_detection_thr cannot be greater than bufferbloat_detection_window. Exiting script."; exit 1; }
@@ -1075,17 +1093,22 @@ fi
 # Initialize rx_bytes_path and tx_bytes_path if not set
 if [[ -z ${rx_bytes_path-} ]]
 then
-	case ${dl_if} in
-		veth*)
-			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
-			;;
-		ifb*)
-			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
-			;;
-		*)
-			rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
-			;;
-	esac
+	if (( upload_only ))
+	then
+		rx_bytes_path=""
+	else
+		case ${dl_if} in
+			veth*)
+				rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+				;;
+			ifb*)
+				rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+				;;
+			*)
+				rx_bytes_path="/sys/class/net/${dl_if}/statistics/tx_bytes"
+				;;
+		esac
+	fi
 fi
 if [[ -z ${tx_bytes_path-} ]]
 then
@@ -1109,9 +1132,14 @@ then
 	log_msg "DEBUG" "run_path: ${run_path}"
 	log_msg "DEBUG" "log_file_path: ${log_file_path}"
 	log_msg "DEBUG" "pinger_method:${pinger_method}"
-	log_msg "DEBUG" "download interface: ${dl_if} (${min_dl_shaper_rate_kbps} / ${base_dl_shaper_rate_kbps} / ${max_dl_shaper_rate_kbps})"
+	if (( upload_only ))
+	then
+		log_msg "DEBUG" "upload_only mode enabled. Download shaping interface disabled."
+	else
+		log_msg "DEBUG" "download interface: ${dl_if} (${min_dl_shaper_rate_kbps} / ${base_dl_shaper_rate_kbps} / ${max_dl_shaper_rate_kbps})"
+	fi
 	log_msg "DEBUG" "upload interface: ${ul_if} (${min_ul_shaper_rate_kbps} / ${base_ul_shaper_rate_kbps} / ${max_ul_shaper_rate_kbps})"
-	log_msg "DEBUG" "rx_bytes_path: ${rx_bytes_path}"
+	log_msg "DEBUG" "rx_bytes_path: ${rx_bytes_path:-disabled}"
 	log_msg "DEBUG" "tx_bytes_path: ${tx_bytes_path}"
 fi
 
@@ -1201,7 +1229,10 @@ interface[dl]=${dl_if} interface[ul]=${ul_if} \
 adjust_shaper_rate[dl]=${adjust_dl_shaper_rate} adjust_shaper_rate[ul]=${adjust_ul_shaper_rate} \
 dl_max_wire_packet_size_bits=0 ul_max_wire_packet_size_bits=0
 
-get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits
+if (( ! upload_only ))
+then
+	get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits
+fi
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 
 avg_owd_delta_us[dl]=0 avg_owd_delta_us[ul]=0
@@ -1418,7 +1449,7 @@ do
 							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
 						))
 
-						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						if (( upload_only ? (load_percent[ul] < high_load_thr_percent) : (load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent) ))
 						then
 							((
 								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
@@ -1455,7 +1486,7 @@ do
 							dl_owd_baselines_us[${reflector}]=${dl_owd_us} ul_owd_baselines_us[${reflector}]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
 						fi
 
-						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						if (( upload_only ? (load_percent[ul] < high_load_thr_percent) : (load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent) ))
 						then
 							((
 								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
@@ -1482,7 +1513,7 @@ do
 							ul_owd_delta_us=dl_owd_delta_us
 						))
 
-						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						if (( upload_only ? (load_percent[ul] < high_load_thr_percent) : (load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent) ))
 						then
 							((
 								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
@@ -1522,7 +1553,7 @@ do
 							dl_owd_baselines_us[${reflector}]=${dl_owd_us} ul_owd_baselines_us[${reflector}]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
 						fi
 
-						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						if (( upload_only ? (load_percent[ul] < high_load_thr_percent) : (load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent) ))
 						then
 							((
 								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
@@ -1552,7 +1583,7 @@ do
 							ul_owd_delta_us=dl_owd_delta_us
 						))
 
-						if (( load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent))
+						if (( upload_only ? (load_percent[ul] < high_load_thr_percent) : (load_percent[dl] < high_load_thr_percent && load_percent[ul] < high_load_thr_percent) ))
 						then
 							((
 								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
@@ -1613,8 +1644,19 @@ do
 				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
 				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
 
+				if (( upload_only ))
+				then
+					load_condition[dl]="dl_idle"
+				fi
+
 				# Update shaper rates
-				for direction in dl ul
+				if (( upload_only ))
+				then
+					directions=(ul)
+				else
+					directions=(dl ul)
+				fi
+				for direction in "${directions[@]}"
 				do
 					case ${load_condition[${direction}]} in
 
@@ -1697,14 +1739,22 @@ do
 				done
 
 				# make sure that updated shaper rates fall between configured minimum and maximum shaper rates
+				if (( ! upload_only ))
+				then
+					((
+						shaper_rate_kbps[dl] < min_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]}) ||
+						shaper_rate_kbps[dl] > max_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${max_shaper_rate_kbps[dl]})
+					))
+				fi
 				((
-					shaper_rate_kbps[dl] < min_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]}) ||
-					shaper_rate_kbps[dl] > max_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${max_shaper_rate_kbps[dl]}),
 					shaper_rate_kbps[ul] < min_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${min_shaper_rate_kbps[ul]}) ||
 					shaper_rate_kbps[ul] > max_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${max_shaper_rate_kbps[ul]})
 				))
 
-				set_shaper_rate "dl"
+				if (( ! upload_only ))
+				then
+					set_shaper_rate "dl"
+				fi
 				set_shaper_rate "ul"
 
 				# update CPU usage stats if CPU monitoring interval exceeded
@@ -1775,8 +1825,12 @@ do
 								if ((min_shaper_rates_enforcement))
 								then
 									log_msg "DEBUG" "Enforcing minimum shaper rates."
-									shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-									set_shaper_rate "dl"
+									if (( ! upload_only ))
+									then
+										shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps}
+										set_shaper_rate "dl"
+									fi
+									shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
 									set_shaper_rate "ul"
 								fi
 
@@ -1799,7 +1853,7 @@ do
 
 				# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 				# and therefore resume normal operation
-				if (( achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
+				if (( upload_only ? (achieved_rate_kbps[ul] > connection_stall_thr_kbps) : (achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps) ))
 				then
 
 					log_msg "DEBUG" "load above connection stall threshold so resuming normal operation."
@@ -1942,7 +1996,7 @@ do
 		STALL)
 			((reflector_response)) && reflectors_last_timestamp_us=${t_start_us}
 
-			if (( reflector_response || achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps ))
+			if (( reflector_response || (upload_only ? (achieved_rate_kbps[ul] > connection_stall_thr_kbps) : (achieved_rate_kbps[dl] > connection_stall_thr_kbps && achieved_rate_kbps[ul] > connection_stall_thr_kbps)) ))
 			then
 				if ((reflector_response))
 				then

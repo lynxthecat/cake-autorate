@@ -116,6 +116,11 @@ and may allow the traffic to cruise along with low latency
 at that configured maximum, 
 even though the true connection capacity might be slightly higher.
 
+An optional `upload_only=1` mode is available for setups that want to
+control only the upload shaper. In this mode cake-autorate no longer
+requires a download CAKE/IFB interface, but it also cannot directly
+address download-side bufferbloat.
+
 To elaborate on setting the minimum and maximum, a variable bandwidth
 connection may be most ideally divided up into a known fixed, stable
 component, on top of which is provided an unknown variable component:

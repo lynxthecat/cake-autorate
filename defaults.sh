@@ -47,6 +47,9 @@ log_file_path_override=""
 dl_if=ifb-wan # download interface
 ul_if=wan     # upload interface
 
+# Set to 1 to run without a download shaping interface and control upload only.
+upload_only=0
+
 # pinger method selection can be any of:
 # fping - round robin pinging (RTTs)
 # fping-ts - round robin pinging using ICMP type 13 (OWDs)

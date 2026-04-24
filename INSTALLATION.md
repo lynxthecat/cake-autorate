@@ -119,6 +119,17 @@ In the configuration file:
   | `adjust_dl_shaper_rate` | enable (1) or disable (0) download shaping |
   | `adjust_ul_shaper_rate` | enable (1) or disable (0) upload shaping   |
 
+- Optionally enable upload-only operation:
+
+  |       Variable | Setting                                                                 |
+  | -------------: | :---------------------------------------------------------------------- |
+  | `upload_only`  | enable (1) to run without a download shaping interface and control only upload |
+
+  When `upload_only=1`, cake-autorate will not require `dl_if` or a
+  download CAKE/IFB interface to be present. Upload decisions are then
+  driven by upload-side metrics only. This mode is intended for setups
+  where download shaping is either unavailable or too CPU-intensive.
+
 - Set bandwidth variables as described in _config.primary.sh_.
 
   | Type | Download                   | Upload                     |
