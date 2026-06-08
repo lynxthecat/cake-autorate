@@ -73,7 +73,10 @@ case ${action} in
 			printf >&2 'sqm-setup.sh: WAN interface "%s" (ul_if) not found\n' "${ul_if}"
 			exit 1
 		fi
-		modprobe ifb 2>/dev/null || true
+		# numifbs=0 so the module doesn't auto-create stray ifb0/ifb1 (which would
+		# otherwise pick up IPv4LL 169.254 addresses); we add a named IFB below.
+		# (Only takes effect on the module's first load, i.e. a clean boot.)
+		modprobe ifb numifbs=0 2>/dev/null || true
 		modprobe sch_cake 2>/dev/null || true
 		teardown
 		trap teardown ERR # roll back a partial setup if any command below fails
