@@ -21,3 +21,14 @@ enable=all
 
 # Allow shellcheck to access arbitrary files
 external-sources=true
+
+# Prefer ${var} braces (opt-in style; the codebase mixes both intentionally).
+disable=SC2250
+
+# $ / ${ } around arithmetic operands is unnecessary (cosmetic).
+disable=SC2004
+
+# Intentional array->string joins (the CPU-stat lines reuse the array name as
+# a scalar via ${arr[*]} then ${scalar// /...}); not bugs.
+disable=SC2178
+disable=SC2128

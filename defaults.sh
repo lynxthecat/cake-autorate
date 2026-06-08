@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034
 
 # defaults.sh -- default configuration values for cake-autorate.sh
 #

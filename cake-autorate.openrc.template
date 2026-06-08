@@ -10,8 +10,9 @@
 
 # Some OpenRC setups run services with a minimal PATH that omits /sbin, where
 # tc/ip/modprobe live. Both sqm-setup.sh (start_pre) and the launcher's CAKE
-# adjustments need them, so make PATH explicit for the whole service.
-export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+# adjustments need them. APPEND (do not overwrite) so OpenRC's own helpers
+# (ebegin, mountinfo, service_*) on the original PATH stay reachable.
+export PATH="${PATH}:/usr/sbin:/sbin"
 
 description="cake-autorate — adaptive CAKE bandwidth (with SQM bring-up)"
 
