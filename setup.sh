@@ -32,7 +32,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter tar grep cmp mktemp bash"
+	DEPENDENCIES="tar grep sed cmp mktemp bash"
 
 	# Set up remote locations and branch
 	BRANCH="${CAKE_AUTORATE_BRANCH:-${2-master}}"
@@ -76,10 +76,20 @@ main() {
 		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/jffs/configs/cake-autorate
 	fi
 
-	# If we are not running on OpenWRT or ASUSWRT-Merlin, exit
+	# Check for a generic Linux host with OpenRC (Alpine, Gentoo, Artix, …).
+	# These have no SQM package, so cake-autorate brings the CAKE qdiscs up
+	# itself via sqm-setup.sh, wired into the OpenRC service's start_pre/stop_post.
+	if [ "${MY_OS}" = "unknown" ] && command -v rc-update >/dev/null 2>&1 && command -v rc-service >/dev/null 2>&1
+	then
+		MY_OS=linux-openrc
+		[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/root/cake-autorate
+		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/root/cake-autorate
+	fi
+
+	# If we are not running on a supported OS, exit
 	if [ "${MY_OS}" = "unknown" ]
 	then
-		printf "This script requires OpenWrt or ASUSWRT-Merlin\n" >&2
+		printf "This script requires OpenWrt, ASUSWRT-Merlin, or a Linux host with OpenRC\n" >&2
 		return 1
 	fi
 
@@ -125,10 +135,15 @@ main() {
 	# Create the cake-autorate directory if it does not exist
 	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
-	# Get the latest commit to download
-	[ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ] && \
-		commit=$(download_url "${API_URL}" | jsonfilter -e @.sha) || \
+	# Get the latest commit to download. Parse the GitHub API JSON portably with
+	# grep/sed (jsonfilter is OpenWrt-only), so this works on any Linux too. The
+	# explicit if/else keeps set -e semantics intact (no command-substitution in
+	# an || chain).
+	if [ -n "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ]; then
 		commit="${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT}"
+	else
+		commit=$(download_url "${API_URL}" | grep -m1 -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]+"' | sed -E 's/.*"([0-9a-f]+)".*/\1/')
+	fi
 	if [ -z "${commit:-}" ];
 	then
 		printf >&2 "Invalid operation occurred, commit variable should not be empty"
@@ -174,7 +189,6 @@ main() {
 				exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		else
 			printf "Self-replacing not fully supported. Restarting with the new setup.sh...\n"
-			rm -rf "${tmp}"
 			exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		fi
 
@@ -219,7 +233,7 @@ main() {
 	# move the program files to the cake-autorate directory
 	# scripts that need to be executable are already marked as such in the tarball
 	cd "${SCRIPT_PREFIX}"
-	files="cake-autorate.sh defaults.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
+	files="cake-autorate.sh defaults.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh sqm-setup.sh"
 	for file in ${files}
 	do
 		mv "${tmp}/${file}" "${file}"
@@ -237,6 +251,14 @@ main() {
 		chmod +x /etc/init.d/cake-autorate
 		sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/mqtt-publisher.template" > /etc/init.d/mqtt-publisher
 		chmod +x /etc/init.d/mqtt-publisher
+	fi
+
+	# For generic Linux with OpenRC, generate the init service (SQM bring-up +
+	# launcher) but DO NOT ACTIVATE it — the user enables it explicitly below.
+	if [ "${MY_OS}" = "linux-openrc" ]
+	then
+		sed "s|%%SCRIPT_PREFIX%%|${SCRIPT_PREFIX}|g" "${tmp}/cake-autorate.openrc.template" > /etc/init.d/cake-autorate
+		chmod +x /etc/init.d/cake-autorate
 	fi
 
 	# Get version and generate a file containing version information
@@ -266,6 +288,12 @@ main() {
 			printf '%s\n' "   echo ${SCRIPT_PREFIX}/launcher.sh > /opt/etc/init.d/S99cake-autorate"
 			printf '%s\n' "   chmod +x /opt/etc/init.d/S99cake-autorate"
 			printf '%s\n\n' "See also: https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts"
+			;;
+		"linux-openrc")
+			printf '%s\n' "Set the WAN interface (ul_if), the IFB (dl_if) and the shaper rates in"
+			printf '%s\n' "   ${CONFIG_PREFIX}/config.primary.sh"
+			printf '%s\n' "then enable and start the service (sqm-setup.sh brings the CAKE qdiscs up):"
+			printf '%s\n\n' "   rc-update add cake-autorate default; rc-service cake-autorate start"
 			;;
 		*)
 			;;

@@ -44,10 +44,18 @@ main() {
 		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/jffs/configs/cake-autorate
 	fi
 
-	# If we are not running on OpenWRT or ASUSWRT-Merlin, exit
+	# Check for a generic Linux host with OpenRC (matches setup.sh).
+	if [ "${MY_OS}" = "unknown" ] && command -v rc-update >/dev/null 2>&1 && command -v rc-service >/dev/null 2>&1
+	then
+		MY_OS=linux-openrc
+		[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/root/cake-autorate
+		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/root/cake-autorate
+	fi
+
+	# If we are not running on a supported OS, exit
 	if [ "${MY_OS}" = "unknown" ]
 	then
-		printf "This script requires OpenWrt or ASUSWRT-Merlin\n" >&2
+		printf "This script requires OpenWrt, ASUSWRT-Merlin, or a Linux host with OpenRC\n" >&2
 		return 1
 	fi
 
@@ -59,6 +67,11 @@ main() {
 	if [ -x /etc/init.d/mqtt-publisher ]
 	then
 		/etc/init.d/mqtt-publisher stop || :
+	fi
+	# On OpenRC, also remove the service from its runlevel.
+	if [ "${MY_OS}" = "linux-openrc" ]
+	then
+		rc-update del cake-autorate 2>/dev/null || :
 	fi
 	rm -f /etc/init.d/cake-autorate /etc/rc.d/*cake-autorate
 	rm -f /etc/init.d/mqtt-publisher /etc/rc.d/*mqtt-publisher
@@ -100,7 +113,7 @@ main() {
 
 	# remove current program files from the cake-autorate directory
 	cd "${SCRIPT_PREFIX}"
-	files="cake-autorate.sh defaults.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
+	files="cake-autorate.sh defaults.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh sqm-setup.sh version.txt"
 	for file in ${files}
 	do
 		rm -f "${file}"

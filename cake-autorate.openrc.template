@@ -1,0 +1,33 @@
+#!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # description/command/pidfile are consumed by openrc-run
+
+# OpenRC service for cake-autorate on a generic Linux host (Alpine, Gentoo,
+# Artix, …). Unlike OpenWrt — where the SQM package creates the CAKE qdiscs —
+# here start_pre brings the qdiscs up via sqm-setup.sh, the launcher then runs the
+# cake-autorate instance(s) that adjust the bandwidth, and stop_post tears the
+# qdiscs back down.
+
+# Some OpenRC setups run services with a minimal PATH that omits /sbin, where
+# tc/ip/modprobe live. Both sqm-setup.sh (start_pre) and the launcher's CAKE
+# adjustments need them, so make PATH explicit for the whole service.
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+
+description="cake-autorate — adaptive CAKE bandwidth (with SQM bring-up)"
+
+command="%%SCRIPT_PREFIX%%/launcher.sh"
+command_background=true
+pidfile="/run/cake-autorate.pid"
+
+depend() {
+	need net
+	after firewall
+}
+
+start_pre() {
+	"%%SCRIPT_PREFIX%%/sqm-setup.sh" start
+}
+
+stop_post() {
+	"%%SCRIPT_PREFIX%%/sqm-setup.sh" stop
+}
