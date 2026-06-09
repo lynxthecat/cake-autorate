@@ -48,6 +48,12 @@ log_file_path_override=""
 dl_if=ifb-wan # download interface
 ul_if=wan     # upload interface
 
+# CAKE option strings for the generic-Linux sqm-setup.sh helper, which creates
+# the qdiscs that cake-autorate then adjusts. Declared here so they are valid
+# config keys (sqm-setup.sh reads these, or a per-instance override).
+sqm_dl_cake_opts="nat dual-dsthost ingress"
+sqm_ul_cake_opts="nat dual-srchost"
+
 # pinger method selection can be any of:
 # fping - round robin pinging (RTTs)
 # fping-ts - round robin pinging using ICMP type 13 (OWDs)
