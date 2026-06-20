@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155
 
 CPU_CORES=$(grep -c '^processor' /proc/cpuinfo) || { echo "ERROR: failed to detect CPU core count from /proc/cpuinfo" >&2; exit 1; }
 
