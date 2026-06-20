@@ -574,7 +574,7 @@ start_pinger()
 			sleep_until_next_pinger_time_slot "${pinger}"
 			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
 			pinger_pids[pinger]=${!}
-			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[0]}
+			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[pinger]}
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
