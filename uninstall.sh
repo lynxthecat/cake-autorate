@@ -72,8 +72,12 @@ main() {
 		exit 1
 	fi
 
-	# remove configuration files if user does not want to keep them
-	cd "${CONFIG_PREFIX}"
+	# remove configuration files if user does not want to keep them.
+	# Guard the cd: a missing CONFIG_PREFIX (configs already removed, or a custom
+	# prefix never created -- e.g. Merlin's separate /jffs/configs) would abort the
+	# whole uninstall under set -eu BEFORE the program files below are removed,
+	# leaving them on disk. If it is absent there are no configs to remove anyway.
+	if [ -d "${CONFIG_PREFIX}" ]; then cd "${CONFIG_PREFIX}"; else cd "${SCRIPT_PREFIX}"; fi
 	keepIt=''
 	for file in *config.*.sh*
 	do
