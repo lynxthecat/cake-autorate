@@ -174,7 +174,9 @@ main() {
 				exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		else
 			printf "Self-replacing not fully supported. Restarting with the new setup.sh...\n"
-			rm -rf "${tmp}"
+			# Do NOT rm -rf "${tmp}" here: exec immediately runs ${tmp}/setup.sh,
+			# so deleting it first makes the exec fail with ENOENT and aborts the
+			# restart. The EXIT/INT/TERM trap removes ${tmp} if the exec fails.
 			exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		fi
 
