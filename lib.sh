@@ -114,7 +114,11 @@ randomize_array()
 
 	for ((set=${#array[@]}-1; set>0; set--))
 	do
-		idx=$((RANDOM%set))
+		# j must be uniform in [0, set] INCLUSIVE for an unbiased Fisher-Yates.
+		# RANDOM%set gives [0, set-1], excluding the current index -> that is
+		# Sattolo's algorithm (only cyclic permutations; an element can never
+		# stay put), which biases the startup reflector shuffle.
+		idx=$((RANDOM%(set+1)))
 		temp=${array[set]}
 		array[set]=${array[idx]}
 		array[idx]=${temp}
