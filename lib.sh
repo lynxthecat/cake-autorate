@@ -129,8 +129,8 @@ generate_run_token()
 {
 	local run_token
 
-	run_token=$(head -c 32 /dev/urandom 2>/dev/null | hexdump -v -e '/1 "%02x"') || return 1
-	[[ ${#run_token} -eq 64 ]] || return 1
+	read -r run_token < /proc/sys/kernel/random/uuid 2>/dev/null || return 1
+	[[ ${run_token} =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 1
 
 	printf '%s\n' "${run_token}"
 }
