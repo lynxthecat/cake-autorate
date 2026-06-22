@@ -125,6 +125,38 @@ randomize_array()
 	done
 }
 
+generate_run_token()
+{
+	local run_token
+
+	run_token=$(head -c 32 /dev/urandom 2>/dev/null | hexdump -v -e '/1 "%02x"') || return 1
+	[[ ${#run_token} -eq 64 ]] || return 1
+
+	printf '%s\n' "${run_token}"
+}
+
+running_process_matches_run_token()
+{
+	local pid=${1} run_token=${2}
+
+	[[ ${pid} =~ ^[0-9]+$ && -n ${run_token} && -r /proc/${pid}/environ ]] || return 1
+	tr '\0' '\n' < "/proc/${pid}/environ" 2>/dev/null | grep -Fxq "CAKE_AUTORATE_RUN_TOKEN=${run_token}"
+}
+
+get_running_main_pid_for_run_path()
+{
+	local run_path=${1} running_main_pid running_run_token
+
+	[[ -f ${run_path}/proc_pids ]] || return 1
+	[[ -f ${run_path}/run_token ]] || return 1
+	running_main_pid=$(awk -F= '/^main=/ {print $2}' "${run_path}/proc_pids") || return 1
+	[[ ${running_main_pid} =~ ^[0-9]+$ && -d /proc/${running_main_pid} ]] || return 1
+	read -r running_run_token < "${run_path}/run_token" || return 1
+	running_process_matches_run_token "${running_main_pid}" "${running_run_token}" || return 1
+
+	printf '%s\n' "${running_main_pid}"
+}
+
 terminate()
 {
 	# Send regular kill to processes and monitor terminations;

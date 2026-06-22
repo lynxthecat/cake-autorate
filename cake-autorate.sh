@@ -429,6 +429,7 @@ export_proc_pids()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
+	printf '%s\n' "${CAKE_AUTORATE_RUN_TOKEN}" > "${run_path}/run_token"
 	: > "${run_path}/proc_pids"
 	for proc_pid in "${!proc_pids[@]}"
 	do
@@ -954,6 +955,12 @@ else
 	exit 1
 fi
 
+CAKE_AUTORATE_RUN_TOKEN=$(generate_run_token) || {
+	log_msg "ERROR" "Failed to generate CAKE_AUTORATE_RUN_TOKEN. Exiting now."
+	exit 1
+}
+export CAKE_AUTORATE_RUN_TOKEN
+
 if [[ -n ${log_file_path_override-} ]]
 then
 	if [[ ! -d ${log_file_path_override} ]]
@@ -982,13 +989,13 @@ log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${conf
 # it should not exist on startup so if it does exit, else create the directory
 if [[ -d ${run_path} ]]
 then
-	if [[ -f ${run_path}/proc_pids ]] && running_main_pid=$(awk -F= '/^main=/ {print $2}' "${run_path}/proc_pids") && [[ -d /proc/${running_main_pid} ]]
+	if running_main_pid=$(get_running_main_pid_for_run_path "${run_path}")
 	then
 		log_msg "ERROR" "${run_path} already exists and an instance appears to be running with main process pid ${running_main_pid}. Exiting script."
 		trap - INT TERM EXIT
 		exit 1
 	else
-		log_msg "DEBUG" "${run_path} already exists but no instance is running. Removing and recreating."
+		log_msg "DEBUG" "${run_path} already exists but no conflicting instance is running. Removing and recreating."
 		rm -r "${run_path}"
 		mkdir -p "${run_path}"
 	fi
