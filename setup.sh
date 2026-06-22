@@ -172,15 +172,14 @@ main() {
 			__CAKE_AUTORATE_SETUP_SH_EXEC_TMP="${tmp}" \
 			__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT="${commit}" \
 				exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
-		else
-			printf "Self-replacing not fully supported. Restarting with the new setup.sh...\n"
-			# Do NOT rm -rf "${tmp}" here: exec immediately runs ${tmp}/setup.sh,
-			# so deleting it first makes the exec fail with ENOENT and aborts the
-			# restart. The EXIT/INT/TERM trap removes ${tmp} if the exec fails.
-			exec "${tmp}/setup.sh" "${REPOSITORY}" "${BRANCH}"
 		fi
 
-		exit "${?}"  # should not reach this point
+		# The downloaded setup.sh lacks the self-replacing marker. That only
+		# happens when installing a pre-self-replacing (pre-2024) version, which
+		# cannot perform the preserved-tmp handoff. Rather than exec the old
+		# script, fall through and install the downloaded files with the current
+		# setup.sh. (The previous code rm-ed "${tmp}" then exec'd it -> ENOENT.)
+		printf "Downloaded setup.sh predates self-replacing; continuing with the current installer.\n"
 	fi
 
 	# Migrate old configuration (and new file) files if present
