@@ -1013,12 +1013,10 @@ then
 	else
 		log_msg "DEBUG" "${run_path} already exists but no conflicting instance is running. Removing and recreating."
 		rm -r "${run_path}"
-		mkdir -p "${run_path}"
-		chmod 0700 "${run_path}"
+		( umask 077 && mkdir -p "${run_path}" )
 	fi
 else
-	mkdir -p "${run_path}"
-	chmod 0700 "${run_path}"
+	( umask 077 && mkdir -p "${run_path}" )
 fi
 
 proc_pids['main']=${BASHPID}
