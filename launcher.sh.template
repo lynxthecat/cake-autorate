@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+
+# An unmatched glob must expand to nothing (not the literal pattern), so a
+# missing config set yields an empty array instead of a bogus instance path.
+shopt -s nullglob
 
 cake_instances=()
 if command -v uci >/dev/null 2>&1 && uci show cake-autorate >/dev/null 2>&1
@@ -20,6 +25,13 @@ then
 else
 	cake_instances=(%%CONFIG_PREFIX%%/config.*.sh)
 fi
+
+if [[ ${#cake_instances[@]} -eq 0 ]]
+then
+	printf '%s\n' "cake-autorate: no config files found in %%CONFIG_PREFIX%%" >&2
+	exit 1
+fi
+
 cake_instance_pids=()
 
 trap kill_cake_instances INT TERM EXIT

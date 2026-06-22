@@ -497,6 +497,7 @@ start_pinger()
 		irtt)
 			sleep_until_next_pinger_time_slot "${pinger}"
 
+			# shellcheck disable=SC2155  # the subshell status (echo $!) is intentionally unused
 			local pinger_pid=$( (
 				set -m
 				${ping_prefix_string} gawk -v extra_args="${ping_extra_args}" -v interval_s="${reflector_ping_interval_s}" -v duration_m="${irtt_session_duration_m}" -v reflector="${reflectors[$pinger]}" -f <(cat <<-'EOT'
@@ -574,7 +575,7 @@ start_pinger()
 			sleep_until_next_pinger_time_slot "${pinger}"
 			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
 			pinger_pids[pinger]=${!}
-			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[0]}
+			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[pinger]}
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
@@ -693,15 +694,16 @@ replace_pinger_reflector()
 		# shellcheck disable=SC2206
 		reflectors+=(${bad_reflector})
 		# reset array indices
+		# shellcheck disable=SC2206
 		reflectors=(${reflectors[@]})
 		if ((retain_reflector_stats==0))
 		then
 			log_msg "DEBUG" "Discarding reflector stats associated with ${bad_reflector}"
-			unset dl_owd_baselines_us[${bad_reflector}]
-			unset ul_owd_baselines_us[${bad_reflector}]
-			unset dl_owd_delta_ewmas_us[${bad_reflector}]
-			unset ul_owd_delta_ewmas_us[${bad_reflector}]
-			unset last_timestamp_reflectors_us[${bad_reflector}]
+			unset "dl_owd_baselines_us[${bad_reflector}]"
+			unset "ul_owd_baselines_us[${bad_reflector}]"
+			unset "dl_owd_delta_ewmas_us[${bad_reflector}]"
+			unset "ul_owd_delta_ewmas_us[${bad_reflector}]"
+			unset "last_timestamp_reflectors_us[${bad_reflector}]"
 		else
 			log_msg "DEBUG" "Retaining reflector stats associated with: ${bad_reflector}"
 		fi
@@ -1036,7 +1038,7 @@ esac
 cpu_idx=0
 while :
 do
-	read -r cpu_id rem
+	read -r cpu_id _
 	case ${cpu_id} in
 		cpu*)
 			cpu_ids[cpu_idx]=${cpu_id^^}
@@ -1047,7 +1049,7 @@ do
 			;;
 	esac
 done</proc/stat
-cpu_ids="${cpu_ids[@]}"
+cpu_ids="${cpu_ids[*]}"
 ((cpu_cores=cpu_idx-1))
 log_msg "DEBUG" "Detected ${cpu_cores} CPU cores."
 mapfile -t cpu_usage < <(for ((i=0; i <= cpu_cores; i++)); do echo 0; done)
@@ -1716,7 +1718,7 @@ do
 						read -r -a cpu_stats
 						if (( output_cpu_stats ))
 						then
-							cpu_stats_vals=${cpu_stats[@]:1}
+							cpu_stats_vals=${cpu_stats[*]:1}
 							((
 								cpu_sum=${cpu_stats_vals// /+},
 								cpu_delta=cpu_sum-last_cpu_sum[cpu_idx],
@@ -1728,13 +1730,13 @@ do
 						fi
 						if (( output_cpu_raw_stats ))
 						then
-							cpu_raw_stats="${cpu_stats[@]}"	cpu_raw_stats="${stats_read_time_us}; ${cpu_raw_stats// /; }"
+							cpu_raw_stats="${cpu_stats[*]}"	cpu_raw_stats="${stats_read_time_us}; ${cpu_raw_stats// /; }"
 							log_msg "CPU_RAW" "${cpu_raw_stats}"
 						fi
 					done</proc/stat
 					if (( output_cpu_stats ))
 					then
-						cpu_stats="${cpu_usage[@]}" cpu_stats="${stats_read_time_us}; ${cpu_stats// /; }"
+						cpu_stats="${cpu_usage[*]}" cpu_stats="${stats_read_time_us}; ${cpu_stats// /; }"
 						log_msg "CPU" "${cpu_stats}"
 					fi
 					t_last_cpu_usage_check_us=${t_start_us}
