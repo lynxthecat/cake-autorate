@@ -505,10 +505,13 @@ start_pinger()
 
 				function to_us(val, mult)
 				{
+					# Test bare /s$/ LAST: "5µs" and "5ns" also end in "s", so an
+					# earlier /s$/ branch would swallow them (mult=1000000) and the
+					# µs/ns branches would be unreachable -> sub-ms OWDs inflated 10^6x.
 					mult = (val ~ /ms$/) ? 1000    : \
-						   (val ~ /s$/)  ? 1000000 : \
 						   (val ~ /µs$/) ? 1       : \
-						   (val ~ /ns$/) ? 0.001   : -1
+						   (val ~ /ns$/) ? 0.001   : \
+						   (val ~ /s$/)  ? 1000000 : -1
 
 					if (val ~ /^-/ || mult < 0) return -1
 					return sprintf("%.0f", val * mult)
@@ -764,6 +767,19 @@ set_shaper_rate()
 	))
 }
 
+set_min_shaper_rates()
+{
+	# Drop both shapers to their configured minimum (idle / stall enforcement).
+	# Commit f3f20a0 deleted this function and inlined it on the IDLE path but
+	# left the stall call site (cake-autorate.sh, global ping-response timeout)
+	# calling the now-undefined name -> command-not-found -> intercept_stderr
+	# kills the daemon exactly when the clamp was wanted. Restore it as one
+	# function used by both sites.
+	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
+	set_shaper_rate "dl"
+	set_shaper_rate "ul"
+}
+
 get_max_wire_packet_size_bits()
 {
 	local interface=${1}
@@ -1014,6 +1030,17 @@ case ${pinger_method} in
 
 	fping-ts)
 		command -v "fping" &> /dev/null || { log_msg "ERROR" "ping binary fping does not exist. Exiting script."; exit 1; }
+		;;
+	irtt)
+		# The irtt path hard-requires gawk (gawk -f), the gawk-only 'time'
+		# extension (systime/gettimeofday) and stdbuf -- none of which are the
+		# 'irtt' binary. Without them the gawk pinger dies, but its stderr is
+		# /dev/null so the daemon is NOT killed: it silently produces no data and
+		# pins CAKE at the min rates. Name the missing dependency up front.
+		command -v "irtt"   &> /dev/null || { log_msg "ERROR" "ping binary irtt does not exist. Exiting script."; exit 1; }
+		command -v "gawk"   &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires gawk. Exiting script."; exit 1; }
+		command -v "stdbuf" &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires stdbuf (coreutils). Exiting script."; exit 1; }
+		gawk '@load "time"; BEGIN{exit}' < /dev/null &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires the gawk 'time' extension (gawk-gawkextra). Exiting script."; exit 1; }
 		;;
 	*)
 		command -v "${pinger_method}" &> /dev/null || { log_msg "ERROR" "ping binary ${pinger_method} does not exist. Exiting script."; exit 1; }
@@ -1777,9 +1804,7 @@ do
 								if ((min_shaper_rates_enforcement))
 								then
 									log_msg "DEBUG" "Enforcing minimum shaper rates."
-									shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-									set_shaper_rate "dl"
-									set_shaper_rate "ul"
+									set_min_shaper_rates
 								fi
 
 								stop_pingers
