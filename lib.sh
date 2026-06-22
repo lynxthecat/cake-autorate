@@ -129,7 +129,7 @@ generate_run_token()
 {
 	local run_token
 
-	run_token=$(head -c 32 /dev/urandom 2>/dev/null | hexdump -v -e '/1 "%02x"') || return 1
+	run_token=$(head -c 32 /dev/urandom 2>/dev/null | od -An -v -tx1 | tr -d ' \n') || return 1
 	[[ ${#run_token} -eq 64 ]] || return 1
 
 	printf '%s\n' "${run_token}"
