@@ -114,7 +114,11 @@ randomize_array()
 
 	for ((set=${#array[@]}-1; set>0; set--))
 	do
-		idx=$((RANDOM%set))
+		# j must be uniform in [0, set] INCLUSIVE for an unbiased Fisher-Yates.
+		# RANDOM%set gives [0, set-1], excluding the current index -> that is
+		# Sattolo's algorithm (only cyclic permutations; an element can never
+		# stay put), which biases the startup reflector shuffle.
+		idx=$((RANDOM%(set+1)))
 		temp=${array[set]}
 		array[set]=${array[idx]}
 		array[idx]=${temp}
@@ -133,7 +137,11 @@ terminate()
 
 	read -r -a pids <<< "${pids}"
 
-	kill "${pids[@]}" 2> /dev/null
+	# `--` is required: for the irtt pinger method pids are negated pgids (set -m),
+	# and `kill -123` parses the leading dash as a signal spec ("invalid signal
+	# specification") and delivers nothing -- so the graceful TERM (and, with >1
+	# pinger, the -9 fallback too) silently no-op and irtt children leak.
+	kill -TERM -- "${pids[@]}" 2> /dev/null
 
 	for ((i=0; i<timeout_ms; i+=100))
 	do
@@ -145,7 +153,7 @@ terminate()
 		sleep_s 0.1
 	done
 
-	kill -9 "${pids[@]}" 2> /dev/null
+	kill -KILL -- "${pids[@]}" 2> /dev/null
 }
 
 if (( __set_e == 1 ))
