@@ -996,18 +996,14 @@ else
 	log_file_path="/var/log/cake-autorate${instance_id:+.${instance_id}}.log"
 fi
 
-rotate_log_file
-
-# save stderr fd, redirect stderr to intercept_stderr
-# intercept_stderr sends stderr to log_msg and exits cake-autorate
-exec {original_stderr_fd}>&2 2> >(intercept_stderr)
-
-proc_pids['intercept_stderr']=${!}
-
-log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
-
-# ${run_path}/ is used to store temporary files
-# it should not exist on startup so if it does exit, else create the directory
+# ${run_path}/ is used to store temporary files; it should not exist on startup.
+# Check for a conflicting running instance, and (re)create the dir, BEFORE
+# rotate_log_file: a redundant same-instance start (operator double-start,
+# overlapping restart, watchdog/cron re-exec) otherwise runs rotate_log_file --
+# which does `cat log > log.old; : > log` -- and truncates the live log of the
+# already-running instance (held open by its maintain_log_file) before this check
+# gets to exit. The check reads only the OTHER instance's on-disk run_token, and
+# this process writes its own only later, so it cannot false-positive on itself.
 if [[ -d ${run_path} ]]
 then
 	if running_main_pid=$(get_running_main_pid_for_run_path "${run_path}")
@@ -1023,6 +1019,16 @@ then
 else
 	mkdir -p "${run_path}"
 fi
+
+rotate_log_file
+
+# save stderr fd, redirect stderr to intercept_stderr
+# intercept_stderr sends stderr to log_msg and exits cake-autorate
+exec {original_stderr_fd}>&2 2> >(intercept_stderr)
+
+proc_pids['intercept_stderr']=${!}
+
+log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
 proc_pids['main']=${BASHPID}
 
@@ -1074,7 +1080,8 @@ case ${pinger_method} in
 		;;
 esac
 
-# Check no_pingers <= no_reflectors
+# Check 1 <= no_pingers <= no_reflectors
+(( no_pingers < 1 )) && { log_msg "ERROR" "no_pingers must be at least 1. Exiting script."; exit 1; }
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
 
 # Check dl/if interface not the same
@@ -1086,6 +1093,16 @@ esac
 # Check if connection_active_thr_kbps is greater than min dl/ul shaper rate
 (( connection_active_thr_kbps > min_dl_shaper_rate_kbps )) && { log_msg "ERROR" "connection_active_thr_kbps cannot be greater than min_dl_shaper_rate_kbps. Exiting script."; exit 1; }
 (( connection_active_thr_kbps > min_ul_shaper_rate_kbps )) && { log_msg "ERROR" "connection_active_thr_kbps cannot be greater than min_ul_shaper_rate_kbps. Exiting script."; exit 1; }
+
+# Check shaper rate bounds: 1 <= min <= base <= max for each direction. Without
+# this, base>max silently pins the link at max (the steady-state-is-base contract
+# is void), base<min pins at min, and min=0 reaches the load_percent /
+# compensation divides -> division by zero -> the daemon is killed via
+# intercept_stderr instead of exiting cleanly with a clear message.
+(( min_dl_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_dl_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
+(( min_ul_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_ul_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
+(( min_dl_shaper_rate_kbps > base_dl_shaper_rate_kbps || base_dl_shaper_rate_kbps > max_dl_shaper_rate_kbps )) && { log_msg "ERROR" "dl shaper rates must satisfy min <= base <= max. Exiting script."; exit 1; }
+(( min_ul_shaper_rate_kbps > base_ul_shaper_rate_kbps || base_ul_shaper_rate_kbps > max_ul_shaper_rate_kbps )) && { log_msg "ERROR" "ul shaper rates must satisfy min <= base <= max. Exiting script."; exit 1; }
 
 # Passed error checks
 
