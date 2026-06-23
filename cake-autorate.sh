@@ -1050,6 +1050,19 @@ then
 	log_msg "DEBUG" "Local list of reflectors now contains ${#reflectors[*]} entries."
 fi
 
+# Validate every reflector before use. For pinger_method=irtt a reflector is
+# interpolated into a shell command (gawk builds "irtt client ... '<reflector>'"
+# and runs it via | getline), so a reflector containing shell metacharacters is
+# command injection -- and reflectors can come unvalidated from the remote
+# reflectors_url (fetched over the network above, possibly without TLS) or from
+# a hand-edited config. Allow only IP-/hostname-shaped strings (no quotes, ';',
+# spaces, '$', etc.); the first char excludes '-' (blocks option injection) but
+# admits ':' for compressed IPv6 (e.g. ::1, ::ffff:1.2.3.4).
+for reflector in "${reflectors[@]}"
+do
+	[[ ${reflector} =~ ^[0-9A-Za-z:][0-9A-Za-z.:_-]*$ ]] || { log_msg "ERROR" "Invalid reflector '${reflector}': must be an IP address or hostname. Exiting script."; exit 1; }
+done
+
 no_reflectors=${#reflectors[@]}
 
 # Check ping binary exists
