@@ -72,39 +72,48 @@ main() {
 		exit 1
 	fi
 
-	# remove configuration files if user does not want to keep them
-	cd "${CONFIG_PREFIX}"
-	keepIt=''
-	for file in *config.*.sh*
-	do
-		[ -e "${file}" ] || continue   # handle case where there are no old config files
-		if [ -z "${keepIt:-}" ]
-	        then
-	                printf "Would you like to keep your configs? [Y/n]"
-	                read -r keepIt
-	                [ -z "${keepIt:-}" ] && keepIt=Y
-	        fi
+	# remove configuration files if user does not want to keep them.
+	# Guard the cd: a missing CONFIG_PREFIX (configs already removed, or a custom
+	# prefix never created -- e.g. Merlin's separate /jffs/configs) would abort the
+	# whole uninstall under set -eu before the program files below are removed.
+	# If it is absent there are no configs to remove anyway.
+	if [ -d "${CONFIG_PREFIX}" ]
+	then
+		cd "${CONFIG_PREFIX}"
+		keepIt=''
+		for file in *config.*.sh*
+		do
+			[ -e "${file}" ] || continue   # handle case where there are no old config files
+			if [ -z "${keepIt:-}" ]
+			then
+				printf "Would you like to keep your configs? [Y/n]"
+				read -r keepIt
+				[ -z "${keepIt:-}" ] && keepIt=Y
+			fi
 
-		if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
+			if [ "${keepIt}" = "N" ] || [ "${keepIt}" = "n" ]; then
+				rm -f "${file}"
+			fi
+		done
+	fi
+
+	# remove program files (old and current names) from the script directory.
+	# Same guard rationale: skip cleanly if SCRIPT_PREFIX is absent.
+	if [ -d "${SCRIPT_PREFIX}" ]
+	then
+		cd "${SCRIPT_PREFIX}"
+		old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
+		for file in ${old_fnames}
+		do
 			rm -f "${file}"
-	        fi
-	done
+		done
 
-	# remove old program files from cake-autorate directory
-	cd "${SCRIPT_PREFIX}"
-	old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"
-	for file in ${old_fnames}
-	do
-		rm -f "${file}"
-	done
-
-	# remove current program files from the cake-autorate directory
-	cd "${SCRIPT_PREFIX}"
-	files="cake-autorate.sh defaults.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
-	for file in ${files}
-	do
-		rm -f "${file}"
-	done
+		files="cake-autorate.sh defaults.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
+		for file in ${files}
+		do
+			rm -f "${file}"
+		done
+	fi
 
 	# remove ${SCRIPT_PREFIX} and ${CONFIG_PREFIX} directories if empty
 	rmdir "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}" 2>/dev/null || :
