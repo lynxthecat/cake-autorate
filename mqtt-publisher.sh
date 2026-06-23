@@ -21,16 +21,18 @@ cleanup()
 {
     trap - INT TERM EXIT
     # Publish offline status for all instances on graceful shutdown
-    local log_file_path
+    local log_file_path log_dir
     shopt -s nullglob
-    for log_file_path in /var/log/cake-autorate.*.log; do
-        local instance="$(basename "${log_file_path}" | sed -E 's/^cake-autorate\.([^.]+)\.log$/\1/')"
-        mosquitto_pub \
-            -h "$MQTT_HOST" -p "$MQTT_PORT" \
-            -u "$MQTT_USER" -P "$MQTT_PASS" \
-            -r -q 1 \
-            -t "${BASE_MQTT_TOPIC}/${instance}/availability" \
-            -m "offline" 2>/dev/null || true
+    for log_dir in "${log_dirs[@]}"; do
+        for log_file_path in "${log_dir}"/cake-autorate.*.log; do
+            local instance="$(basename "${log_file_path}" | sed -E 's/^cake-autorate\.([^.]+)\.log$/\1/')"
+            mosquitto_pub \
+                -h "$MQTT_HOST" -p "$MQTT_PORT" \
+                -u "$MQTT_USER" -P "$MQTT_PASS" \
+                -r -q 1 \
+                -t "${BASE_MQTT_TOPIC}/${instance}/availability" \
+                -m "offline" 2>/dev/null || true
+        done
     done
     shopt -u nullglob
     for pid in "${publish_stats_pids[@]}"; do
@@ -211,15 +213,65 @@ publish_stats()
     done
 }
 
+# Discover where cake-autorate writes its logs, and sanity-check the config.
+#
+# cake-autorate honours log_file_path_override per instance, so globbing only
+# /var/log misses a relocated log and the publisher then silently does nothing.
+# Resolve the log dir(s) the same way cake-autorate does, from the configs next
+# to this script. The init.d launches ${SCRIPT_PREFIX}/mqtt-publisher.sh, so the
+# script's own directory is SCRIPT_PREFIX; CONFIG_PREFIX equals it unless the
+# install used a custom CAKE_AUTORATE_CONFIG_PREFIX (or Asuswrt-Merlin), whose
+# configs are then not auto-discovered (we fall back to /var/log + the warning).
+SCRIPT_PREFIX="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+CONFIG_PREFIX="${SCRIPT_PREFIX}"
+
+declare -A seen_log_dir=()
+log_dirs=()
+any_stats_enabled=0
+shopt -s nullglob
+for config_path in "${CONFIG_PREFIX}"/config.*.sh; do
+    [[ -r ${config_path} ]] || continue
+    # Source defaults then this instance's config in a subshell (defaults first,
+    # then the override, matching cake-autorate) and read only the keys we need.
+    mapfile -t cfg_vals < <(
+        unset log_file_path_override output_summary_stats output_cpu_stats
+        # shellcheck source=defaults.sh
+        [[ -r ${SCRIPT_PREFIX}/defaults.sh ]] && . "${SCRIPT_PREFIX}/defaults.sh" 2>/dev/null
+        # shellcheck source=config.primary.sh
+        . "${config_path}" 2>/dev/null
+        printf '%s\n' "${log_file_path_override:-}" "${output_summary_stats:-0}" "${output_cpu_stats:-0}"
+    )
+    if [[ -n ${cfg_vals[0]} && -d ${cfg_vals[0]} ]]; then
+        log_dir="${cfg_vals[0]}"
+    else
+        log_dir="/var/log"
+    fi
+    [[ -n ${seen_log_dir[${log_dir}]:-} ]] || { seen_log_dir[${log_dir}]=1; log_dirs+=("${log_dir}"); }
+    [[ ${cfg_vals[1]} == 1 || ${cfg_vals[2]} == 1 ]] && any_stats_enabled=1
+done
+shopt -u nullglob
+# Fall back to the historical default if discovery turned up nothing.
+(( ${#log_dirs[@]} )) || log_dirs=("/var/log")
+
+if (( ! any_stats_enabled )); then
+    echo "WARNING: no cake-autorate config enables output_summary_stats=1 or output_cpu_stats=1 -- the Home Assistant sensors will be created via discovery but stay empty, because the SUMMARY/CPU log records the publisher reads are never produced. Enable output_summary_stats=1 (and/or output_cpu_stats=1) in the relevant config." >&2
+fi
+
 trap cleanup INT TERM EXIT
 
 publish_stats_pids=()
 
 shopt -s nullglob
-for log_file_path in /var/log/cake-autorate.*.log; do
-    ( publish_stats "$log_file_path" ) &
-    publish_stats_pids+=($!)
+for log_dir in "${log_dirs[@]}"; do
+    for log_file_path in "${log_dir}"/cake-autorate.*.log; do
+        ( publish_stats "$log_file_path" ) &
+        publish_stats_pids+=($!)
+    done
 done
 shopt -u nullglob
+
+if (( ${#publish_stats_pids[@]} == 0 )); then
+    echo "WARNING: no cake-autorate logs found (looked in: ${log_dirs[*]} for cake-autorate.*.log). Nothing to publish -- is cake-autorate running with logging enabled? If logs are relocated via log_file_path_override, ensure the instance config is readable next to this script so the path can be discovered." >&2
+fi
 
 wait
