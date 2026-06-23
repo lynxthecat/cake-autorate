@@ -260,6 +260,12 @@ generate_log_file_scripts()
 
 	timeout_s=\${1:-20}
 
+	# Clear the previous result marker BEFORE signalling. The daemon's
+	# export_log_file writes this marker; removing it *after* the signal can
+	# delete a freshly-written one, so the wait below would time out even though
+	# the export succeeded.
+	rm -f "${run_path}/last_log_file_export"
+
 	if kill -USR1 "${proc_pids['maintain_log_file']}"
 	then
 		printf "Successfully signalled maintain_log_file process to request log file export.\n"
@@ -267,7 +273,6 @@ generate_log_file_scripts()
 		printf "ERROR: Failed to signal maintain_log_file process.\n" >&2
 		exit 1
 	fi
-	rm -f "${run_path}/last_log_file_export"
 
 	read_try=0
 
