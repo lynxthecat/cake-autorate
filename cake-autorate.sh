@@ -1031,7 +1031,22 @@ log_msg "DEBUG" "Local list of reflectors contains ${#reflectors[*]} entries."
 if [[ -n ${reflectors_url} ]]
 then
 	log_msg "DEBUG" "Appending local list of reflectors with remote list of reflectors at: ${reflectors_url}."
-	readarray -t -s ${reflectors_url_skip_lines} -O ${#reflectors[*]} reflectors < <( wget -O - ${reflectors_url} 2>/dev/null | awk -F "," '{ print $1 }' )
+	[[ ${reflectors_url} == https://* ]] || log_msg "WARNING" "reflectors_url is not https:// -- the remote reflector list is fetched without TLS and can be tampered with in transit."
+	# Quote the URL: the global IFS contains a comma, so an unquoted URL with a
+	# comma in its query string would be split into several fetch operands. Probe
+	# curl-then-wget so the fetch also works on hosts that ship only one of them
+	# (it previously hardcoded wget and silently appended nothing where only curl
+	# was installed).
+	if command -v curl &> /dev/null
+	then
+		readarray -t -s "${reflectors_url_skip_lines}" -O "${#reflectors[*]}" reflectors < <( curl -fsS "${reflectors_url}" 2>/dev/null | awk -F "," '{ print $1 }' )
+	elif command -v wget &> /dev/null
+	then
+		readarray -t -s "${reflectors_url_skip_lines}" -O "${#reflectors[*]}" reflectors < <( wget -O - "${reflectors_url}" 2>/dev/null | awk -F "," '{ print $1 }' )
+	else
+		log_msg "ERROR" "reflectors_url is set but neither curl nor wget is available. Exiting script."
+		exit 1
+	fi
 	log_msg "DEBUG" "Local list of reflectors now contains ${#reflectors[*]} entries."
 fi
 
