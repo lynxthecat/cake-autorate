@@ -1576,7 +1576,11 @@ do
 
 						;;
 					ping)
-						reflector=${reflector//:/} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
+						# iputils ping -D prints "from <addr>:" -- strip only the trailing
+						# colon. ${reflector//:/} stripped EVERY colon, mangling IPv6 keys
+						# (2606:4700:4700::1111 -> 2606470047001111) so per-reflector tracking
+						# split across two keys; the irtt/tsping/fping paths key verbatim.
+						reflector=${reflector%:} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"
 
@@ -1866,7 +1870,7 @@ do
 
 					t_last_reflector_comparison_us=${t_start_us}
 
-					[[ "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" ]] || continue
+					[[ "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${dl_owd_delta_ewmas_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_delta_ewmas_us[${reflectors[0]}]:-}" ]] || continue
 
 					((
 						min_sum_owd_baselines_us = dl_owd_baselines_us[${reflectors[0]}] + ul_owd_baselines_us[${reflectors[0]}],
