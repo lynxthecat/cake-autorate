@@ -1,0 +1,28 @@
+[Unit]
+Description=cake-autorate for %I
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device
+
+[Service]
+AmbientCapabilities=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW
+Environment="CAKE_AUTORATE_SCRIPT_PREFIX=/opt/cake-autorate" "CAKE_AUTORATE_CONFIG_PREFIX=/etc/cake-autorate"
+ExecStart=/opt/cake-autorate/cake-autorate.sh ${CAKE_AUTORATE_CONFIG_PREFIX}/config.%I.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+Restart=on-failure
+RestartMode=direct
+RestartSec=5
+RestrictAddressFamilies=AF_INET
+RestrictAddressFamilies=AF_INET6
+RestrictAddressFamilies=AF_NETLINK
+RestrictAddressFamilies=AF_UNIX
+RuntimeDirectory=cake-autorate
+StandardOutput=journal
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
