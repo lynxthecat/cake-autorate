@@ -1,0 +1,17 @@
+[Unit]
+Description=cake-autorate for %i
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device
+
+[Service]
+Environment="CAKE_AUTORATE_SCRIPT_PREFIX=/opt/cake-autorate"
+ExecStartPre=/opt/cake-autorate/ifb-setup.sh %i
+ExecStart=/opt/cake-autorate/launcher.sh
+Restart=on-failure
+RestartMode=direct
+RestartSec=5
+TimeoutStopSec=10
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

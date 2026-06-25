@@ -7,6 +7,10 @@ more about cake-autorate. This is the history of changes.
 
 <!-- Zep7RkGZ52|NEW ENTRY MARKER, DO NOT REMOVE -->
 
+## [Unreleased]
+
+- Introduce support for running on Debian/Ubuntu
+
 ## 2026-03-04 - Version 3.5.0
 
 - Introduce MQTT data export functionality

@@ -32,7 +32,7 @@ main() {
 	set -eu
 
 	# Setup dependencies to check for
-	DEPENDENCIES="jsonfilter tar grep cmp mktemp bash"
+	DEPENDENCIES="tar grep cmp mktemp bash"
 
 	# Set up remote locations and branch
 	BRANCH="${CAKE_AUTORATE_BRANCH:-${2-master}}"
@@ -62,8 +62,22 @@ main() {
 		if [ "${x}" = "openwrt" ]
 		then
 			MY_OS=openwrt
+			DEPENDENCIES="jsonfilter ${DEPENDENCIES}"
 			[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/root/cake-autorate
 			[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/root/cake-autorate
+			break
+		fi
+	done
+
+	# Check if OS is part of the Debian family
+	for x in ${ID_LIKE:-}
+	do
+		if [ "${x}" = "debian" ]
+		then
+			MY_OS=debian
+			DEPENDENCIES="jq ${DEPENDENCIES}"
+			[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/opt/cake-autorate
+			[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/etc/cake-autorate
 			break
 		fi
 	done
@@ -72,6 +86,7 @@ main() {
 	if [ "$(uname -o)" = "ASUSWRT-Merlin" ]
 	then
 		MY_OS=asuswrt
+		DEPENDENCIES="jsonfilter ${DEPENDENCIES}"
 		[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/jffs/scripts/cake-autorate
 		[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/jffs/configs/cake-autorate
 	fi
@@ -79,7 +94,7 @@ main() {
 	# If we are not running on OpenWRT or ASUSWRT-Merlin, exit
 	if [ "${MY_OS}" = "unknown" ]
 	then
-		printf "This script requires OpenWrt or ASUSWRT-Merlin\n" >&2
+		printf "The current operating system is not supported\n" >&2
 		return 1
 	fi
 
@@ -127,7 +142,13 @@ main() {
 
 	# Get the latest commit to download
 	[ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ] && \
-		commit=$(download_url "${API_URL}" | jsonfilter -e @.sha) || \
+		if [ "${MY_OS}" = "openwrt" ] || [ "${MY_OS}" = "asuswrt" ]
+		then
+			JSON_CMD="jsonfilter -e @.sha"
+		else
+			JSON_CMD="jq -r .sha"
+		fi
+		commit=$(download_url "${API_URL}" | ${JSON_CMD}) || \
 		commit="${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT}"
 	if [ -z "${commit:-}" ];
 	then
@@ -239,6 +260,12 @@ main() {
 		chmod +x /etc/init.d/mqtt-publisher
 	fi
 
+	if [ "${MY_OS}" = "debian" ]
+	then
+		mv "${tmp}/cake-autorate@.service" "/etc/systemd/system/"
+		mv "${tmp}/ifb-setup.sh" "${SCRIPT_PREFIX}/"
+	fi
+
 	# Get version and generate a file containing version information
 	cd "${SCRIPT_PREFIX}"
 	version=$(grep -m 1 ^cake_autorate_version= "${SCRIPT_PREFIX}/cake-autorate.sh" | cut -d= -f2 | cut -d'"' -f2)
@@ -266,6 +293,10 @@ main() {
 			printf '%s\n' "   echo ${SCRIPT_PREFIX}/launcher.sh > /opt/etc/init.d/S99cake-autorate"
 			printf '%s\n' "   chmod +x /opt/etc/init.d/S99cake-autorate"
 			printf '%s\n\n' "See also: https://github.com/RMerl/asuswrt-merlin.ng/wiki/User-scripts"
+			;;
+		"debian")
+			printf '%s\n' "Run as a service with:"
+			printf '%s\n\n' "   systemctl enable --now cake-autorate@<interface>.service"
 			;;
 		*)
 			;;

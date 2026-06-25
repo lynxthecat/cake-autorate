@@ -36,6 +36,18 @@ main() {
 		fi
 	done
 
+	# Check if OS is part of the Debian family
+	for x in ${ID_LIKE:-}
+	do
+		if [ "${x}" = "debian" ]
+		then
+			MY_OS=debian
+			[ -z "${SCRIPT_PREFIX}" ] && SCRIPT_PREFIX=/opt/cake-autorate
+			[ -z "${CONFIG_PREFIX}" ] && CONFIG_PREFIX=/etc/cake-autorate
+			break
+		fi
+	done
+
 	# Check if OS is ASUSWRT-Merlin
 	if [ "$(uname -o)" = "ASUSWRT-Merlin" ]
 	then
@@ -47,21 +59,30 @@ main() {
 	# If we are not running on OpenWRT or ASUSWRT-Merlin, exit
 	if [ "${MY_OS}" = "unknown" ]
 	then
-		printf "This script requires OpenWrt or ASUSWRT-Merlin\n" >&2
+		printf "The current operating system is not supported\n" >&2
 		return 1
 	fi
 
-	# Stop cake-autorate before continueing
-	if [ -x /etc/init.d/cake-autorate ]
+	if [ "${MY_OS}" = "asuswrt" ] || [ "${MY_OS}" = "openwrt" ]
 	then
-		/etc/init.d/cake-autorate stop || :
+		# Stop cake-autorate before continuing
+		if [ -x /etc/init.d/cake-autorate ]
+		then
+			/etc/init.d/cake-autorate stop || :
+		fi
+		if [ -x /etc/init.d/mqtt-publisher ]
+		then
+			/etc/init.d/mqtt-publisher stop || :
+		fi
+		rm -f /etc/init.d/cake-autorate /etc/rc.d/*cake-autorate
+		rm -f /etc/init.d/mqtt-publisher /etc/rc.d/*mqtt-publisher
 	fi
-	if [ -x /etc/init.d/mqtt-publisher ]
+
+	if [ "${MY_OS}" = "debian" ]
 	then
-		/etc/init.d/mqtt-publisher stop || :
+		systemctl disable --now cake-autorate@.service || :
+		rm -f /etc/systemd/system/cake-autorate@.service
 	fi
-	rm -f /etc/init.d/cake-autorate /etc/rc.d/*cake-autorate
-	rm -f /etc/init.d/mqtt-publisher /etc/rc.d/*mqtt-publisher
 
 	# Check if an instance of cake-autorate is already running and exit if so
 	if [ -d /var/run/cake-autorate ]
@@ -100,7 +121,7 @@ main() {
 
 	# remove current program files from the cake-autorate directory
 	cd "${SCRIPT_PREFIX}"
-	files="cake-autorate.sh defaults.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
+	files="cake-autorate.sh defaults.sh ifb-setup.sh launcher.sh lib.sh mqtt-publisher.sh setup.sh uninstall.sh"
 	for file in ${files}
 	do
 		rm -f "${file}"

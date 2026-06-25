@@ -78,6 +78,27 @@ required tools. To use it:
   sh /tmp/cake-autorate_setup.sh
   ```
 
+## Installation on Debian/Ubuntu
+
+Install prerequisites:
+
+```bash
+sudo apt install fping jq
+```
+
+Enable the service (assuming your WAN link is _wan1_):
+
+```bash
+sudo systemctl enable cake-autorate@wan1.service
+```
+
+Change the configuration and restart the service:
+
+```bash
+sudoedit /etc/cake-autorate/config.primary.sh
+sudo systemctl restart cake-autorate@wan1.service
+```
+
 ## Initial Configuration Steps (OpenWrt and Asus Merlin)
 
 - For a fresh install, you will need to undertake the following steps.
