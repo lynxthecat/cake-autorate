@@ -203,6 +203,12 @@ Also, for everyday use, consider disabling any unnecessary logging
 options, and especially: `output_summary_stats`,
 `output_processing_stats` and `output_load_stats`.
 
+Note that the MQTT publisher (`mqtt-publisher.sh`) is an exception: it
+derives its Home Assistant sensors from the `SUMMARY` (and `CPU`) log
+records, so any instance it should report needs `output_summary_stats=1`
+(and `output_cpu_stats=1` for the per-core CPU sensors); otherwise the
+sensors are created but never receive data.
+
 ## :stars: Stargazers <a name="stargazers"></a>
 
 [![Star History Chart](https://api.star-history.com/svg?repos=lynxthecat/cake-autorate&type=Date)](https://star-history.com/#lynxthecat/cake-autorate&Date)
