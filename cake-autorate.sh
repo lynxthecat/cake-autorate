@@ -129,6 +129,17 @@ cleanup_and_killall()
 	then
 		unset "proc_pids[intercept_stderr]"
 	fi
+
+	# The pingers were already terminated above via pinger_pids; their entries in
+	# proc_pids (irtt_N_pinger / tsping_pinger / fping_pinger / ping_N_pinger) are
+	# now stale, and after the grace sleep those PIDs may have been recycled to
+	# unrelated processes. Drop them so the sweep below only signals processes
+	# that genuinely remain.
+	for proc_pid in "${!proc_pids[@]}"
+	do
+		[[ ${proc_pid} == *_pinger ]] && unset "proc_pids[${proc_pid}]"
+	done
+
 	terminate "${proc_pids[*]}"
 
 	# restore original stderr, and terminate intercept_stderr
