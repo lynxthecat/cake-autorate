@@ -996,18 +996,11 @@ else
 	log_file_path="/var/log/cake-autorate${instance_id:+.${instance_id}}.log"
 fi
 
-rotate_log_file
-
-# save stderr fd, redirect stderr to intercept_stderr
-# intercept_stderr sends stderr to log_msg and exits cake-autorate
-exec {original_stderr_fd}>&2 2> >(intercept_stderr)
-
-proc_pids['intercept_stderr']=${!}
-
-log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
-
 # ${run_path}/ is used to store temporary files
-# it should not exist on startup so if it does exit, else create the directory
+# it should not exist on startup so if it does exit, else create the directory.
+# This must run BEFORE rotate_log_file: a redundant start of an already-running
+# instance has to exit *without* rotating (truncating) the log file the running
+# instance is still writing to, so the conflicting-instance check comes first.
 if [[ -d ${run_path} ]]
 then
 	if running_main_pid=$(get_running_main_pid_for_run_path "${run_path}")
@@ -1023,6 +1016,16 @@ then
 else
 	( umask 077 && mkdir -p "${run_path}" )
 fi
+
+rotate_log_file
+
+# save stderr fd, redirect stderr to intercept_stderr
+# intercept_stderr sends stderr to log_msg and exits cake-autorate
+exec {original_stderr_fd}>&2 2> >(intercept_stderr)
+
+proc_pids['intercept_stderr']=${!}
+
+log_msg "SYSLOG" "Starting cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
 proc_pids['main']=${BASHPID}
 
