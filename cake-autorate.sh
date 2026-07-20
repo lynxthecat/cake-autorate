@@ -786,15 +786,24 @@ set_shaper_rate()
 
 set_min_shaper_rates()
 {
-	# Drop both shapers to their configured minimum (idle / stall enforcement).
-	# Commit f3f20a0 deleted this function and inlined it on the IDLE path but
-	# left the stall call site (cake-autorate.sh, global ping-response timeout)
-	# calling the now-undefined name -> command-not-found -> intercept_stderr
-	# kills the daemon exactly when the clamp was wanted. Restore it as one
-	# function used by both sites.
-	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
-	set_shaper_rate "dl"
-	set_shaper_rate "ul"
+	# Drop the driven shapers to their configured minimum (idle / stall
+	# enforcement). Commit f3f20a0 deleted this function and inlined it on the
+	# IDLE path but left the stall call site (cake-autorate.sh, global
+	# ping-response timeout) calling the now-undefined name ->
+	# command-not-found -> intercept_stderr kills the daemon exactly when the
+	# clamp was wanted. Restore it as one function used by both sites.
+	#
+	# Only the driven directions are clamped: a monitor-only direction
+	# (adjust_${dir}_shaper_rate=0, absent from update_directions) must keep its
+	# internal rate pinned at base so load_percent stays referenced to the real
+	# fixed rate -- pinning it to min here would reintroduce the issue #377
+	# phantom load on the unmanaged direction.
+	local direction
+	for direction in "${update_directions[@]}"
+	do
+		shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}
+		set_shaper_rate "${direction}"
+	done
 }
 
 get_max_wire_packet_size_bits()
@@ -1295,6 +1304,24 @@ interface[dl]=${dl_if} interface[ul]=${ul_if} \
 adjust_shaper_rate[dl]=${adjust_dl_shaper_rate} adjust_shaper_rate[ul]=${adjust_ul_shaper_rate} \
 dl_max_wire_packet_size_bits=0 ul_max_wire_packet_size_bits=0
 
+# Decide once, at startup, which directions cake-autorate actually drives.
+# A direction with adjust_${dir}_shaper_rate=0 is monitor-only: its shaper rate
+# is never changed, so its internal shaper_rate_kbps must stay pinned at base
+# for load_percent to be computed against the real fixed rate (issue #377).
+# Resolving this here keeps the common both-directions case on exactly the same
+# hot path as before -- every site that mutates shaper_rate_kbps (the rate-update
+# loop, the min/max clamp, and set_min_shaper_rates) iterates this list, so a
+# driven-both config still loops over "dl ul" with no extra per-iteration test,
+# and a monitor-only direction is simply skipped.
+update_directions=()
+(( adjust_dl_shaper_rate )) && update_directions+=("dl")
+(( adjust_ul_shaper_rate )) && update_directions+=("ul")
+
+# load_percent for a monitor-only direction is referenced to base, so emit a
+# one-shot startup note that base must equal the real fixed CAKE bandwidth there.
+(( adjust_dl_shaper_rate )) || log_msg "DEBUG" "adjust_dl_shaper_rate=0 -- dl is monitor-only; load_percent[dl] is referenced to base_dl_shaper_rate_kbps (${base_dl_shaper_rate_kbps}), which should match the fixed download CAKE bandwidth on ${dl_if}."
+(( adjust_ul_shaper_rate )) || log_msg "DEBUG" "adjust_ul_shaper_rate=0 -- ul is monitor-only; load_percent[ul] is referenced to base_ul_shaper_rate_kbps (${base_ul_shaper_rate_kbps}), which should match the fixed upload CAKE bandwidth on ${ul_if}."
+
 get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
 
@@ -1711,8 +1738,9 @@ do
 				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
 				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
 
-				# Update shaper rates
-				for direction in dl ul
+				# Update shaper rates (driven directions only; a monitor-only
+				# direction keeps shaper_rate_kbps pinned at base -- see issue #377)
+				for direction in "${update_directions[@]}"
 				do
 					case ${load_condition[${direction}]} in
 
@@ -1794,13 +1822,17 @@ do
 					esac
 				done
 
-				# make sure that updated shaper rates fall between configured minimum and maximum shaper rates
-				((
-					shaper_rate_kbps[dl] < min_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]}) ||
-					shaper_rate_kbps[dl] > max_shaper_rate_kbps[dl] && (shaper_rate_kbps[dl]=${max_shaper_rate_kbps[dl]}),
-					shaper_rate_kbps[ul] < min_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${min_shaper_rate_kbps[ul]}) ||
-					shaper_rate_kbps[ul] > max_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${max_shaper_rate_kbps[ul]})
-				))
+				# make sure that updated shaper rates fall between configured minimum
+				# and maximum shaper rates (driven directions only -- a monitor-only
+				# direction stays pinned at base, otherwise this clamp would drag it
+				# off base whenever base lies outside [min,max], see issue #377)
+				for direction in "${update_directions[@]}"
+				do
+					((
+						shaper_rate_kbps[${direction}] < min_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${min_shaper_rate_kbps[${direction}]}) ||
+						shaper_rate_kbps[${direction}] > max_shaper_rate_kbps[${direction}] && (shaper_rate_kbps[${direction}]=${max_shaper_rate_kbps[${direction}]})
+					))
+				done
 
 				set_shaper_rate "dl"
 				set_shaper_rate "ul"
