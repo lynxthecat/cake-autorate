@@ -1090,8 +1090,19 @@ case ${pinger_method} in
 		;;
 esac
 
-# Check no_pingers <= no_reflectors
+# Check no_pingers is within bounds: at least 1, and no more than no_reflectors
+(( no_pingers < 1 )) && { log_msg "ERROR" "number of pingers must be at least 1. Exiting script."; exit 1; }
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
+
+# Check shaper rate bounds: 1 <= min <= base <= max for each direction. Without
+# this, base > max silently pins the link at max (the steady-state-is-base
+# contract is void), base < min pins it at min, and min = 0 reaches the
+# load_percent / compensation divides as a zero divisor -- the daemon is then
+# killed via intercept_stderr instead of exiting cleanly with a clear message.
+(( min_dl_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_dl_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
+(( min_ul_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_ul_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
+(( min_dl_shaper_rate_kbps > base_dl_shaper_rate_kbps || base_dl_shaper_rate_kbps > max_dl_shaper_rate_kbps )) && { log_msg "ERROR" "dl shaper rates must satisfy min <= base <= max. Exiting script."; exit 1; }
+(( min_ul_shaper_rate_kbps > base_ul_shaper_rate_kbps || base_ul_shaper_rate_kbps > max_ul_shaper_rate_kbps )) && { log_msg "ERROR" "ul shaper rates must satisfy min <= base <= max. Exiting script."; exit 1; }
 
 # Check dl/if interface not the same
 [[ "${dl_if}" == "${ul_if}" ]] && { log_msg "ERROR" "download interface and upload interface are both set to: '${dl_if}', but cannot be the same. Exiting script."; exit 1; }
