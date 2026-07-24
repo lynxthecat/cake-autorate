@@ -792,7 +792,7 @@ set_min_shaper_rates()
 	# calling the now-undefined name -> command-not-found -> intercept_stderr
 	# kills the daemon exactly when the clamp was wanted. Restore it as one
 	# function used by both sites.
-	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
+	shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]} shaper_rate_kbps[ul]=${min_shaper_rate_kbps[ul]}
 	set_shaper_rate "dl"
 	set_shaper_rate "ul"
 }
@@ -1294,6 +1294,25 @@ last_shaper_rate_kbps[dl]=0 last_shaper_rate_kbps[ul]=0 \
 interface[dl]=${dl_if} interface[ul]=${ul_if} \
 adjust_shaper_rate[dl]=${adjust_dl_shaper_rate} adjust_shaper_rate[ul]=${adjust_ul_shaper_rate} \
 dl_max_wire_packet_size_bits=0 ul_max_wire_packet_size_bits=0
+
+# A monitor-only direction (adjust_${direction}_shaper_rate=0) never has its
+# CAKE shaper changed, but its internal shaper_rate_kbps still divides into
+# load_percent. Collapse its runtime bounds onto base so that every existing
+# shaper_rate_kbps mutation site (the rate-update arms, the min/max clamp and
+# set_min_shaper_rates) lands the rate back on base, keeping load_percent
+# referenced to the real fixed rate without touching the rate-update hot path
+# (issue #377). base must therefore match the CAKE bandwidth actually fixed on
+# the interface -- noted at DEBUG for log forensics.
+if ((adjust_dl_shaper_rate == 0))
+then
+	min_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps} max_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps}
+	log_msg "DEBUG" "adjust_dl_shaper_rate=0 -- dl is monitor-only; load_percent[dl] is referenced to base_dl_shaper_rate_kbps (${base_dl_shaper_rate_kbps}), which should match the fixed download CAKE bandwidth on ${dl_if}."
+fi
+if ((adjust_ul_shaper_rate == 0))
+then
+	min_shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps} max_shaper_rate_kbps[ul]=${base_ul_shaper_rate_kbps}
+	log_msg "DEBUG" "adjust_ul_shaper_rate=0 -- ul is monitor-only; load_percent[ul] is referenced to base_ul_shaper_rate_kbps (${base_ul_shaper_rate_kbps}), which should match the fixed upload CAKE bandwidth on ${ul_if}."
+fi
 
 get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
