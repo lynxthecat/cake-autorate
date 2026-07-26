@@ -754,11 +754,11 @@ set_shaper_rate()
 
 	(( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] )) || return
 
-	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
+	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} ${qdisc_kind[${direction}]} bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
 
 	if ((adjust_shaper_rate[${direction}]))
 	then
-		tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
+		tc qdisc change root dev "${interface[${direction}]}" "${qdisc_kind[${direction}]}" bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
 	else
 		((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 	fi
@@ -795,6 +795,26 @@ set_min_shaper_rates()
 	shaper_rate_kbps[dl]=${min_dl_shaper_rate_kbps} shaper_rate_kbps[ul]=${min_ul_shaper_rate_kbps}
 	set_shaper_rate "dl"
 	set_shaper_rate "ul"
+}
+
+get_root_qdisc_kind()
+{
+	# cake is normally the root qdisc, but on a multi-queue interface it can be
+	# deployed as cake_mq, which owns the root and holds a per-queue cake under
+	# it (sqm-scripts selects it when num_queues > 1). 'tc qdisc change' matches
+	# on the root qdisc's own kind, so asking for 'cake' against a cake_mq root
+	# returns "Invalid qdisc name" - and because the call below sends stderr to
+	# /dev/null and ignores the exit status, cake-autorate would go on logging
+	# SHAPER lines while shaping nothing at all. Detect the kind once at startup
+	# and use whatever is actually there.
+	#
+	# Anything unrecognised falls back to 'cake', so behaviour on a conventional
+	# setup is byte-identical to before.
+
+	local direction=${1} # 'dl' or 'ul'
+
+	qdisc_kind[${direction}]=cake
+	[[ $(tc qdisc show root dev "${interface[${direction}]:?}") =~ ^qdisc[[:space:]]+(cake_mq|cake)[[:space:]] ]] && qdisc_kind[${direction}]=${BASH_REMATCH[1]}
 }
 
 get_max_wire_packet_size_bits()
@@ -1271,6 +1291,7 @@ base_shaper_rate_kbps \
 min_shaper_rate_kbps \
 max_shaper_rate_kbps \
 interface \
+qdisc_kind \
 adjust_shaper_rate \
 avg_owd_delta_us \
 avg_owd_delta_max_adjust_up_thr_us \
@@ -1294,6 +1315,9 @@ last_shaper_rate_kbps[dl]=0 last_shaper_rate_kbps[ul]=0 \
 interface[dl]=${dl_if} interface[ul]=${ul_if} \
 adjust_shaper_rate[dl]=${adjust_dl_shaper_rate} adjust_shaper_rate[ul]=${adjust_ul_shaper_rate} \
 dl_max_wire_packet_size_bits=0 ul_max_wire_packet_size_bits=0
+
+get_root_qdisc_kind "dl"
+get_root_qdisc_kind "ul"
 
 get_max_wire_packet_size_bits "${dl_if}" dl_max_wire_packet_size_bits
 get_max_wire_packet_size_bits "${ul_if}" ul_max_wire_packet_size_bits
