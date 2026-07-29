@@ -26,9 +26,8 @@ cleanup()
     for log_dir in "${log_dirs[@]}"; do
         for log_file_path in "${log_dir}"/cake-autorate.*.log; do
             local instance="$(basename "${log_file_path}" | sed -E 's/^cake-autorate\.([^.]+)\.log$/\1/')"
-            mosquitto_pub \
+            XDG_CONFIG_HOME="${mqtt_config_dir}" mosquitto_pub \
                 -h "$MQTT_HOST" -p "$MQTT_PORT" \
-                -u "$MQTT_USER" -P "$MQTT_PASS" \
                 -r -q 1 \
                 -t "${BASE_MQTT_TOPIC}/${instance}/availability" \
                 -m "offline" 2>/dev/null || true
@@ -38,6 +37,8 @@ cleanup()
     for pid in "${publish_stats_pids[@]}"; do
         kill -- -"$pid" 2>/dev/null || true
     done
+    # after the shutdown publishes above, which still need to authenticate
+    rm -rf "${mqtt_config_dir}"
     exit 0
 }
 
@@ -47,9 +48,8 @@ publish_config()
     local object_id="$2"
     local payload="$3"
 
-    mosquitto_pub \
+    XDG_CONFIG_HOME="${mqtt_config_dir}" mosquitto_pub \
         -h "$MQTT_HOST" -p "$MQTT_PORT" \
-        -u "$MQTT_USER" -P "$MQTT_PASS" \
         -r -q 1 \
         -t "$DISC_PREFIX/sensor/$device_id/$object_id/config" \
         -m "$payload"
@@ -115,9 +115,8 @@ publish_stats()
     while true; do
         # Publish birth message (retained) to mark sensors as available
         # on initial connect and after any reconnect.
-        mosquitto_pub \
+        XDG_CONFIG_HOME="${mqtt_config_dir}" mosquitto_pub \
             -h "$MQTT_HOST" -p "$MQTT_PORT" \
-            -u "$MQTT_USER" -P "$MQTT_PASS" \
             -r -q 1 \
             -t "$AVAIL_TOPIC" \
             -m "online"
@@ -200,9 +199,8 @@ publish_stats()
                 fflush("")
             }
         }
-        ' | mosquitto_pub \
+        ' | XDG_CONFIG_HOME="${mqtt_config_dir}" mosquitto_pub \
             -h "$MQTT_HOST" -p "$MQTT_PORT" \
-            -u "$MQTT_USER" -P "$MQTT_PASS" \
             -t "$MQTT_TOPIC" -l -q 1 \
             --will-topic "$AVAIL_TOPIC" \
             --will-payload "offline" \
@@ -255,6 +253,21 @@ shopt -u nullglob
 
 if (( ! any_stats_enabled )); then
     echo "WARNING: no cake-autorate config enables output_summary_stats=1 or output_cpu_stats=1 -- the Home Assistant sensors will be created via discovery but stay empty, because the SUMMARY/CPU log records the publisher reads are never produced. Enable output_summary_stats=1 (and/or output_cpu_stats=1) in the relevant config." >&2
+fi
+
+# Keep the broker credentials off the command line.
+#
+# mosquitto_pub exposes -u/-P in /proc/<pid>/cmdline, and the streaming
+# publisher below is long-lived, so the password would otherwise be readable
+# by every process on the box for as long as this runs. mosquitto's clients
+# read a default config file at $XDG_CONFIG_HOME/mosquitto_pub and feed its
+# lines through the same option parser as argv, so the credentials can travel
+# there instead. That path exists in the mosquitto 2.0.x OpenWrt ships; the -o
+# options-file flag would need 2.1.0. mktemp -d gives us a 0700 directory and
+# the trap below removes it.
+mqtt_config_dir=$(mktemp -d) || { echo "ERROR: failed to create a private directory for the MQTT credentials" >&2; exit 1; }
+if [[ -n ${MQTT_USER} || -n ${MQTT_PASS} ]]; then
+    ( umask 077; printf '%s\n' "-u ${MQTT_USER}" "-P ${MQTT_PASS}" > "${mqtt_config_dir}/mosquitto_pub" )
 fi
 
 trap cleanup INT TERM EXIT
