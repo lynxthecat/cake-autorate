@@ -1464,7 +1464,15 @@ do
 					fi
 					;;
 				fping)
-					if ((${#command[@]} == 12))
+					# fping reports a negative RTT when the clock steps backwards
+					# mid-ping: it prints such a value rather than clamping it, and
+					# 10#${rtt_us//.} cannot represent a negative, so the arithmetic
+					# error kills the main loop. Reject any RTT token carrying a
+					# character outside [0-9.] — a glob class check, not a regex,
+					# since [[ =~ ]] recompiles the ERE on every sample.
+					# The ping arm needs no equivalent: iputils clamps a backward
+					# step to zero instead of reporting it.
+					if ((${#command[@]} == 12)) && [[ ${command[6]} != *[!0-9.]* ]]
 					then
 						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
 					fi
