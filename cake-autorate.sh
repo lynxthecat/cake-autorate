@@ -514,60 +514,40 @@ start_pinger()
 		irtt)
 			sleep_until_next_pinger_time_slot "${pinger}"
 
+			# The raw stream (-r) carries neither the reflector nor a wall-clock
+			# timestamp, and every pinger shares the one response fd, so a
+			# plain-bash helper prefixes both onto each line; the parsing itself
+			# lives with the other pinger methods in the main loop. A server-side
+			# max duration clamps the negotiated session and the client just
+			# exits, so the helper also respawns the client, rate-limited when
+			# the stream dies quickly (unreachable reflector, refused dial).
+			# --loose accepts server-restricted test parameters (e.g. a public
+			# server's min send interval): without it the client exits pre-test
+			# on any restriction and the respawn loop would spin forever
+			# producing zero samples.
+			local irtt_target=${reflectors[$pinger]}
+			[[ ${irtt_target} == *:* ]] && irtt_target="[${irtt_target}]"
+
 			# shellcheck disable=SC2155  # the subshell status (echo $!) is intentionally unused
 			local pinger_pid=$( (
 				set -m
-				${ping_prefix_string} gawk -v extra_args="${ping_extra_args}" -v interval_s="${reflector_ping_interval_s}" -v duration_m="${irtt_session_duration_m}" -v reflector="${reflectors[$pinger]}" -f <(cat <<-'EOT'
-				@load "time"
-
-				function to_us(val, mult)
 				{
-					# Test bare /s$/ LAST: "5µs" and "5ns" also end in "s", so an
-					# earlier /s$/ branch would swallow them (mult=1000000) and the
-					# µs/ns branches would be unreachable -> sub-ms OWDs inflated 10^6x.
-					mult = (val ~ /ms$/) ? 1000    : \
-						   (val ~ /µs$/) ? 1       : \
-						   (val ~ /ns$/) ? 0.001   : \
-						   (val ~ /s$/)  ? 1000000 : -1
+					while :
+					do
+						session_start_s=${SECONDS}
 
-					if (val ~ /^-/ || mult < 0) return -1
-					return sprintf("%.0f", val * mult)
-				}
+						${ping_prefix_string} irtt client -s -r --loose ${ping_extra_args} -i "${reflector_ping_interval_s}s" "${irtt_target}" |
+							while read -r irtt_line
+							do
+								printf '%s %s %s\n' "${EPOCHREALTIME/.}" "${reflectors[$pinger]}" "${irtt_line}"
+							done
 
-				BEGIN {
-					FS = "[= ]+"
-
-					irtt_cmd = sprintf("stdbuf -oL irtt client %s -i '%ss' -d '%sm' '%s'", extra_args, interval_s, duration_m, (reflector ~ /:/ ? "[" reflector "]" : reflector))
-
-					while (1)
-					{
-						start_time = systime()
-
-						while ((irtt_cmd | getline) > 0)
-						{
-							if (/seq=/ && /rd=/ && /sd=/)
-							{
-								ts = gensub(/\./, "", 1, sprintf("%.6f", gettimeofday()))
-								seq = $2; dl_owd = to_us($6); ul_owd = to_us($8)
-
-								if (dl_owd >= 0 && ul_owd >= 0)
-								{
-									printf("%s %s %d %d %d\n", ts, reflector, seq, dl_owd, ul_owd)
-									fflush("")
-								}
-							}
-							else if (/WaitForPackets/)
-							{
-								break
-							}
-						}
-
-						close(irtt_cmd)
-						if (systime() - start_time < 3) system("sleep 1")
-					}
-				}
-				EOT
-				) 2> /dev/null >&"${main_fd}" &
+						if (( SECONDS - session_start_s < 3 ))
+						then
+							sleep 1
+						fi
+					done
+				} 2> /dev/null >&"${main_fd}" &
 				echo $!
 			) )
 
@@ -1064,14 +1044,12 @@ then
 	log_msg "DEBUG" "Local list of reflectors now contains ${#reflectors[*]} entries."
 fi
 
-# Validate every reflector before use. For pinger_method=irtt a reflector is
-# interpolated into a shell command (gawk builds "irtt client ... '<reflector>'"
-# and runs it via | getline), so a reflector containing shell metacharacters is
-# command injection -- and reflectors can come unvalidated from the remote
-# reflectors_url (fetched over the network above, possibly without TLS) or from
-# a hand-edited config. Allow only IP-/hostname-shaped strings (no quotes, ';',
-# spaces, '$', etc.); the first char excludes '-' (blocks option injection) but
-# admits ':' for compressed IPv6 (e.g. ::1, ::ffff:1.2.3.4).
+# Validate every reflector before use. Reflectors can come unvalidated from the
+# remote reflectors_url (fetched over the network above, possibly without TLS)
+# or from a hand-edited config, and every pinger method hands them to its ping
+# binary as command-line arguments. Allow only IP-/hostname-shaped strings (no
+# quotes, ';', spaces, '$', etc.); the first char excludes '-' (blocks option
+# injection) but admits ':' for compressed IPv6 (e.g. ::1, ::ffff:1.2.3.4).
 for reflector in "${reflectors[@]}"
 do
 	[[ ${reflector} =~ ^[0-9A-Za-z:][0-9A-Za-z.:_-]*$ ]] || { log_msg "ERROR" "Invalid reflector '${reflector}': must be an IP address or hostname. Exiting script."; exit 1; }
@@ -1086,15 +1064,18 @@ case ${pinger_method} in
 		command -v "fping" &> /dev/null || { log_msg "ERROR" "ping binary fping does not exist. Exiting script."; exit 1; }
 		;;
 	irtt)
-		# The irtt path hard-requires gawk (gawk -f), the gawk-only 'time'
-		# extension (systime/gettimeofday) and stdbuf -- none of which are the
-		# 'irtt' binary. Without them the gawk pinger dies, but its stderr is
-		# /dev/null so the daemon is NOT killed: it silently produces no data and
-		# pins CAKE at the min rates. Name the missing dependency up front.
-		command -v "irtt"   &> /dev/null || { log_msg "ERROR" "ping binary irtt does not exist. Exiting script."; exit 1; }
-		command -v "gawk"   &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires gawk. Exiting script."; exit 1; }
-		command -v "stdbuf" &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires stdbuf (coreutils). Exiting script."; exit 1; }
-		gawk '@load "time"; BEGIN{exit}' < /dev/null &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires the gawk 'time' extension (gawk-gawkextra). Exiting script."; exit 1; }
+		# An irtt too old for streaming mode (< 0.9.2) rejects -s at every
+		# respawn, but the helper's stderr is /dev/null so the daemon is NOT
+		# killed: it silently produces no data and pins CAKE at the min rates.
+		# Probe the client help text for the capability up front instead. The
+		# help goes to stderr and 'irtt client -h' exits 2, so no pipe to grep
+		# (pipefail would poison the status even on a match); read -t bounds
+		# the probe so a non-conforming irtt that never exits on -h fails the
+		# check instead of hanging startup with no ERROR ever logged.
+		command -v "irtt" &> /dev/null || { log_msg "ERROR" "ping binary irtt does not exist. Exiting script."; exit 1; }
+		irtt_help=""
+		read -r -t 5 -d '' irtt_help < <(irtt client -h 2>&1)
+		[[ ${irtt_help} == *"streaming mode"* ]] || { log_msg "ERROR" "pinger_method=irtt requires irtt >= 0.9.2 (streaming mode). Exiting script."; exit 1; }
 		;;
 	*)
 		command -v "${pinger_method}" &> /dev/null || { log_msg "ERROR" "ping binary ${pinger_method} does not exist. Exiting script."; exit 1; }
@@ -1452,9 +1433,17 @@ do
 			case "${pinger_method}" in
 
 				irtt)
-					if ((${#command[@]} == 5))
+					# helper-prefixed raw stream line:
+					# ts reflector seqno rtt rd sd ipdv dup late
+					# rd/sd are the DL/UL OWDs in fixed-unit ms; ipdv is NaN on
+					# the first reply of a session, so it never gates a sample.
+					# The glob checks (patterns, not regexes: [[ =~ ]] recompiles
+					# the ERE every sample) drop NaN OWDs (no server timestamps),
+					# negative OWDs (client and server clocks out of step) and
+					# duplicates (dup=1 lines carry NaN OWDs by construction).
+					if ((${#command[@]} == 9)) && [[ ${command[4]} != *[!0-9.]* && ${command[5]} != *[!0-9.]* ]]
 					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_us=${command[3]} ul_owd_us=${command[4]} reflector_response=1
+						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_ms=${command[4]} ul_owd_ms=${command[5]} reflector_response=1
 					fi
 					;;
 				tsping)
@@ -1528,7 +1517,13 @@ do
 				case ${pinger_method} in
 
 					irtt)
+						printf -v dl_owd_us %.3f "${dl_owd_ms}"
+						printf -v ul_owd_us %.3f "${ul_owd_ms}"
+
 						((
+							dl_owd_us=10#${dl_owd_us//.},
+							ul_owd_us=10#${ul_owd_us//.},
+
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 							ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
 

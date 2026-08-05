@@ -169,10 +169,10 @@ ping_extra_args=""
 # WARNING: no error checking - so use at own risk!
 ping_prefix_string=""
 
-# duration in minutes for each irtt session
-# irtt stores all results in-memory during a session
-# longer durations increase memory usage
-# lower values reduce memory but can cause gaps in data during session restarts
+# DEPRECATED and ignored: irtt sessions are now unbounded (streaming mode -s),
+# so there is no per-session in-memory result set left to cap and no periodic
+# session restart. The key is retained so existing config files that set it
+# remain valid.
 irtt_session_duration_m=10 # (minutes)
 
 # interval in ms for monitoring achieved rx/tx rates
