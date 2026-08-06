@@ -593,7 +593,7 @@ start_pinger()
 			;;
 		ping)
 			sleep_until_next_pinger_time_slot "${pinger}"
-			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
+			${ping_prefix_string} ping ${ping_extra_args} -D -n -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
 			pinger_pids[pinger]=${!}
 			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[pinger]}
 			;;
