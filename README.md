@@ -211,4 +211,4 @@ sensors are created but never receive data.
 
 ## :stars: Stargazers <a name="stargazers"></a>
 
-[![Star History Chart](https://api.star-history.dera.page/svg?repos=lynxthecat/cake-autorate&type=Date)](https://star-history.dera.page/#lynxthecat/cake-autorate&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=lynxthecat/cake-autorate)](https://star-history.dera.page/#lynxthecat/cake-autorate)
