@@ -750,38 +750,64 @@ set_shaper_rate()
 {
 	# Fire up tc and update max_wire_packet_compensation if there are rates to change for the given direction
 
-	local direction=${1} # 'dl' or 'ul'
+	local direction=${1} tc_status=0 # 'dl' or 'ul'
 
-	(( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] )) || return
+	(( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] )) || return 0
 
 	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
 
 	if ((adjust_shaper_rate[${direction}]))
 	then
-		tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
+		tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null || tc_status=${?}
+		((tc_status)) && log_msg "ERROR" "tc failed with status ${tc_status} while setting ${direction} shaper on ${interface[${direction}]} to ${shaper_rate_kbps[${direction}]}Kbit."
 	else
 		((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
 	fi
 
-	# Compensate for delays imposed by active traffic shaper
-	# This will serve to increase the delay thr at rates below around 12Mbit/s
-	((
-		dl_compensation_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl],
-		ul_compensation_us=(1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
-
-		compensated_avg_owd_delta_max_adjust_up_thr_us[dl]=dl_avg_owd_delta_max_adjust_up_thr_us + dl_compensation_us,
-		compensated_avg_owd_delta_max_adjust_up_thr_us[ul]=ul_avg_owd_delta_max_adjust_up_thr_us + ul_compensation_us,
-
-		compensated_owd_delta_delay_thr_us[dl]=dl_owd_delta_delay_thr_us + dl_compensation_us,
-		compensated_owd_delta_delay_thr_us[ul]=ul_owd_delta_delay_thr_us + ul_compensation_us,
-
-		compensated_avg_owd_delta_max_adjust_down_thr_us[dl]=dl_avg_owd_delta_max_adjust_down_thr_us + dl_compensation_us,
-		compensated_avg_owd_delta_max_adjust_down_thr_us[ul]=ul_avg_owd_delta_max_adjust_down_thr_us + ul_compensation_us,
-
-		max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
-
+	if ((tc_status == 0))
+	then
 		last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
-	))
+
+		# Compensate only for rates known to be installed. On a failed tc
+		# change, retaining the previous compensation keeps the control loop
+		# consistent with the qdisc and leaves this rate pending for retry.
+		if ((last_shaper_rate_kbps[dl] && last_shaper_rate_kbps[ul]))
+		then
+			((
+				dl_compensation_us=(1000*dl_max_wire_packet_size_bits)/last_shaper_rate_kbps[dl],
+				ul_compensation_us=(1000*ul_max_wire_packet_size_bits)/last_shaper_rate_kbps[ul],
+
+				compensated_avg_owd_delta_max_adjust_up_thr_us[dl]=dl_avg_owd_delta_max_adjust_up_thr_us + dl_compensation_us,
+				compensated_avg_owd_delta_max_adjust_up_thr_us[ul]=ul_avg_owd_delta_max_adjust_up_thr_us + ul_compensation_us,
+
+				compensated_owd_delta_delay_thr_us[dl]=dl_owd_delta_delay_thr_us + dl_compensation_us,
+				compensated_owd_delta_delay_thr_us[ul]=ul_owd_delta_delay_thr_us + ul_compensation_us,
+
+				compensated_avg_owd_delta_max_adjust_down_thr_us[dl]=dl_avg_owd_delta_max_adjust_down_thr_us + dl_compensation_us,
+				compensated_avg_owd_delta_max_adjust_down_thr_us[ul]=ul_avg_owd_delta_max_adjust_down_thr_us + ul_compensation_us,
+
+				max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/last_shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/last_shaper_rate_kbps[ul]
+			))
+		fi
+	fi
+	return "${tc_status}"
+}
+
+initialize_shaper_rates()
+{
+	local dl_tc_status ul_tc_status
+
+	set_shaper_rate "dl"
+	dl_tc_status=${?}
+	set_shaper_rate "ul"
+	ul_tc_status=${?}
+
+	if ((dl_tc_status || ul_tc_status))
+	then
+		log_msg "ERROR" "Initial CAKE shaper rate configuration failed. Exiting script."
+		return 1
+	fi
+	return 0
 }
 
 set_min_shaper_rates()
@@ -1323,8 +1349,9 @@ avg_owd_delta_us[dl]=0 avg_owd_delta_us[ul]=0
 avg_owd_delta_max_adjust_up_thr_us[dl]=${dl_avg_owd_delta_max_adjust_up_thr_us} avg_owd_delta_max_adjust_up_thr_us[ul]=${ul_avg_owd_delta_max_adjust_up_thr_us} \
 avg_owd_delta_max_adjust_down_thr_us[dl]=${dl_avg_owd_delta_max_adjust_down_thr_us} avg_owd_delta_max_adjust_down_thr_us[ul]=${ul_avg_owd_delta_max_adjust_down_thr_us}
 
-set_shaper_rate "dl"
-set_shaper_rate "ul"
+initialize_shaper_rates
+initial_shaper_rate_status=${?}
+((initial_shaper_rate_status)) && exit 1
 
 dl_rate_load_condition="idle" ul_rate_load_condition="idle"
 
