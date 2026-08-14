@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# No child processes need cleanup during prefix and function discovery.
+trap 'exit 0' INT TERM
+
 # cake-autorate automatically adjusts CAKE bandwidth(s)
 # in dependence on: a) receive and transmit transfer rates; and b) latency
 # (or can just be used to monitor and log transfer rates and latency)
@@ -94,18 +97,25 @@ fi
 # get valid config overrides
 mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${SCRIPT_PREFIX}/defaults.sh" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
 
-trap cleanup_and_killall INT TERM EXIT
-
 cleanup_and_killall()
 {	
+	local exit_status=${1:-0} config_path_for_log=${config_path:-unknown}
+
 	# Do not fail on error for this critical cleanup code
 	set +e
+	set +u
 
 	trap : INT TERM EXIT
+
+	if [[ -n ${run_path:-} && -f ${run_path}/fatal_error ]]
+	then
+		read -r exit_status < "${run_path}/fatal_error" 2>/dev/null || exit_status=1
+		[[ ${exit_status} =~ ^[0-9]+$ ]] || exit_status=1
+	fi
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	
-	log_msg "INFO" "Stopping cake-autorate with PID: ${BASHPID} and config: ${config_path}"
+	log_msg "INFO" "Stopping cake-autorate with PID: ${BASHPID} and config: ${config_path_for_log}"
 	
 	log_msg "INFO" "Killing all background processes and cleaning up temporary files."
 
@@ -116,7 +126,7 @@ cleanup_and_killall()
 	((terminate_maintain_log_file_timeout_ms=log_file_buffer_timeout_ms+500))
 	terminate "${proc_pids['maintain_log_file']:-}" "${terminate_maintain_log_file_timeout_ms}"
 
-	[[ -d ${run_path} ]] && rm -r "${run_path}"
+	[[ -n ${run_path:-} && -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
 
 	# give some time for processes to gracefully exit
@@ -149,10 +159,23 @@ cleanup_and_killall()
 		terminate "${intercept_stderr_pid}"
 	fi
 
-	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
+	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path_for_log}"
 
 	trap - INT TERM EXIT
-	exit
+	exit "${exit_status}"
+}
+
+request_fatal_exit()
+{
+	local exit_status=${1:-1}
+
+	if [[ -n ${run_path:-} && -d ${run_path} ]]
+	then
+		printf '%s\n' "${exit_status}" > "${run_path}/fatal_error" 2>/dev/null || :
+	fi
+
+	kill -TERM "$$" 2>/dev/null || :
+	exit "${exit_status}"
 }
 
 log_msg()
@@ -599,7 +622,7 @@ start_pinger()
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
-			kill $$ 2>/dev/null
+			exit 1
 			;;
 	esac
 
@@ -624,7 +647,7 @@ start_pingers()
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
-			kill $$ 2>/dev/null
+			exit 1
 			;;
 	esac
 	pingers_active=1
@@ -681,7 +704,7 @@ stop_pingers()
 			;;
 		*)
 			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
-			kill $$ 2>/dev/null
+			exit 1
 			;;
 	esac
 	pingers_active=0
@@ -844,7 +867,7 @@ change_state_main()
 		*)
 
 			log_msg "ERROR" "Received unrecognized main state change request: ${main_next_state}. Exiting now."
-			kill $$ 2>/dev/null
+			exit 1
 			;;
 	esac
 }
@@ -857,7 +880,7 @@ intercept_stderr()
 	while read -r error
 	do
 		log_msg "ERROR" "${error}"
-		kill $$ 2>/dev/null
+		request_fatal_exit 1
 	done
 }
 
@@ -906,6 +929,10 @@ validate_config_entry() {
 		printf '%s' "${valid_type}"
 	fi
 }
+
+trap 'cleanup_and_killall 0' INT
+trap 'cleanup_and_killall 0' TERM
+trap 'cleanup_and_killall "$?"' EXIT
 
 # ======= Start of the Main Routine ========
 
@@ -1491,7 +1518,7 @@ do
 					;;
 				*)
 					log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
-					kill $$ 2>/dev/null
+					exit 1
 				;;
 			esac
 			;;
@@ -1816,7 +1843,7 @@ do
 							;;
 						*)
 							log_msg "ERROR" "unknown load condition: ${load_condition[${direction}]}"
-							kill $$ 2>/dev/null
+							exit 1
 							;;
 					esac
 				done

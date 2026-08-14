@@ -1,9 +1,100 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
+trap 'exit 0' INT TERM
+exec {cleanup_sleep_fd}<> <(:)
+
+operator_stop_requested=0
+supervision_ready=0
+trap 'operator_stop_requested=1; ((supervision_ready)) && exit 0' INT TERM
+
 # An unmatched glob must expand to nothing (not the literal pattern), so a
 # missing config set yields an empty array instead of a bogus instance path.
 shopt -s nullglob
+
+declare -A active_cake_instance_pids=()
+declare -A cake_instance_pgids=()
+
+process_group_exists()
+{
+	local pgid=${1}
+
+	kill -0 -- "-${pgid}" 2>/dev/null
+}
+
+# Called by cleanup_and_exit, which is invoked indirectly by the EXIT trap.
+# shellcheck disable=SC2329
+prune_empty_instance_groups()
+{
+	local pgid
+
+	for pgid in "${!cake_instance_pgids[@]}"
+	do
+		process_group_exists "${pgid}" || unset "cake_instance_pgids[${pgid}]"
+	done
+}
+
+# Invoked indirectly by the EXIT trap.
+# shellcheck disable=SC2329
+cleanup_and_exit()
+{
+	local exit_status=${1:-1} cake_instance_pid pgid check
+
+	trap '' INT TERM
+	trap - EXIT
+
+	prune_empty_instance_groups
+	# Bash has no pidfd-like handle for a process group, so an empty PGID could in
+	# theory be reused between this probe and a signal. Signalling immediately and
+	# creating no polling subprocesses keeps that unavoidable window minimal.
+	for pgid in "${!cake_instance_pgids[@]}"
+	do
+		kill -TERM -- "-${pgid}" 2>/dev/null || true
+		kill -CONT -- "-${pgid}" 2>/dev/null || true
+	done
+
+	# Give every instance group up to three seconds to stop gracefully. A PGID
+	# cannot be reused while any member remains in that group.
+	for ((check=0; check<30 && ${#cake_instance_pgids[@]}; check++))
+	do
+		prune_empty_instance_groups
+		((${#cake_instance_pgids[@]})) && read -r -t 0.1 -u "${cleanup_sleep_fd}" || true
+	done
+
+	prune_empty_instance_groups
+	for pgid in "${!cake_instance_pgids[@]}"
+	do
+		kill -KILL -- "-${pgid}" 2>/dev/null || true
+	done
+
+	# Do not let a direct wait defeat the cleanup bound. Once its process group is
+	# empty, the direct child has terminated and wait only consumes saved status.
+	for ((check=0; check<10 && ${#cake_instance_pgids[@]}; check++))
+	do
+		prune_empty_instance_groups
+		((${#cake_instance_pgids[@]})) && read -r -t 0.1 -u "${cleanup_sleep_fd}" || true
+	done
+	for cake_instance_pid in "${!active_cake_instance_pids[@]}"
+	do
+		if ! process_group_exists "${cake_instance_pid}"
+		then
+			wait "${cake_instance_pid}" 2>/dev/null || true
+		fi
+		unset "active_cake_instance_pids[${cake_instance_pid}]"
+	done
+
+	exit "${exit_status}"
+}
+
+trap 'cleanup_and_exit "$?"' EXIT
+
+if ((BASH_VERSINFO[0] < 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] < 1)))
+then
+	printf '%s\n' "cake-autorate: launcher requires bash >= 5.1" >&2
+	exit 1
+fi
+
+((operator_stop_requested)) && exit 0
 
 cake_instances=()
 if command -v uci >/dev/null 2>&1 && uci show cake-autorate >/dev/null 2>&1
@@ -26,32 +117,48 @@ else
 	cake_instances=(%%CONFIG_PREFIX%%/config.*.sh)
 fi
 
+((operator_stop_requested)) && exit 0
+
 if [[ ${#cake_instances[@]} -eq 0 ]]
 then
 	printf '%s\n' "cake-autorate: no config files found in %%CONFIG_PREFIX%%" >&2
 	exit 1
 fi
 
-cake_instance_pids=()
-
-trap kill_cake_instances INT TERM EXIT
-
-kill_cake_instances()
-{
-	trap - INT TERM EXIT
-
-	echo "Killing all instances of cake one-by-one now."
-
-	for ((cake_instance=0; cake_instance<${#cake_instances[@]}; cake_instance++))
-	do
-		kill "${cake_instance_pids[${cake_instance}]}" 2>/dev/null || true
-	done
-	wait
-}
-
+# In a non-interactive Bash, monitor mode gives each asynchronous simple command
+# a dedicated process group whose leader is $!. Ordinary descendants inherit it.
+set -m
 for cake_instance in "${cake_instances[@]}"
 do
-	%%SCRIPT_PREFIX%%/cake-autorate.sh "${cake_instance}" &
-	cake_instance_pids+=(${!})
+	%%SCRIPT_PREFIX%%/cake-autorate.sh "${cake_instance}" {cleanup_sleep_fd}>&- &
+	cake_instance_pid=${!}
+	active_cake_instance_pids[${cake_instance_pid}]=1
+	cake_instance_pgids[${cake_instance_pid}]=1
+	((operator_stop_requested)) && exit 0
 done
-wait
+
+# From this point every direct child is tracked, so signals may stop immediately.
+# shellcheck disable=SC2034  # Read indirectly by the INT/TERM trap.
+supervision_ready=1
+((operator_stop_requested)) && exit 0
+
+while ((${#active_cake_instance_pids[@]}))
+do
+	completed_pid=
+	wait -n -f -p completed_pid "${!active_cake_instance_pids[@]}"
+	child_status=${?}
+
+	# wait -n has already reaped this PID. Remove it before cleanup can signal
+	# another child. Keep its PGID only while workers still occupy the group.
+	if [[ ! ${completed_pid} =~ ^[0-9]+$ || ! ${active_cake_instance_pids[${completed_pid}]+present} ]]
+	then
+		printf '%s\n' "cake-autorate: launcher failed to identify a completed child" >&2
+		exit 1
+	fi
+	unset "active_cake_instance_pids[${completed_pid}]"
+	process_group_exists "${completed_pid}" || unset "cake_instance_pgids[${completed_pid}]"
+
+	((child_status == 0)) || exit "${child_status}"
+done
+
+exit 0

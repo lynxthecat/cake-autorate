@@ -24,7 +24,8 @@ required tools. To use it:
 
 - [SSH into the router](https://openwrt.org/docs/guide-quick-start/sshadministration)
 
-- Ensure `bash` and `fping` are installed.
+- Ensure Bash 5.1 or newer and `fping` are installed. The launcher relies on
+  Bash's `wait -n -p` support and the installer rejects older Bash versions.
 
   On most OpenWrt installations, you can install them by running:
 
@@ -40,6 +41,10 @@ required tools. To use it:
   apk update
   apk add bash fping
   ```
+
+  Verify the installed version with `bash --version`. If the package supplied
+  by an older OpenWrt release is below 5.1, that package does not satisfy this
+  requirement; use a supported release or otherwise provide a newer Bash.
 
 - Use the installer script by copying and pasting each of the commands
   below. The commands retrieve the current version from this repo:
@@ -58,8 +63,8 @@ required tools. To use it:
 
 - [SSH into the router](https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSHD)
 
-- Make sure these are installed: entware; coreutils-mktemp; jsonfilter; bash;
-  and iputils-ping or fping.
+- Make sure these are installed: entware; coreutils-mktemp; jsonfilter; Bash
+  5.1 or newer; and iputils-ping or fping.
 
   - Firstly, if not already installed,
     [install entware](https://github.com/RMerl/asuswrt-merlin.ng/wiki/Entware);

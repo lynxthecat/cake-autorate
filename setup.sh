@@ -101,6 +101,11 @@ main() {
 			exit_now=1
 		fi
 	done
+	if type bash >/dev/null 2>&1 && ! bash -c '((BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 1)))'
+	then
+		printf >&2 "bash 5.1 or newer is required, please upgrade it and rerun the script!\n"
+		exit_now=1
+	fi
 	dep_found=0
 	for dep in curl wget
 	do
