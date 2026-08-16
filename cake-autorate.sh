@@ -130,11 +130,7 @@ cleanup_and_killall()
 		unset "proc_pids[intercept_stderr]"
 	fi
 
-	# The pingers were already terminated above via pinger_pids; their entries in
-	# proc_pids (irtt_N_pinger / tsping_pinger / fping_pinger / ping_N_pinger) are
-	# now stale, and after the grace sleep those PIDs may have been recycled to
-	# unrelated processes. Drop them so the sweep below only signals processes
-	# that genuinely remain.
+	# Pingers were already terminated above; drop their now-stale proc_pids entries so the sweep below can't hit a recycled PID.
 	for proc_pid in "${!proc_pids[@]}"
 	do
 		[[ ${proc_pid} == *_pinger ]] && unset "proc_pids[${proc_pid}]"
@@ -271,10 +267,7 @@ generate_log_file_scripts()
 
 	timeout_s=\${1:-20}
 
-	# Clear the previous result marker BEFORE signalling. The daemon's
-	# export_log_file writes this marker; removing it *after* the signal can
-	# delete a freshly-written one, so the wait below would time out even though
-	# the export succeeded.
+	# Clear the marker before signalling, not after -- otherwise a fast export races the rm and the wait below spuriously times out.
 	rm -f "${run_path}/last_log_file_export"
 
 	if kill -USR1 "${proc_pids['maintain_log_file']}"
@@ -522,9 +515,7 @@ start_pinger()
 
 				function to_us(val, mult)
 				{
-					# Test bare /s$/ LAST: "5µs" and "5ns" also end in "s", so an
-					# earlier /s$/ branch would swallow them (mult=1000000) and the
-					# µs/ns branches would be unreachable -> sub-ms OWDs inflated 10^6x.
+					# /s$/ must be tested last -- "µs"/"ns" also end in "s" and would otherwise be swallowed by it.
 					mult = (val ~ /ms$/) ? 1000    : \
 						   (val ~ /µs$/) ? 1       : \
 						   (val ~ /ns$/) ? 0.001   : \
@@ -786,12 +777,7 @@ set_shaper_rate()
 
 set_min_shaper_rates()
 {
-	# Drop both shapers to their configured minimum (idle / stall enforcement).
-	# Commit f3f20a0 deleted this function and inlined it on the IDLE path but
-	# left the stall call site (cake-autorate.sh, global ping-response timeout)
-	# calling the now-undefined name -> command-not-found -> intercept_stderr
-	# kills the daemon exactly when the clamp was wanted. Restore it as one
-	# function used by both sites.
+	# Drop both shapers to their configured minimum (idle / stall enforcement); shared by both call sites.
 	shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]} shaper_rate_kbps[ul]=${min_shaper_rate_kbps[ul]}
 	set_shaper_rate "dl"
 	set_shaper_rate "ul"
@@ -1009,9 +995,7 @@ fi
 
 # ${run_path}/ is used to store temporary files
 # it should not exist on startup so if it does exit, else create the directory.
-# This must run BEFORE rotate_log_file: a redundant start of an already-running
-# instance has to exit *without* rotating (truncating) the log file the running
-# instance is still writing to, so the conflicting-instance check comes first.
+# Must run before rotate_log_file so a redundant start can't truncate the running instance's log.
 if [[ -d ${run_path} ]]
 then
 	if running_main_pid=$(get_running_main_pid_for_run_path "${run_path}")
@@ -1046,11 +1030,7 @@ if [[ -n ${reflectors_url} ]]
 then
 	log_msg "DEBUG" "Appending local list of reflectors with remote list of reflectors at: ${reflectors_url}."
 	[[ ${reflectors_url} == https://* ]] || log_msg "WARNING" "reflectors_url is not https:// -- the remote reflector list is fetched without TLS and can be tampered with in transit."
-	# Quote the URL: the global IFS contains a comma, so an unquoted URL with a
-	# comma in its query string would be split into several fetch operands. Probe
-	# curl-then-wget so the fetch also works on hosts that ship only one of them
-	# (it previously hardcoded wget and silently appended nothing where only curl
-	# was installed).
+	# URL must be quoted (IFS contains a comma); probe curl then wget since only one may be installed.
 	if command -v curl &> /dev/null
 	then
 		readarray -t -s "${reflectors_url_skip_lines}" -O "${#reflectors[*]}" reflectors < <( curl -fsS "${reflectors_url}" 2>/dev/null | awk -F "," '{ print $1 }' )
@@ -1064,14 +1044,8 @@ then
 	log_msg "DEBUG" "Local list of reflectors now contains ${#reflectors[*]} entries."
 fi
 
-# Validate every reflector before use. For pinger_method=irtt a reflector is
-# interpolated into a shell command (gawk builds "irtt client ... '<reflector>'"
-# and runs it via | getline), so a reflector containing shell metacharacters is
-# command injection -- and reflectors can come unvalidated from the remote
-# reflectors_url (fetched over the network above, possibly without TLS) or from
-# a hand-edited config. Allow only IP-/hostname-shaped strings (no quotes, ';',
-# spaces, '$', etc.); the first char excludes '-' (blocks option injection) but
-# admits ':' for compressed IPv6 (e.g. ::1, ::ffff:1.2.3.4).
+# Reflectors reach irtt as a shell-interpolated command (getline), so an unvalidated one is command injection.
+# Allow only IP-/hostname-shaped strings; leading '-' excluded to block option injection.
 for reflector in "${reflectors[@]}"
 do
 	[[ ${reflector} =~ ^[0-9A-Za-z:][0-9A-Za-z.:_-]*$ ]] || { log_msg "ERROR" "Invalid reflector '${reflector}': must be an IP address or hostname. Exiting script."; exit 1; }
@@ -1086,11 +1060,7 @@ case ${pinger_method} in
 		command -v "fping" &> /dev/null || { log_msg "ERROR" "ping binary fping does not exist. Exiting script."; exit 1; }
 		;;
 	irtt)
-		# The irtt path hard-requires gawk (gawk -f), the gawk-only 'time'
-		# extension (systime/gettimeofday) and stdbuf -- none of which are the
-		# 'irtt' binary. Without them the gawk pinger dies, but its stderr is
-		# /dev/null so the daemon is NOT killed: it silently produces no data and
-		# pins CAKE at the min rates. Name the missing dependency up front.
+		# irtt also needs gawk, the gawk 'time' extension and stdbuf; check all up front (silent failure otherwise).
 		command -v "irtt"   &> /dev/null || { log_msg "ERROR" "ping binary irtt does not exist. Exiting script."; exit 1; }
 		command -v "gawk"   &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires gawk. Exiting script."; exit 1; }
 		command -v "stdbuf" &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires stdbuf (coreutils). Exiting script."; exit 1; }
@@ -1105,11 +1075,7 @@ esac
 (( no_pingers < 1 )) && { log_msg "ERROR" "number of pingers must be at least 1. Exiting script."; exit 1; }
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
 
-# Check shaper rate bounds: 1 <= min <= base <= max for each direction. Without
-# this, base > max silently pins the link at max (the steady-state-is-base
-# contract is void), base < min pins it at min, and min = 0 reaches the
-# load_percent / compensation divides as a zero divisor -- the daemon is then
-# killed via intercept_stderr instead of exiting cleanly with a clear message.
+# Enforce 1 <= min <= base <= max per direction (silent misbehaviour / zero-divisor otherwise).
 (( min_dl_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_dl_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
 (( min_ul_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_ul_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
 (( min_dl_shaper_rate_kbps > base_dl_shaper_rate_kbps || base_dl_shaper_rate_kbps > max_dl_shaper_rate_kbps )) && { log_msg "ERROR" "dl shaper rates must satisfy min <= base <= max. Exiting script."; exit 1; }
@@ -1295,14 +1261,7 @@ interface[dl]=${dl_if} interface[ul]=${ul_if} \
 adjust_shaper_rate[dl]=${adjust_dl_shaper_rate} adjust_shaper_rate[ul]=${adjust_ul_shaper_rate} \
 dl_max_wire_packet_size_bits=0 ul_max_wire_packet_size_bits=0
 
-# A monitor-only direction (adjust_${direction}_shaper_rate=0) never has its
-# CAKE shaper changed, but its internal shaper_rate_kbps still divides into
-# load_percent. Collapse its runtime bounds onto base so that every existing
-# shaper_rate_kbps mutation site (the rate-update arms, the min/max clamp and
-# set_min_shaper_rates) lands the rate back on base, keeping load_percent
-# referenced to the real fixed rate without touching the rate-update hot path
-# (issue #377). base must therefore match the CAKE bandwidth actually fixed on
-# the interface -- noted at DEBUG for log forensics.
+# adjust_*_shaper_rate=0 is monitor-only: pin its runtime bounds to base so load_percent stays referenced to the real fixed CAKE rate (#377).
 if ((adjust_dl_shaper_rate == 0))
 then
 	min_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps} max_shaper_rate_kbps[dl]=${base_dl_shaper_rate_kbps}
@@ -1464,14 +1423,7 @@ do
 					fi
 					;;
 				fping)
-					# fping reports a negative RTT when the clock steps backwards
-					# mid-ping: it prints such a value rather than clamping it, and
-					# 10#${rtt_us//.} cannot represent a negative, so the arithmetic
-					# error kills the main loop. Reject any RTT token carrying a
-					# character outside [0-9.] — a glob class check, not a regex,
-					# since [[ =~ ]] recompiles the ERE on every sample.
-					# The ping arm needs no equivalent: iputils clamps a backward
-					# step to zero instead of reporting it.
+					# Reject a non-numeric RTT (e.g. a clock-step negative) before the arithmetic conversion below.
 					if ((${#command[@]} == 12)) && [[ ${command[6]} != *[!0-9.]* ]]
 					then
 						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
@@ -1656,10 +1608,7 @@ do
 
 						;;
 					ping)
-						# iputils ping -D prints "from <addr>:" -- strip only the trailing
-						# colon. ${reflector//:/} stripped EVERY colon, mangling IPv6 keys
-						# (2606:4700:4700::1111 -> 2606470047001111) so per-reflector tracking
-						# split across two keys; the irtt/tsping/fping paths key verbatim.
+						# Strip only the trailing colon (iputils ping -D "from <addr>:") -- //:/ would mangle IPv6 keys.
 						reflector=${reflector%:} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"

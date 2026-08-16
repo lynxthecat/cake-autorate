@@ -28,7 +28,6 @@ disable=SC2250
 # $ / ${ } around arithmetic operands is unnecessary (cosmetic).
 disable=SC2004
 
-# Intentional array->string joins (the CPU-stat lines reuse the array name as
-# a scalar via ${arr[*]} then ${scalar// /...}); not bugs.
+# Intentional array->string joins (CPU-stat lines via ${arr[*]}); not bugs.
 disable=SC2178
 disable=SC2128

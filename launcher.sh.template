@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 
-# An unmatched glob must expand to nothing (not the literal pattern), so a
-# missing config set yields an empty array instead of a bogus instance path.
+# nullglob: an unmatched config glob must expand to nothing, not the literal pattern.
 shopt -s nullglob
 
 cake_instances=()
