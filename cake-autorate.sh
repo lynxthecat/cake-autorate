@@ -761,7 +761,7 @@ set_shaper_rate()
 		# on failure keep the previous internal state so the change is retried on the next update
 		if ! tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
 		then
-			log_msg "ERROR" "Failed to change CAKE bandwidth on ${interface[${direction}]}."
+			log_msg "WARNING" "Failed to change CAKE bandwidth on ${interface[${direction}]}."
 			return 1
 		fi
 	else
