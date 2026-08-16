@@ -1484,13 +1484,6 @@ do
 					fi
 					;;
 				ping)
-					# Nine tokens alone do not prove a reply: with a PTR-resolving
-					# hop, an ICMP error line ("[ts] From host (ip) icmp_seq=1 Time
-					# to live exceeded") is also nine tokens and would parse as a
-					# 0 us sample keyed under a phantom "icmp_seq=1" reflector.
-					# Genuine replies always carry a time= token in field 7,
-					# no error shape does (glob check, same cost rationale as
-					# the fping guard above).
 					if ((${#command[@]} == 9)) && [[ ${command[7]} == time=* ]]
 					then
 						timestamp=${command[0]} reflector=${command[4]} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
