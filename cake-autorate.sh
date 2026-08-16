@@ -593,7 +593,7 @@ start_pinger()
 			;;
 		ping)
 			sleep_until_next_pinger_time_slot "${pinger}"
-			${ping_prefix_string} ping ${ping_extra_args} -D -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
+			${ping_prefix_string} ping ${ping_extra_args} -D -n -i "${reflector_ping_interval_s}" "${reflectors[pinger]}" 2> /dev/null >&"${main_fd}" &
 			pinger_pids[pinger]=${!}
 			proc_pids["ping_${pinger}_pinger"]=${pinger_pids[pinger]}
 			;;
@@ -1484,7 +1484,7 @@ do
 					fi
 					;;
 				ping)
-					if ((${#command[@]} == 9))
+					if ((${#command[@]} == 9)) && [[ ${command[7]} == time=* ]]
 					then
 						timestamp=${command[0]} reflector=${command[4]} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
 					fi
