@@ -211,7 +211,9 @@ publish_stats()
     done
 }
 
-# Discover each instance's log dir from its config (honours log_file_path_override); falls back to /var/log if a config isn't found next to this script.
+# Discover each instance's log dir from its config (honours
+# log_file_path_override); falls back to /var/log if a config isn't found next
+# to this script.
 SCRIPT_PREFIX="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 CONFIG_PREFIX="${SCRIPT_PREFIX}"
 
@@ -221,7 +223,8 @@ any_stats_enabled=0
 shopt -s nullglob
 for config_path in "${CONFIG_PREFIX}"/config.*.sh; do
     [[ -r ${config_path} ]] || continue
-    # Source defaults then the instance config in a subshell, matching cake-autorate's own load order.
+    # Source defaults then the instance config in a subshell, matching
+    # cake-autorate's own load order.
     mapfile -t cfg_vals < <(
         unset log_file_path_override output_summary_stats output_cpu_stats
         # shellcheck source=defaults.sh
@@ -246,7 +249,8 @@ if (( ! any_stats_enabled )); then
     echo "WARNING: no cake-autorate config enables output_summary_stats=1 or output_cpu_stats=1 -- the Home Assistant sensors will be created via discovery but stay empty, because the SUMMARY/CPU log records the publisher reads are never produced. Enable output_summary_stats=1 (and/or output_cpu_stats=1) in the relevant config." >&2
 fi
 
-# Route -u/-P through a private $XDG_CONFIG_HOME/mosquitto_pub file instead of argv (visible in /proc/<pid>/cmdline for a long-lived publisher).
+# Route -u/-P through a private $XDG_CONFIG_HOME/mosquitto_pub file instead of
+# argv (visible in /proc/<pid>/cmdline for a long-lived publisher).
 mqtt_config_dir=$(mktemp -d) || { echo "ERROR: failed to create a private directory for the MQTT credentials" >&2; exit 1; }
 if [[ -n ${MQTT_USER} || -n ${MQTT_PASS} ]]; then
     ( umask 077; printf '%s\n' "-u ${MQTT_USER}" "-P ${MQTT_PASS}" > "${mqtt_config_dir}/mosquitto_pub" )

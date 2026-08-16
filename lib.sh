@@ -114,7 +114,8 @@ randomize_array()
 
 	for ((set=${#array[@]}-1; set>0; set--))
 	do
-		# j must be in [0, set] inclusive for unbiased Fisher-Yates (RANDOM%set alone is Sattolo's -- biased).
+		# j must be in [0, set] inclusive for unbiased Fisher-Yates (RANDOM%set alone
+		# is Sattolo's -- biased).
 		idx=$((RANDOM%(set+1)))
 		temp=${array[set]}
 		array[set]=${array[idx]}
@@ -166,7 +167,8 @@ terminate()
 
 	read -r -a pids <<< "${pids}"
 
-	# `--` is required: irtt pids are negated pgids, and kill would otherwise parse the leading `-` as a signal spec.
+	# `--` is required: irtt pids are negated pgids, and kill would otherwise parse
+	# the leading `-` as a signal spec.
 	kill -TERM -- "${pids[@]}" 2> /dev/null
 
 	for ((i=0; i<timeout_ms; i+=100))
