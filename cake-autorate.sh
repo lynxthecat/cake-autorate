@@ -94,14 +94,20 @@ fi
 # get valid config overrides
 mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${SCRIPT_PREFIX}/defaults.sh" | sed -e 's/[\t ]*\#.*//g' -e 's/=.*//g')
 
-trap cleanup_and_killall INT TERM EXIT
+trap 'cleanup_and_killall 0' INT TERM
+trap 'cleanup_and_killall "${?}"' EXIT
 
 cleanup_and_killall()
-{	
+{
+	local exit_status=${1:-0}
+
 	# Do not fail on error for this critical cleanup code
 	set +e
 
 	trap : INT TERM EXIT
+
+	# a fatal error marker (e.g. from intercept_stderr) must surface as a failed exit
+	[[ -n ${run_path:-} && -f ${run_path}/fatal_error ]] && exit_status=1
 	
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 	
@@ -152,7 +158,7 @@ cleanup_and_killall()
 	log_msg "SYSLOG" "Stopped cake-autorate with PID: ${BASHPID} and config: ${config_path}"
 
 	trap - INT TERM EXIT
-	exit
+	exit "${exit_status}"
 }
 
 log_msg()
@@ -844,6 +850,7 @@ change_state_main()
 		*)
 
 			log_msg "ERROR" "Received unrecognized main state change request: ${main_next_state}. Exiting now."
+			[[ -n ${run_path:-} ]] && : > "${run_path}/fatal_error" 2>/dev/null
 			kill $$ 2>/dev/null
 			;;
 	esac
@@ -857,6 +864,7 @@ intercept_stderr()
 	while read -r error
 	do
 		log_msg "ERROR" "${error}"
+		[[ -n ${run_path:-} ]] && : > "${run_path}/fatal_error" 2>/dev/null
 		kill $$ 2>/dev/null
 	done
 }

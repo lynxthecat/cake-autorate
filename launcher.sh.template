@@ -34,10 +34,14 @@ fi
 
 cake_instance_pids=()
 
-trap kill_cake_instances INT TERM EXIT
+trap 'kill_cake_instances 0' INT TERM
+trap 'kill_cake_instances "${?}"' EXIT
 
+# shellcheck disable=SC2329  # invoked via the traps above
 kill_cake_instances()
 {
+	local exit_status=${1:-0}
+
 	trap - INT TERM EXIT
 
 	echo "Killing all instances of cake one-by-one now."
@@ -47,6 +51,7 @@ kill_cake_instances()
 		kill "${cake_instance_pids[${cake_instance}]}" 2>/dev/null || true
 	done
 	wait
+	exit "${exit_status}"
 }
 
 for cake_instance in "${cake_instances[@]}"
@@ -54,4 +59,11 @@ do
 	%%SCRIPT_PREFIX%%/cake-autorate.sh "${cake_instance}" &
 	cake_instance_pids+=(${!})
 done
-wait
+
+# propagate a fatal instance exit so the service manager can restart on failure
+launcher_exit_status=0
+for cake_instance_pid in "${cake_instance_pids[@]}"
+do
+	wait "${cake_instance_pid}" || launcher_exit_status=1
+done
+exit "${launcher_exit_status}"
