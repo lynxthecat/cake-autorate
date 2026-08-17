@@ -734,21 +734,36 @@ replace_pinger_reflector()
 
 # END OF GENERIC PINGER START AND STOP FUNCTIONS
 
-set_shaper_rate()
+set_shaper_rates()
 {
-	# Fire up tc and update max_wire_packet_compensation if there are rates to change for the given direction
+	local direction changed_direction tc_batch_commands=""
+	local rates_changed=0 tc_command_count=0
 
-	local direction=${1} # 'dl' or 'ul'
+	for direction in dl ul
+	do
+		(( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] )) || continue
+		rates_changed=1
 
-	(( shaper_rate_kbps[${direction}] != last_shaper_rate_kbps[${direction}] )) || return
+		((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
 
-	((output_cake_changes)) && log_msg "SHAPER" "tc qdisc change root dev ${interface[${direction}]} cake bandwidth ${shaper_rate_kbps[${direction}]}Kbit"
+		if ((adjust_shaper_rate[${direction}]))
+		then
+			changed_direction=${direction}
+			((++tc_command_count))
+			printf -v tc_batch_commands '%sqdisc change root dev %s cake bandwidth %s\n' "${tc_batch_commands}" "${interface[${direction}]}" "${shaper_rate_kbps[${direction}]}Kbit"
+		else
+			((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
+		fi
+	done
 
-	if ((adjust_shaper_rate[${direction}]))
+	((rates_changed)) || return
+
+	if ((tc_command_count == 2))
 	then
-		tc qdisc change root dev "${interface[${direction}]}" cake bandwidth "${shaper_rate_kbps[${direction}]}Kbit" 2> /dev/null
-	else
-		((output_cake_changes)) && log_msg "DEBUG" "adjust_${direction}_shaper_rate set to 0 in config, so skipping the corresponding tc qdisc change call."
+		tc -force -batch - 2> /dev/null <<< "${tc_batch_commands}"
+	elif ((tc_command_count == 1))
+	then
+		tc qdisc change root dev "${interface[${changed_direction}]}" cake bandwidth "${shaper_rate_kbps[${changed_direction}]}Kbit" 2> /dev/null
 	fi
 
 	# Compensate for delays imposed by active traffic shaper
@@ -768,15 +783,15 @@ set_shaper_rate()
 
 		max_wire_packet_rtt_us=(1000*dl_max_wire_packet_size_bits)/shaper_rate_kbps[dl] + (1000*ul_max_wire_packet_size_bits)/shaper_rate_kbps[ul],
 
-		last_shaper_rate_kbps[${direction}]=${shaper_rate_kbps[${direction}]}
+		last_shaper_rate_kbps[dl]=shaper_rate_kbps[dl],
+		last_shaper_rate_kbps[ul]=shaper_rate_kbps[ul]
 	))
 }
 
 set_min_shaper_rates()
 {
 	shaper_rate_kbps[dl]=${min_shaper_rate_kbps[dl]} shaper_rate_kbps[ul]=${min_shaper_rate_kbps[ul]}
-	set_shaper_rate "dl"
-	set_shaper_rate "ul"
+	set_shaper_rates
 }
 
 get_max_wire_packet_size_bits()
@@ -1268,8 +1283,7 @@ avg_owd_delta_us[dl]=0 avg_owd_delta_us[ul]=0
 avg_owd_delta_max_adjust_up_thr_us[dl]=${dl_avg_owd_delta_max_adjust_up_thr_us} avg_owd_delta_max_adjust_up_thr_us[ul]=${ul_avg_owd_delta_max_adjust_up_thr_us} \
 avg_owd_delta_max_adjust_down_thr_us[dl]=${dl_avg_owd_delta_max_adjust_down_thr_us} avg_owd_delta_max_adjust_down_thr_us[ul]=${ul_avg_owd_delta_max_adjust_down_thr_us}
 
-set_shaper_rate "dl"
-set_shaper_rate "ul"
+set_shaper_rates
 
 LOAD_IDLE=0 LOAD_LOW=1 LOAD_HIGH=2
 load_state_name=(idle low high)
@@ -1762,8 +1776,7 @@ do
 					shaper_rate_kbps[ul] > max_shaper_rate_kbps[ul] && (shaper_rate_kbps[ul]=${max_shaper_rate_kbps[ul]})
 				))
 
-				set_shaper_rate "dl"
-				set_shaper_rate "ul"
+				set_shaper_rates
 
 				# update CPU usage stats if CPU monitoring interval exceeded
 				if (( (output_cpu_stats || output_cpu_raw_stats) && t_start_us > t_last_cpu_usage_check_us + monitor_cpu_usage_interval_us ))
