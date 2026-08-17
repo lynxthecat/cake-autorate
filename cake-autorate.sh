@@ -1364,6 +1364,10 @@ do
 			if ((${#command[@]} == 3))
 			then
 				achieved_rate_kbps[dl]=${command[1]} achieved_rate_kbps[ul]=${command[2]} achieved_rate_updated[dl]=1 achieved_rate_updated[ul]=1
+				((
+					load_percent[dl]=100*achieved_rate_kbps[dl]/shaper_rate_kbps[dl],
+					load_percent[ul]=100*achieved_rate_kbps[ul]/shaper_rate_kbps[ul]
+				))
 
 				if ((output_load_stats))
 				then
@@ -1659,10 +1663,7 @@ do
 					avg_owd_delta_us[ul] = sum_ul_owd_deltas_us / bufferbloat_detection_window,
 
 					bufferbloat_detected[dl] = sum_dl_delays >= bufferbloat_detection_thr ? 1 : 0,
-					bufferbloat_detected[ul] = sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0,
-
-					load_percent[dl]=100*achieved_rate_kbps[dl]/shaper_rate_kbps[dl],
-					load_percent[ul]=100*achieved_rate_kbps[ul]/shaper_rate_kbps[ul]
+					bufferbloat_detected[ul] = sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0
 				))
 
 				load_condition[dl]=${dl_rate_load_condition} load_condition[ul]=${ul_rate_load_condition}
