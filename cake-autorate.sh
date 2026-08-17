@@ -1057,10 +1057,14 @@ then
 	log_msg "DEBUG" "Local list of reflectors now contains ${#reflectors[*]} entries."
 fi
 
+declare -A configured_reflectors
 for reflector in "${reflectors[@]}"
 do
 	[[ ${reflector} =~ ^[0-9A-Za-z:][0-9A-Za-z.:_-]*$ ]] || { log_msg "ERROR" "Invalid reflector '${reflector}': must be an IP address or hostname. Exiting script."; exit 1; }
+	[[ -z ${configured_reflectors[${reflector}]:-} ]] || { log_msg "ERROR" "Duplicate reflector '${reflector}' in reflector list. Exiting script."; exit 1; }
+	configured_reflectors[${reflector}]=1
 done
+unset configured_reflectors
 
 no_reflectors=${#reflectors[@]}
 
