@@ -685,41 +685,46 @@ replace_pinger_reflector()
 	# and the the bad reflector moved to the back of the queue (last element in ${reflectors[]})
 	# and finally the indices for ${reflectors} are updated to reflect the new order
 
-	local pinger=${1}
+	local pinger=${1} bad_reflector new_reflector
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	if ((no_reflectors > no_pingers))
 	then
-		log_msg "DEBUG" "replacing reflector: ${reflectors[pinger]} with ${reflectors[no_pingers]}."
-		((pingers_active)) && kill_pinger "${pinger}"
 		bad_reflector=${reflectors[pinger]}
-		# overwrite the bad reflector with the reflector that is next in the queue (the one after 0..${no_pingers}-1)
-		reflectors[pinger]=${reflectors[no_pingers]}
-		# remove the new reflector from the list of additional reflectors beginning from ${reflectors[no_pingers]}
-		unset "reflectors[no_pingers]"
-		# bad reflector goes to the back of the queue
-		# shellcheck disable=SC2206
-		reflectors+=(${bad_reflector})
-		# reset array indices
-		# shellcheck disable=SC2206
-		reflectors=(${reflectors[@]})
-		if ((retain_reflector_stats==0))
+		new_reflector=${reflectors[no_pingers]}
+		log_msg "DEBUG" "replacing reflector: ${bad_reflector} with ${new_reflector}."
+		((pingers_active)) && kill_pinger "${pinger}"
+
+		if ((retain_reflector_stats))
 		then
-			log_msg "DEBUG" "Discarding reflector stats associated with ${bad_reflector}"
-			unset "dl_owd_baselines_us[${bad_reflector}]"
-			unset "ul_owd_baselines_us[${bad_reflector}]"
-			unset "dl_owd_delta_ewmas_us[${bad_reflector}]"
-			unset "ul_owd_delta_ewmas_us[${bad_reflector}]"
-			unset "last_timestamp_reflectors_us[${bad_reflector}]"
-		else
 			log_msg "DEBUG" "Retaining reflector stats associated with: ${bad_reflector}"
+			retained_dl_owd_baselines_us[${bad_reflector}]=${dl_owd_baselines_us[pinger]}
+			retained_ul_owd_baselines_us[${bad_reflector}]=${ul_owd_baselines_us[pinger]}
+			retained_dl_owd_delta_ewmas_us[${bad_reflector}]=${dl_owd_delta_ewmas_us[pinger]}
+			retained_ul_owd_delta_ewmas_us[${bad_reflector}]=${ul_owd_delta_ewmas_us[pinger]}
+			retained_last_timestamp_reflectors_us[${bad_reflector}]=${last_timestamp_reflectors_us[pinger]}
+		else
+			log_msg "DEBUG" "Discarding reflector stats associated with ${bad_reflector}"
+			unset "retained_dl_owd_baselines_us[${bad_reflector}]"
+			unset "retained_ul_owd_baselines_us[${bad_reflector}]"
+			unset "retained_dl_owd_delta_ewmas_us[${bad_reflector}]"
+			unset "retained_ul_owd_delta_ewmas_us[${bad_reflector}]"
+			unset "retained_last_timestamp_reflectors_us[${bad_reflector}]"
 		fi
-		dl_owd_baselines_us[${reflectors[pinger]}]=${dl_owd_baselines_us[${reflectors[pinger]}]:-100000} \
-		ul_owd_baselines_us[${reflectors[pinger]}]=${ul_owd_baselines_us[${reflectors[pinger]}]:-100000} \
-		dl_owd_delta_ewmas_us[${reflectors[pinger]}]=${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-0} \
-		ul_owd_delta_ewmas_us[${reflectors[pinger]}]=${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-0} \
-		last_timestamp_reflectors_us[${reflectors[pinger]}]=${t_start_us}
+
+		reflectors[pinger]=${new_reflector}
+		unset "reflectors[no_pingers]"
+		reflectors+=("${bad_reflector}")
+		reflectors=("${reflectors[@]}")
+
+		unset "pinger_by_reflector[${bad_reflector}]"
+		pinger_by_reflector[${new_reflector}]=${pinger}
+		dl_owd_baselines_us[pinger]=${retained_dl_owd_baselines_us[${new_reflector}]:-100000}
+		ul_owd_baselines_us[pinger]=${retained_ul_owd_baselines_us[${new_reflector}]:-100000}
+		dl_owd_delta_ewmas_us[pinger]=${retained_dl_owd_delta_ewmas_us[${new_reflector}]:-0}
+		ul_owd_delta_ewmas_us[pinger]=${retained_ul_owd_delta_ewmas_us[${new_reflector}]:-0}
+		last_timestamp_reflectors_us[pinger]=${retained_last_timestamp_reflectors_us[${new_reflector}]:-${t_start_us}}
 
 		((pingers_active)) && start_pinger "${pinger}"
 	else
@@ -1248,11 +1253,18 @@ compensated_owd_delta_delay_thr_us \
 compensated_avg_owd_delta_max_adjust_up_thr_us \
 compensated_avg_owd_delta_max_adjust_down_thr_us
 
-declare -A dl_owd_baselines_us \
+declare -a dl_owd_baselines_us \
 ul_owd_baselines_us \
 dl_owd_delta_ewmas_us \
 ul_owd_delta_ewmas_us \
 last_timestamp_reflectors_us
+
+declare -A pinger_by_reflector \
+retained_dl_owd_baselines_us \
+retained_ul_owd_baselines_us \
+retained_dl_owd_delta_ewmas_us \
+retained_ul_owd_delta_ewmas_us \
+retained_last_timestamp_reflectors_us
 
 base_shaper_rate_kbps[DL]=${base_dl_shaper_rate_kbps} base_shaper_rate_kbps[UL]=${base_ul_shaper_rate_kbps} \
 min_shaper_rate_kbps[DL]=${min_dl_shaper_rate_kbps} min_shaper_rate_kbps[UL]=${min_ul_shaper_rate_kbps} \
@@ -1298,10 +1310,11 @@ delays_idx=0 sum_dl_delays=0 sum_ul_delays=0 sum_dl_owd_deltas_us=0 sum_ul_owd_d
 log_msg "DEBUG" "Randomizing reflectors."
 ((randomize_reflectors)) && randomize_array reflectors
 
-for (( reflector=0; reflector<no_pingers; reflector++ ))
+for ((pinger=0; pinger<no_pingers; pinger++))
 do
-	dl_owd_baselines_us["${reflectors[reflector]}"]=100000 ul_owd_baselines_us["${reflectors[reflector]}"]=100000 \
-	dl_owd_delta_ewmas_us["${reflectors[reflector]}"]=0 ul_owd_delta_ewmas_us["${reflectors[reflector]}"]=0
+	pinger_by_reflector["${reflectors[pinger]}"]=${pinger}
+	dl_owd_baselines_us[pinger]=100000 ul_owd_baselines_us[pinger]=100000 \
+	dl_owd_delta_ewmas_us[pinger]=0 ul_owd_delta_ewmas_us[pinger]=0
 done
 
 load_percent[DL]=0 load_percent[UL]=0
@@ -1347,7 +1360,11 @@ pingers_t_start_us=${t_start_us} t_last_reflector_replacement_us=${t_start_us} t
 
 for ((reflector=0; reflector < no_reflectors; reflector++))
 do
-	last_timestamp_reflectors_us[${reflectors[reflector]}]=${t_start_us}
+	retained_last_timestamp_reflectors_us[${reflectors[reflector]}]=${t_start_us}
+done
+for ((pinger=0; pinger < no_pingers; pinger++))
+do
+	last_timestamp_reflectors_us[pinger]=${t_start_us}
 done
 
 # For each pinger initialize record of offences
@@ -1441,7 +1458,7 @@ do
 				ping)
 					if ((${#command[@]} == 9)) && [[ ${command[7]} == time=* ]]
 					then
-						timestamp=${command[0]} reflector=${command[4]} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
+						timestamp=${command[0]} reflector=${command[4]%:} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
 					fi
 					;;
 				*)
@@ -1453,6 +1470,11 @@ do
 	esac
 
 	t_start_us=${EPOCHREALTIME/.}
+	if ((reflector_response))
+	then
+		pinger=${pinger_by_reflector[${reflector}]:--1}
+		((pinger >= 0)) || reflector_response=0
+	fi
 
 	case ${main_state} in
 
@@ -1484,21 +1506,21 @@ do
 
 					irtt)
 						((
-							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
-							ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+							dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
+							ul_alpha = ul_owd_us >= ul_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
-							ul_owd_baselines_us[${reflector}]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[${reflector}])/1000000,
+							dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
+							ul_owd_baselines_us[pinger]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[pinger])/1000000,
 
-							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
-							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
+							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
 						))
 
 						if (( load_percent[DL] < high_load_thr_percent && load_percent[UL] < high_load_thr_percent))
 						then
 							((
-								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
-								ul_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[${reflector}])/1000000
+								dl_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[pinger])/1000000,
+								ul_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[pinger])/1000000
 							))
 						fi
 						
@@ -1509,8 +1531,8 @@ do
 						dl_owd_us=${dl_owd_ms}000 ul_owd_us=${ul_owd_ms}000
 
 						((
-							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
-							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
+							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
 						))
 
 
@@ -1518,24 +1540,24 @@ do
 						then
 
 							((
-								dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
-								ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+								dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
+								ul_alpha = ul_owd_us >= ul_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-								dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
-								ul_owd_baselines_us[${reflector}]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[${reflector}])/1000000,
+								dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
+								ul_owd_baselines_us[pinger]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[pinger])/1000000,
 
-								dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
-								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+								dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
+								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
 							))
 						else
-							dl_owd_baselines_us[${reflector}]=${dl_owd_us} ul_owd_baselines_us[${reflector}]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
+							dl_owd_baselines_us[pinger]=${dl_owd_us} ul_owd_baselines_us[pinger]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
 						fi
 
 						if (( load_percent[DL] < high_load_thr_percent && load_percent[UL] < high_load_thr_percent))
 						then
 							((
-								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
-								ul_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[${reflector}])/1000000
+								dl_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[pinger])/1000000,
+								ul_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[pinger])/1000000
 							))
 						fi
 
@@ -1549,20 +1571,20 @@ do
 						((
 							dl_owd_us=10#${rtt_us//.}/2,
 							ul_owd_us=dl_owd_us,
-							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+							dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
-							ul_owd_baselines_us[${reflector}]=dl_owd_baselines_us[${reflector}],
+							dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
+							ul_owd_baselines_us[pinger]=dl_owd_baselines_us[pinger],
 
-							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
 							ul_owd_delta_us=dl_owd_delta_us
 						))
 
 						if (( load_percent[DL] < high_load_thr_percent && load_percent[UL] < high_load_thr_percent))
 						then
 							((
-								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
-								ul_owd_delta_ewmas_us[${reflector}]=dl_owd_delta_ewmas_us[${reflector}]
+								dl_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[pinger])/1000000,
+								ul_owd_delta_ewmas_us[pinger]=dl_owd_delta_ewmas_us[pinger]
 							))
 						fi
 
@@ -1577,32 +1599,32 @@ do
 						((
 							dl_owd_us=finished-transmit,
 							ul_owd_us=received-originate,
-							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
-							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
+							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
 						))
 
 						if (( (${dl_owd_delta_us#-} + ${ul_owd_delta_us#-}) < 3000000000 ))
 						then
 
 							((
-								dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
-								ul_alpha = ul_owd_us >= ul_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+								dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
+								ul_alpha = ul_owd_us >= ul_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-								dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
-								ul_owd_baselines_us[${reflector}]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[${reflector}])/1000000,
+								dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
+								ul_owd_baselines_us[pinger]=(ul_alpha*ul_owd_us+(1000000-ul_alpha)*ul_owd_baselines_us[pinger])/1000000,
 
-								dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
-								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[${reflector}]
+								dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
+								ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
 							))
 						else
-							dl_owd_baselines_us[${reflector}]=${dl_owd_us} ul_owd_baselines_us[${reflector}]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
+							dl_owd_baselines_us[pinger]=${dl_owd_us} ul_owd_baselines_us[pinger]=${ul_owd_us} dl_owd_delta_us=0 ul_owd_delta_us=0
 						fi
 
 						if (( load_percent[DL] < high_load_thr_percent && load_percent[UL] < high_load_thr_percent))
 						then
 							((
-								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
-								ul_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[${reflector}])/1000000
+								dl_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[pinger])/1000000,
+								ul_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*ul_owd_delta_us+(1000000-alpha_delta_ewma)*ul_owd_delta_ewmas_us[pinger])/1000000
 							))
 						fi
 
@@ -1611,7 +1633,7 @@ do
 
 						;;
 					ping)
-						reflector=${reflector%:} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
+						seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
 
 						printf -v rtt_us %.3f "${rtt_ms}"
 
@@ -1619,20 +1641,20 @@ do
 							dl_owd_us=10#${rtt_us//.}/2,
 							ul_owd_us=dl_owd_us,
 
-							dl_alpha = dl_owd_us >= dl_owd_baselines_us[${reflector}] ? alpha_baseline_increase : alpha_baseline_decrease,
+							dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
-							dl_owd_baselines_us[${reflector}]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[${reflector}])/1000000,
-							ul_owd_baselines_us[${reflector}]=dl_owd_baselines_us[${reflector}],
+							dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
+							ul_owd_baselines_us[pinger]=dl_owd_baselines_us[pinger],
 
-							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[${reflector}],
+							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
 							ul_owd_delta_us=dl_owd_delta_us
 						))
 
 						if (( load_percent[DL] < high_load_thr_percent && load_percent[UL] < high_load_thr_percent))
 						then
 							((
-								dl_owd_delta_ewmas_us[${reflector}]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[${reflector}])/1000000,
-								ul_owd_delta_ewmas_us[${reflector}]=dl_owd_delta_ewmas_us[${reflector}]
+								dl_owd_delta_ewmas_us[pinger]=(alpha_delta_ewma*dl_owd_delta_us+(1000000-alpha_delta_ewma)*dl_owd_delta_ewmas_us[pinger])/1000000,
+								ul_owd_delta_ewmas_us[pinger]=dl_owd_delta_ewmas_us[pinger]
 							))
 						fi
 
@@ -1646,7 +1668,7 @@ do
 						;;
 				esac
 
-				last_timestamp_reflectors_us[${reflector}]=${timestamp_us} reflectors_last_timestamp_us=${timestamp_us}
+				last_timestamp_reflectors_us[pinger]=${timestamp_us} reflectors_last_timestamp_us=${timestamp_us}
 
 				if (( (t_start_us - 10#${reflectors_last_timestamp_us})>500000 ))
 				then
@@ -1823,7 +1845,7 @@ do
 
 				if (( output_processing_stats ))
 				then
-					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[DL]}" "${achieved_rate_kbps[UL]}" "${load_percent[DL]}" "${load_percent[UL]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[${reflector}]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[${reflector}]}" "${dl_owd_delta_us}" "${compensated_owd_delta_delay_thr_us[DL]}" "${ul_owd_baselines_us[${reflector}]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[${reflector}]}" "${ul_owd_delta_us}" "${compensated_owd_delta_delay_thr_us[UL]}" "${sum_dl_delays}" "${avg_owd_delta_us[DL]}" "${compensated_avg_owd_delta_max_adjust_up_thr_us[DL]}" "${compensated_avg_owd_delta_max_adjust_down_thr_us[DL]}" "${sum_ul_delays}" "${avg_owd_delta_us[UL]}" "${compensated_avg_owd_delta_max_adjust_up_thr_us[UL]}" "${compensated_avg_owd_delta_max_adjust_down_thr_us[UL]}" "${load_condition[DL]}" "${load_condition[UL]}" "${shaper_rate_kbps[DL]}" "${shaper_rate_kbps[UL]}"
+					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[DL]}" "${achieved_rate_kbps[UL]}" "${load_percent[DL]}" "${load_percent[UL]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[pinger]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[pinger]}" "${dl_owd_delta_us}" "${compensated_owd_delta_delay_thr_us[DL]}" "${ul_owd_baselines_us[pinger]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[pinger]}" "${ul_owd_delta_us}" "${compensated_owd_delta_delay_thr_us[UL]}" "${sum_dl_delays}" "${avg_owd_delta_us[DL]}" "${compensated_avg_owd_delta_max_adjust_up_thr_us[DL]}" "${compensated_avg_owd_delta_max_adjust_down_thr_us[DL]}" "${sum_ul_delays}" "${avg_owd_delta_us[UL]}" "${compensated_avg_owd_delta_max_adjust_up_thr_us[UL]}" "${compensated_avg_owd_delta_max_adjust_down_thr_us[UL]}" "${load_condition[DL]}" "${load_condition[UL]}" "${shaper_rate_kbps[DL]}" "${shaper_rate_kbps[UL]}"
 					log_msg "DATA" "${processing_stats}"
 				fi
 
@@ -1904,23 +1926,23 @@ do
 
 					t_last_reflector_comparison_us=${t_start_us}
 
-					[[ "${dl_owd_baselines_us[${reflectors[0]}]:-}" && "${dl_owd_delta_ewmas_us[${reflectors[0]}]:-}" && "${ul_owd_baselines_us[${reflectors[0]}]:-}" && "${ul_owd_delta_ewmas_us[${reflectors[0]}]:-}" ]] || continue
+					[[ "${dl_owd_baselines_us[0]:-}" && "${dl_owd_delta_ewmas_us[0]:-}" && "${ul_owd_baselines_us[0]:-}" && "${ul_owd_delta_ewmas_us[0]:-}" ]] || continue
 
 					((
-						min_sum_owd_baselines_us = dl_owd_baselines_us[${reflectors[0]}] + ul_owd_baselines_us[${reflectors[0]}],
-						min_dl_owd_delta_ewma_us=dl_owd_delta_ewmas_us[${reflectors[0]}],
-						min_ul_owd_delta_ewma_us=ul_owd_delta_ewmas_us[${reflectors[0]}]
+						min_sum_owd_baselines_us = dl_owd_baselines_us[0] + ul_owd_baselines_us[0],
+						min_dl_owd_delta_ewma_us=dl_owd_delta_ewmas_us[0],
+						min_ul_owd_delta_ewma_us=ul_owd_delta_ewmas_us[0]
 					))
 
 					for ((pinger=0; pinger < no_pingers; pinger++))
 					do
-						[[ ${dl_owd_baselines_us[${reflectors[pinger]}]:-} && ${dl_owd_delta_ewmas_us[${reflectors[pinger]}]:-} && ${ul_owd_baselines_us[${reflectors[pinger]}]:-} && ${ul_owd_delta_ewmas_us[${reflectors[pinger]}]:-} ]] || continue 2
+						[[ ${dl_owd_baselines_us[pinger]:-} && ${dl_owd_delta_ewmas_us[pinger]:-} && ${ul_owd_baselines_us[pinger]:-} && ${ul_owd_delta_ewmas_us[pinger]:-} ]] || continue 2
 
 						((
-							sum_owd_baselines_us[pinger] = dl_owd_baselines_us[${reflectors[pinger]}] + ul_owd_baselines_us[${reflectors[pinger]}],
+							sum_owd_baselines_us[pinger] = dl_owd_baselines_us[pinger] + ul_owd_baselines_us[pinger],
 							sum_owd_baselines_us[pinger] < min_sum_owd_baselines_us && (min_sum_owd_baselines_us=sum_owd_baselines_us[pinger]),
-							dl_owd_delta_ewmas_us[${reflectors[pinger]}] < min_dl_owd_delta_ewma_us && (min_dl_owd_delta_ewma_us=dl_owd_delta_ewmas_us[${reflectors[pinger]}]),
-							ul_owd_delta_ewmas_us[${reflectors[pinger]}] < min_ul_owd_delta_ewma_us && (min_ul_owd_delta_ewma_us=ul_owd_delta_ewmas_us[${reflectors[pinger]}])
+							dl_owd_delta_ewmas_us[pinger] < min_dl_owd_delta_ewma_us && (min_dl_owd_delta_ewma_us=dl_owd_delta_ewmas_us[pinger]),
+							ul_owd_delta_ewmas_us[pinger] < min_ul_owd_delta_ewma_us && (min_ul_owd_delta_ewma_us=ul_owd_delta_ewmas_us[pinger])
 
 						))
 					done
@@ -1930,13 +1952,13 @@ do
 
 						((
 							sum_owd_baselines_delta_us = sum_owd_baselines_us[pinger] - min_sum_owd_baselines_us,
-							dl_owd_delta_ewma_delta_us = dl_owd_delta_ewmas_us[${reflectors[pinger]}] - min_dl_owd_delta_ewma_us,
-							ul_owd_delta_ewma_delta_us = ul_owd_delta_ewmas_us[${reflectors[pinger]}] - min_ul_owd_delta_ewma_us
+							dl_owd_delta_ewma_delta_us = dl_owd_delta_ewmas_us[pinger] - min_dl_owd_delta_ewma_us,
+							ul_owd_delta_ewma_delta_us = ul_owd_delta_ewmas_us[pinger] - min_ul_owd_delta_ewma_us
 						))
 
 						if ((output_reflector_stats))
 						then
-							printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${reflectors[pinger]}" "${min_sum_owd_baselines_us}" "${sum_owd_baselines_us[pinger]}" "${sum_owd_baselines_delta_us}" "${reflector_sum_owd_baselines_delta_thr_us}" "${min_dl_owd_delta_ewma_us}" "${dl_owd_delta_ewmas_us[${reflectors[pinger]}]}" "${dl_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}" "${min_ul_owd_delta_ewma_us}" "${ul_owd_delta_ewmas_us[${reflectors[pinger]}]}" "${ul_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}"
+							printf -v reflector_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${reflectors[pinger]}" "${min_sum_owd_baselines_us}" "${sum_owd_baselines_us[pinger]}" "${sum_owd_baselines_delta_us}" "${reflector_sum_owd_baselines_delta_thr_us}" "${min_dl_owd_delta_ewma_us}" "${dl_owd_delta_ewmas_us[pinger]}" "${dl_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}" "${min_ul_owd_delta_ewma_us}" "${ul_owd_delta_ewmas_us[pinger]}" "${ul_owd_delta_ewma_delta_us}" "${reflector_owd_delta_ewma_delta_thr_us}"
 							log_msg "REFLECTOR" "${reflector_stats}"
 						fi
 
@@ -1973,7 +1995,7 @@ do
 
 					((
 						reflector_offences[reflector_offences_idx] && (sum_reflector_offences[pinger]--),
-						reflector_offences[reflector_offences_idx] = (t_start_us-last_timestamp_reflectors_us[${reflectors[pinger]}]) > reflector_response_deadline_us ? 1 : 0
+						reflector_offences[reflector_offences_idx] = (t_start_us-last_timestamp_reflectors_us[pinger]) > reflector_response_deadline_us ? 1 : 0
 					))
 
 					if (( reflector_offences[reflector_offences_idx] ))
