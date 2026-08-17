@@ -37,7 +37,6 @@ cleanup()
     for pid in "${publish_stats_pids[@]}"; do
         kill -- -"$pid" 2>/dev/null || true
     done
-    # after the shutdown publishes above, which still need to authenticate
     rm -rf "${mqtt_config_dir}"
     exit 0
 }
@@ -211,15 +210,6 @@ publish_stats()
     done
 }
 
-# Discover where cake-autorate writes its logs, and sanity-check the config.
-#
-# cake-autorate honours log_file_path_override per instance, so globbing only
-# /var/log misses a relocated log and the publisher then silently does nothing.
-# Resolve the log dir(s) the same way cake-autorate does, from the configs next
-# to this script. The init.d launches ${SCRIPT_PREFIX}/mqtt-publisher.sh, so the
-# script's own directory is SCRIPT_PREFIX; CONFIG_PREFIX equals it unless the
-# install used a custom CAKE_AUTORATE_CONFIG_PREFIX (or Asuswrt-Merlin), whose
-# configs are then not auto-discovered (we fall back to /var/log + the warning).
 SCRIPT_PREFIX="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 CONFIG_PREFIX="${SCRIPT_PREFIX}"
 
@@ -229,8 +219,6 @@ any_stats_enabled=0
 shopt -s nullglob
 for config_path in "${CONFIG_PREFIX}"/config.*.sh; do
     [[ -r ${config_path} ]] || continue
-    # Source defaults then this instance's config in a subshell (defaults first,
-    # then the override, matching cake-autorate) and read only the keys we need.
     mapfile -t cfg_vals < <(
         unset log_file_path_override output_summary_stats output_cpu_stats
         # shellcheck source=defaults.sh
@@ -248,23 +236,12 @@ for config_path in "${CONFIG_PREFIX}"/config.*.sh; do
     [[ ${cfg_vals[1]} == 1 || ${cfg_vals[2]} == 1 ]] && any_stats_enabled=1
 done
 shopt -u nullglob
-# Fall back to the historical default if discovery turned up nothing.
 (( ${#log_dirs[@]} )) || log_dirs=("/var/log")
 
 if (( ! any_stats_enabled )); then
     echo "WARNING: no cake-autorate config enables output_summary_stats=1 or output_cpu_stats=1 -- the Home Assistant sensors will be created via discovery but stay empty, because the SUMMARY/CPU log records the publisher reads are never produced. Enable output_summary_stats=1 (and/or output_cpu_stats=1) in the relevant config." >&2
 fi
 
-# Keep the broker credentials off the command line.
-#
-# mosquitto_pub exposes -u/-P in /proc/<pid>/cmdline, and the streaming
-# publisher below is long-lived, so the password would otherwise be readable
-# by every process on the box for as long as this runs. mosquitto's clients
-# read a default config file at $XDG_CONFIG_HOME/mosquitto_pub and feed its
-# lines through the same option parser as argv, so the credentials can travel
-# there instead. That path exists in the mosquitto 2.0.x OpenWrt ships; the -o
-# options-file flag would need 2.1.0. mktemp -d gives us a 0700 directory and
-# the trap below removes it.
 mqtt_config_dir=$(mktemp -d) || { echo "ERROR: failed to create a private directory for the MQTT credentials" >&2; exit 1; }
 if [[ -n ${MQTT_USER} || -n ${MQTT_PASS} ]]; then
     ( umask 077; printf '%s\n' "-u ${MQTT_USER}" "-P ${MQTT_PASS}" > "${mqtt_config_dir}/mosquitto_pub" )
