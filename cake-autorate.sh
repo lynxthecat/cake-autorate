@@ -152,7 +152,7 @@ cleanup_and_killall()
 
 log_msg()
 {
-	# send logging message to terminal, log file fifo, log file and/or system logger
+	# send logging message to stdout, log file fifo, log file and/or system logger
 
 	local type=${1} msg=${2} instance_id=${instance_id:-"unknown"} log_timestamp=${EPOCHREALTIME}
 
@@ -179,7 +179,7 @@ log_msg()
 	esac
 
 	printf -v msg '%s; %(%F-%H:%M:%S)T; %s; %s\n' "${type}" -1 "${log_timestamp}" "${msg}"
-	((terminal)) && printf '%s' "${msg}"
+	((print_to_stdout)) && printf '%s' "${msg}"
 
 	# Output to the log file fifo if available (for rotation handling)
 	# else output directly to the log file
@@ -200,42 +200,42 @@ print_headers()
 	then
 		header="DATA_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_LOAD_PERCENT; UL_LOAD_PERCENT; ICMP_TIMESTAMP; REFLECTOR; SEQUENCE; DL_OWD_BASELINE; DL_OWD_US; DL_OWD_DELTA_EWMA_US; DL_OWD_DELTA_US; DL_ADJ_DELAY_THR; UL_OWD_BASELINE; UL_OWD_US; UL_OWD_DELTA_EWMA_US; UL_OWD_DELTA_US; UL_ADJ_DELAY_THR; DL_SUM_DELAYS; DL_AVG_OWD_DELTA_US; DL_ADJ_MAX_ADJUST_UP_THR_US; DL_ADJ_MAX_ADJUST_DOWN_THR_US; UL_SUM_DELAYS; UL_AVG_OWD_DELTA_US; UL_ADJ_MAX_ADJUST_UP_THR_US; UL_ADJ_MAX_ADJUST_DOWN_THR_US; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
-		((terminal)) && printf '%s\n' "${header}"
+		((print_to_stdout)) && printf '%s\n' "${header}"
 	fi
 
 	if ((output_load_stats))
 	then
 		header="LOAD_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
-		((terminal)) && printf '%s\n' "${header}"
+		((print_to_stdout)) && printf '%s\n' "${header}"
 	fi
 
 	if ((output_reflector_stats))
 	then
 		header="REFLECTOR_HEADER; LOG_DATETIME; LOG_TIMESTAMP; PROC_TIME_US; REFLECTOR; MIN_SUM_OWD_BASELINES_US; SUM_OWD_BASELINES_US; SUM_OWD_BASELINES_DELTA_US; SUM_OWD_BASELINES_DELTA_THR_US; MIN_DL_DELTA_EWMA_US; DL_DELTA_EWMA_US; DL_DELTA_EWMA_DELTA_US; DL_DELTA_EWMA_DELTA_THR; MIN_UL_DELTA_EWMA_US; UL_DELTA_EWMA_US; UL_DELTA_EWMA_DELTA_US; UL_DELTA_EWMA_DELTA_THR"
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
-		((terminal)) && printf '%s\n' "${header}"
+		((print_to_stdout)) && printf '%s\n' "${header}"
 	fi
 
 	if ((output_summary_stats))
 	then
 		header="SUMMARY_HEADER; LOG_DATETIME; LOG_TIMESTAMP; DL_ACHIEVED_RATE_KBPS; UL_ACHIEVED_RATE_KBPS; DL_SUM_DELAYS; UL_SUM_DELAYS; DL_AVG_OWD_DELTA_US; UL_AVG_OWD_DELTA_US; DL_LOAD_CONDITION; UL_LOAD_CONDITION; CAKE_DL_RATE_KBPS; CAKE_UL_RATE_KBPS"
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
-		((terminal)) && printf '%s\n' "${header}"
+		((print_to_stdout)) && printf '%s\n' "${header}"
 	fi
 
 	if ((output_cpu_stats))
 	then
 		header="CPU_HEADER; LOG_DATETIME; LOG_TIMESTAMP; STATS_READ_TIME; ${cpu_ids// /_USAGE; }_USAGE"
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
-		((terminal)) && printf '%s\n' "${header}"
+		((print_to_stdout)) && printf '%s\n' "${header}"
 	fi
 
 	if ((output_cpu_raw_stats))
 	then
 		header="CPU_RAW_HEADER; LOG_DATETIME; LOG_TIMESTAMP; STATS_READ_TIME; CPU_ID; USER; NICE; SYSTEM; IDLE; IOWAIT; IRQ; SIRQ; STEAL; GUEST; GUEST_NICE"
 		((log_to_file)) && printf '%s\n' "${header}" >&${log_file_fd}
-		((terminal)) && printf '%s\n' "${header}"
+		((print_to_stdout)) && printf '%s\n' "${header}"
 	fi
 
 }
@@ -916,14 +916,15 @@ validate_config_entry() {
 if [[ -n ${INVOCATION_ID-} ]]
 then
 	systemd_service=1
-	terminal=1
+	print_to_stdout=1
 	log_to_file=0
 else
 	systemd_service=0
-	[[ -t 1 ]] && terminal=1 || terminal=0
+	[[ -t 1 ]] && print_to_stdout=1 || print_to_stdout=0
 fi
 
 type logger &> /dev/null && use_logger=1 || use_logger=0 # only perform the test once.
+((systemd_service)) && use_logger=0
 
 log_file_path=/var/log/cake-autorate.log
 
@@ -1145,8 +1146,8 @@ then
 	proc_pids['maintain_log_file']=${!}
 fi
 
-# test if stdout is a tty (terminal)
-if ! ((terminal))
+# Redirect stdout to the log pipe when it is not being output directly
+if ! ((print_to_stdout))
 then
 	echo "stdout not a terminal so redirecting output to: ${log_file_path}"
 	((log_to_file)) && exec 1>&${log_fd}
