@@ -1214,6 +1214,7 @@ declare -A achieved_rate_kbps \
 achieved_rate_updated \
 bufferbloat_detected \
 load_percent \
+load_state \
 load_condition \
 t_last_bufferbloat_us \
 t_last_decay_us \
@@ -1270,7 +1271,9 @@ avg_owd_delta_max_adjust_down_thr_us[dl]=${dl_avg_owd_delta_max_adjust_down_thr_
 set_shaper_rate "dl"
 set_shaper_rate "ul"
 
-dl_rate_load_condition="idle" ul_rate_load_condition="idle"
+LOAD_IDLE=0 LOAD_LOW=1 LOAD_HIGH=2
+load_state_name=(idle low high)
+load_state[dl]=${LOAD_IDLE} load_state[ul]=${LOAD_IDLE}
 
 mapfile -t dl_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
 mapfile -t ul_delays < <(for ((i=0; i < bufferbloat_detection_window; i++)); do echo 0; done)
@@ -1377,22 +1380,22 @@ do
 
 				if (( load_percent[dl] > high_load_thr_percent ))
 				then
-					dl_rate_load_condition="dl_high"
+					load_state[dl]=${LOAD_HIGH}
 				elif (( achieved_rate_kbps[dl] > connection_active_thr_kbps ))
 				then
-					dl_rate_load_condition="dl_low"
+					load_state[dl]=${LOAD_LOW}
 				else
-					dl_rate_load_condition="dl_idle"
+					load_state[dl]=${LOAD_IDLE}
 				fi
 
 				if (( load_percent[ul] > high_load_thr_percent ))
 				then
-					ul_rate_load_condition="ul_high"
+					load_state[ul]=${LOAD_HIGH}
 				elif (( achieved_rate_kbps[ul] > connection_active_thr_kbps ))
 				then
-					ul_rate_load_condition="ul_low"
+					load_state[ul]=${LOAD_LOW}
 				else
-					ul_rate_load_condition="ul_idle"
+					load_state[ul]=${LOAD_IDLE}
 				fi
 			fi
 			;;
@@ -1666,92 +1669,80 @@ do
 					bufferbloat_detected[ul] = sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0
 				))
 
-				load_condition[dl]=${dl_rate_load_condition} load_condition[ul]=${ul_rate_load_condition}
-
-				((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
-				((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
-
 				# Update shaper rates
 				for direction in dl ul
 				do
-					case ${load_condition[${direction}]} in
-
-						# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
-						*bb*)
-							if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+					# bufferbloat detected, so decrease the rate providing not inside bufferbloat refractory period
+					if (( bufferbloat_detected[${direction}] ))
+					then
+						if (( t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+						then
+							if (( compensated_avg_owd_delta_max_adjust_down_thr_us[${direction}] <= compensated_owd_delta_delay_thr_us[${direction}] ))
 							then
-								if (( compensated_avg_owd_delta_max_adjust_down_thr_us[${direction}] <= compensated_owd_delta_delay_thr_us[${direction}] ))
-								then
-									shaper_rate_adjust_down_factor=1000
-								elif (( (avg_owd_delta_us[${direction}]-compensated_owd_delta_delay_thr_us[${direction}]) > 0 ))
-								then
-									((
-										shaper_rate_adjust_down_factor=1000*(avg_owd_delta_us[${direction}]-compensated_owd_delta_delay_thr_us[${direction}])/(compensated_avg_owd_delta_max_adjust_down_thr_us[${direction}]-compensated_owd_delta_delay_thr_us[${direction}]),
-										shaper_rate_adjust_down_factor > 1000 && (shaper_rate_adjust_down_factor=1000)
-									))
-								else
-									shaper_rate_adjust_down_factor=0
-								fi
+								shaper_rate_adjust_down_factor=1000
+							elif (( (avg_owd_delta_us[${direction}]-compensated_owd_delta_delay_thr_us[${direction}]) > 0 ))
+							then
 								((
-									shaper_rate_adjust_down=1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat),
-									shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_down/1000000,
-									t_last_bufferbloat_us[${direction}]=t_start_us,
-									t_last_decay_us[${direction}]=t_start_us
+									shaper_rate_adjust_down_factor=1000*(avg_owd_delta_us[${direction}]-compensated_owd_delta_delay_thr_us[${direction}])/(compensated_avg_owd_delta_max_adjust_down_thr_us[${direction}]-compensated_owd_delta_delay_thr_us[${direction}]),
+									shaper_rate_adjust_down_factor > 1000 && (shaper_rate_adjust_down_factor=1000)
+								))
+							else
+								shaper_rate_adjust_down_factor=0
+							fi
+							((
+								shaper_rate_adjust_down=1000*shaper_rate_min_adjust_down_bufferbloat-shaper_rate_adjust_down_factor*(shaper_rate_min_adjust_down_bufferbloat-shaper_rate_max_adjust_down_bufferbloat),
+								shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_down/1000000,
+								t_last_bufferbloat_us[${direction}]=t_start_us,
+								t_last_decay_us[${direction}]=t_start_us
+							))
+						fi
+					# high load, so increase rate providing not inside bufferbloat refractory period
+					elif (( load_state[${direction}] == LOAD_HIGH ))
+					then
+						if (( achieved_rate_updated[${direction}] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
+						then
+							if (( compensated_owd_delta_delay_thr_us[${direction}] <= compensated_avg_owd_delta_max_adjust_up_thr_us[${direction}] ))
+							then
+								shaper_rate_adjust_up_factor=1000
+							elif (( (compensated_owd_delta_delay_thr_us[${direction}]-avg_owd_delta_us[${direction}]) > 0 ))
+							then
+								((
+									shaper_rate_adjust_up_factor=1000*(compensated_owd_delta_delay_thr_us[${direction}]-avg_owd_delta_us[${direction}])/(compensated_owd_delta_delay_thr_us[${direction}]-compensated_avg_owd_delta_max_adjust_up_thr_us[${direction}]),
+									shaper_rate_adjust_up_factor > 1000 && (shaper_rate_adjust_up_factor=1000)
+								))
+							else
+								shaper_rate_adjust_up_factor=0
+							fi
+
+							((
+								shaper_rate_adjust_up=1000*shaper_rate_min_adjust_up_load_high-shaper_rate_adjust_up_factor*(shaper_rate_min_adjust_up_load_high-shaper_rate_max_adjust_up_load_high),
+								shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_up/1000000,
+								achieved_rate_updated[${direction}]=0,
+								t_last_decay_us[${direction}]=t_start_us
+							))
+						fi
+					# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
+					else
+						if (( t_start_us > (t_last_decay_us[${direction}]+decay_refractory_period_us) ))
+						then
+
+							if ((shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}]))
+							then
+								((
+									decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_load_low)/1000,
+									shaper_rate_kbps[${direction}]=decayed_shaper_rate_kbps > base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
+								))
+							elif ((shaper_rate_kbps[${direction}] < base_shaper_rate_kbps[${direction}]))
+							then
+								((
+									decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_low)/1000,
+									shaper_rate_kbps[${direction}] = decayed_shaper_rate_kbps < base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
 								))
 							fi
-							;;
-						# high load, so increase rate providing not inside bufferbloat refractory period
-						*high*)
-							if (( achieved_rate_updated[${direction}] && t_start_us > (t_last_bufferbloat_us[${direction}]+bufferbloat_refractory_period_us) ))
-							then
-								if (( compensated_owd_delta_delay_thr_us[${direction}] <= compensated_avg_owd_delta_max_adjust_up_thr_us[${direction}] ))
-								then
-									shaper_rate_adjust_up_factor=1000
-								elif (( (compensated_owd_delta_delay_thr_us[${direction}]-avg_owd_delta_us[${direction}]) > 0 ))
-								then
-									((
-										shaper_rate_adjust_up_factor=1000*(compensated_owd_delta_delay_thr_us[${direction}]-avg_owd_delta_us[${direction}])/(compensated_owd_delta_delay_thr_us[${direction}]-compensated_avg_owd_delta_max_adjust_up_thr_us[${direction}]),
-										shaper_rate_adjust_up_factor > 1000 && (shaper_rate_adjust_up_factor=1000)
-									))
-								else
-									shaper_rate_adjust_up_factor=0
-								fi
 
-								((
-									shaper_rate_adjust_up=1000*shaper_rate_min_adjust_up_load_high-shaper_rate_adjust_up_factor*(shaper_rate_min_adjust_up_load_high-shaper_rate_max_adjust_up_load_high),
-									shaper_rate_kbps[${direction}]=shaper_rate_kbps[${direction}]*shaper_rate_adjust_up/1000000,
-									achieved_rate_updated[${direction}]=0,
-									t_last_decay_us[${direction}]=t_start_us
-								))
-							fi
-							;;
-						# low or idle load, so determine whether to decay down towards base rate, decay up towards base rate, or set as base rate
-						*low*|*idle*)
-							if (( t_start_us > (t_last_decay_us[${direction}]+decay_refractory_period_us) ))
-							then
-
-								if ((shaper_rate_kbps[${direction}] > base_shaper_rate_kbps[${direction}]))
-								then
-									((
-										decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_down_load_low)/1000,
-										shaper_rate_kbps[${direction}]=decayed_shaper_rate_kbps > base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
-									))
-								elif ((shaper_rate_kbps[${direction}] < base_shaper_rate_kbps[${direction}]))
-								then
-									((
-										decayed_shaper_rate_kbps=(shaper_rate_kbps[${direction}]*shaper_rate_adjust_up_load_low)/1000,
-										shaper_rate_kbps[${direction}] = decayed_shaper_rate_kbps < base_shaper_rate_kbps[${direction}] ? decayed_shaper_rate_kbps : base_shaper_rate_kbps[${direction}]
-									))
-								fi
-
-								t_last_decay_us[${direction}]=${t_start_us}
-							fi
-							;;
-						*)
-							log_msg "ERROR" "unknown load condition: ${load_condition[${direction}]}"
-							kill $$ 2>/dev/null
-							;;
-					esac
+							t_last_decay_us[${direction}]=${t_start_us}
+						fi
+					fi
 				done
 
 				# make sure that updated shaper rates fall between configured minimum and maximum shaper rates
@@ -1798,6 +1789,14 @@ do
 					t_last_cpu_usage_check_us=${t_start_us}
 				fi
 
+				if (( output_processing_stats || output_summary_stats ))
+				then
+					load_condition[dl]="dl_${load_state_name[${load_state[dl]}]}"
+					load_condition[ul]="ul_${load_state_name[${load_state[ul]}]}"
+					((bufferbloat_detected[dl])) && load_condition[dl]+=_bb
+					((bufferbloat_detected[ul])) && load_condition[ul]+=_bb
+				fi
+
 				if (( output_processing_stats ))
 				then
 					printf -v processing_stats '%s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[dl]}" "${achieved_rate_kbps[ul]}" "${load_percent[dl]}" "${load_percent[ul]}" "${timestamp}" "${reflector}" "${seq}" "${dl_owd_baselines_us[${reflector}]}" "${dl_owd_us}" "${dl_owd_delta_ewmas_us[${reflector}]}" "${dl_owd_delta_us}" "${compensated_owd_delta_delay_thr_us[dl]}" "${ul_owd_baselines_us[${reflector}]}" "${ul_owd_us}" "${ul_owd_delta_ewmas_us[${reflector}]}" "${ul_owd_delta_us}" "${compensated_owd_delta_delay_thr_us[ul]}" "${sum_dl_delays}" "${avg_owd_delta_us[dl]}" "${compensated_avg_owd_delta_max_adjust_up_thr_us[dl]}" "${compensated_avg_owd_delta_max_adjust_down_thr_us[dl]}" "${sum_ul_delays}" "${avg_owd_delta_us[ul]}" "${compensated_avg_owd_delta_max_adjust_up_thr_us[ul]}" "${compensated_avg_owd_delta_max_adjust_down_thr_us[ul]}" "${load_condition[dl]}" "${load_condition[ul]}" "${shaper_rate_kbps[dl]}" "${shaper_rate_kbps[ul]}"
@@ -1813,38 +1812,36 @@ do
 				# If base rate is sustained, increment sustained base rate timer (and break out of processing loop if enough time passes)
 				if (( enable_sleep_function ))
 				then
-					case ${load_condition[dl]}${load_condition[ul]} in
-						*idle*idle*)
-							if ((sustained_connection_idle))
+					if (( load_state[dl] == LOAD_IDLE && load_state[ul] == LOAD_IDLE ))
+					then
+						if ((sustained_connection_idle))
+						then
+							((
+								t_sustained_connection_idle_us += (t_start_us-t_last_connection_idle_us),
+								t_last_connection_idle_us=t_start_us
+							))
+						else
+							sustained_connection_idle=1 t_last_connection_idle_us=t_start_us
+						fi
+						if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
+						then
+							change_state_main "IDLE"
+
+							log_msg "DEBUG" "Connection idle. Waiting for minimum load."
+
+							if ((min_shaper_rates_enforcement))
 							then
-								((
-									t_sustained_connection_idle_us += (t_start_us-t_last_connection_idle_us),
-									t_last_connection_idle_us=t_start_us
-								))
-							else
-								sustained_connection_idle=1 t_last_connection_idle_us=t_start_us
+								log_msg "DEBUG" "Enforcing minimum shaper rates."
+								set_min_shaper_rates
 							fi
-							if ((t_sustained_connection_idle_us > sustained_idle_sleep_thr_us))
-							then
-								change_state_main "IDLE"
 
-								log_msg "DEBUG" "Connection idle. Waiting for minimum load."
+							stop_pingers
 
-								if ((min_shaper_rates_enforcement))
-								then
-									log_msg "DEBUG" "Enforcing minimum shaper rates."
-									set_min_shaper_rates
-								fi
-
-								stop_pingers
-
-								t_sustained_connection_idle_us=0 sustained_connection_idle=0
-							fi
-							;;
-						*)
 							t_sustained_connection_idle_us=0 sustained_connection_idle=0
-							;;
-					esac
+						fi
+					else
+						t_sustained_connection_idle_us=0 sustained_connection_idle=0
+					fi
 				fi
 			elif (( (t_start_us - reflectors_last_timestamp_us) > stall_detection_timeout_us ))
 			then
