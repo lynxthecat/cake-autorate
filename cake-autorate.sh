@@ -732,8 +732,10 @@ replace_pinger_reflector()
 	fi
 
 	log_msg "DEBUG" "Resetting reflector offences associated with reflector: ${reflectors[pinger]}."
-	declare -n reflector_offences="reflector_${pinger}_offences"
-	for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+	for ((i=0; i<reflector_misbehaving_detection_window; i++))
+	do
+		reflector_offences[pinger*reflector_misbehaving_detection_window+i]=0
+	done
 	sum_reflector_offences[pinger]=0
 }
 
@@ -1370,9 +1372,10 @@ done
 # For each pinger initialize record of offences
 for ((pinger=0; pinger < no_pingers; pinger++))
 do
-	# shellcheck disable=SC2178
-	declare -n reflector_offences=reflector_${pinger}_offences
-	for ((i=0; i<reflector_misbehaving_detection_window; i++)) do reflector_offences[i]=0; done
+	for ((i=0; i<reflector_misbehaving_detection_window; i++))
+	do
+		reflector_offences[pinger*reflector_misbehaving_detection_window+i]=0
+	done
 	sum_reflector_offences[pinger]=0
 done
 
@@ -1990,15 +1993,14 @@ do
 
 				for ((pinger=0; pinger < no_pingers; pinger++))
 				do
-					# shellcheck disable=SC2178
-					declare -n reflector_offences="reflector_${pinger}_offences"
+					((reflector_offence_idx=pinger*reflector_misbehaving_detection_window+reflector_offences_idx))
 
 					((
-						reflector_offences[reflector_offences_idx] && (sum_reflector_offences[pinger]--),
-						reflector_offences[reflector_offences_idx] = (t_start_us-last_timestamp_reflectors_us[pinger]) > reflector_response_deadline_us ? 1 : 0
+						reflector_offences[reflector_offence_idx] && (sum_reflector_offences[pinger]--),
+						reflector_offences[reflector_offence_idx] = (t_start_us-last_timestamp_reflectors_us[pinger]) > reflector_response_deadline_us ? 1 : 0
 					))
 
-					if (( reflector_offences[reflector_offences_idx] ))
+					if (( reflector_offences[reflector_offence_idx] ))
 					then
 						((sum_reflector_offences[pinger]++))
 						log_msg "DEBUG" "no ping response from reflector: ${reflectors[pinger]} within reflector_response_deadline: ${reflector_response_deadline_s}s"
