@@ -1694,10 +1694,10 @@ do
 					ul_owd_deltas_us[delays_idx] = ul_owd_delta_us,
 					sum_ul_owd_deltas_us += ul_owd_delta_us,
 
-					delays_idx=(delays_idx+1)%bufferbloat_detection_window,
-
 					bufferbloat_detected[DL] = sum_dl_delays >= bufferbloat_detection_thr ? 1 : 0,
-					bufferbloat_detected[UL] = sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0
+					bufferbloat_detected[UL] = sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0,
+
+					++delays_idx == bufferbloat_detection_window && (delays_idx=0)
 				))
 
 				# Update shaper rates
@@ -2019,7 +2019,7 @@ do
 					fi
 				done
 				((
-					reflector_offences_idx=(reflector_offences_idx+1)%reflector_misbehaving_detection_window,
+					++reflector_offences_idx == reflector_misbehaving_detection_window && (reflector_offences_idx=0),
 					t_last_reflector_health_check_us=t_start_us
 				))
 			fi
