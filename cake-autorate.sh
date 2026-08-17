@@ -913,7 +913,15 @@ validate_config_entry() {
 
 # ======= Start of the Main Routine ========
 
-[[ -t 1 ]] && terminal=1 || terminal=0
+if [[ -n ${INVOCATION_ID-} ]]
+then
+	systemd_service=1
+	terminal=1
+	log_to_file=0
+else
+	systemd_service=0
+	[[ -t 1 ]] && terminal=1 || terminal=0
+fi
 
 type logger &> /dev/null && use_logger=1 || use_logger=0 # only perform the test once.
 
@@ -1028,7 +1036,7 @@ else
 	( umask 077 && mkdir -p "${run_path}" )
 fi
 
-rotate_log_file
+((log_to_file)) && rotate_log_file
 
 exec {original_stderr_fd}>&2 2> >(intercept_stderr)
 
