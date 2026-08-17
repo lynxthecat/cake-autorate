@@ -23,10 +23,6 @@ main() {
 	# Check if OS is OpenWRT or derivative
 	unset ID_LIKE
 
-	# The following formulations seem to be problematic for some sh versions:
-	# - `. /not_found || true`
-	# - set +e; . /etc/os-release 2>/dev/null; set -e
-	# but this seems to work OK:
 	[ -e "/etc/os-release" ] && . /etc/os-release
 
 	for x in ${ID_LIKE:-}
