@@ -20,8 +20,8 @@ no reliable means to adjust the bandwidth on the fly.
 **cake-autorate** bridges this gap.
 
 **cake-autorate** presently supports installation on devices running
-on an [OpenWrt router](https://openwrt.org) or an
-[Asus Merlin router](https://www.asuswrt-merlin.net/).
+on an [OpenWrt router](https://openwrt.org), an
+[Asus Merlin router](https://www.asuswrt-merlin.net/), or an OS from the Debian family.
 
 ### Status
 
@@ -132,7 +132,7 @@ always testing for the true maximum as explained above).
 The baseline bandwidth is likely optimally either the minimum
 bandwidth or somewhere close thereto (e.g. the compromise bandwidth).
 
-## Installation on OpenWrt or Asus Merlin
+## Installation
 
 Read the installation instructions in the separate
 [INSTALLATION](./INSTALLATION.md) page.
