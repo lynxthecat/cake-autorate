@@ -703,14 +703,12 @@ replace_pinger_reflector()
 			retained_ul_owd_baselines_us[${bad_reflector}]=${ul_owd_baselines_us[pinger]}
 			retained_dl_owd_delta_ewmas_us[${bad_reflector}]=${dl_owd_delta_ewmas_us[pinger]}
 			retained_ul_owd_delta_ewmas_us[${bad_reflector}]=${ul_owd_delta_ewmas_us[pinger]}
-			retained_last_timestamp_reflectors_us[${bad_reflector}]=${last_timestamp_reflectors_us[pinger]}
 		else
 			log_msg "DEBUG" "Discarding reflector stats associated with ${bad_reflector}"
 			unset "retained_dl_owd_baselines_us[${bad_reflector}]"
 			unset "retained_ul_owd_baselines_us[${bad_reflector}]"
 			unset "retained_dl_owd_delta_ewmas_us[${bad_reflector}]"
 			unset "retained_ul_owd_delta_ewmas_us[${bad_reflector}]"
-			unset "retained_last_timestamp_reflectors_us[${bad_reflector}]"
 		fi
 
 		reflectors[pinger]=${new_reflector}
@@ -724,7 +722,7 @@ replace_pinger_reflector()
 		ul_owd_baselines_us[pinger]=${retained_ul_owd_baselines_us[${new_reflector}]:-100000}
 		dl_owd_delta_ewmas_us[pinger]=${retained_dl_owd_delta_ewmas_us[${new_reflector}]:-0}
 		ul_owd_delta_ewmas_us[pinger]=${retained_ul_owd_delta_ewmas_us[${new_reflector}]:-0}
-		last_timestamp_reflectors_us[pinger]=${retained_last_timestamp_reflectors_us[${new_reflector}]:-${t_start_us}}
+		last_timestamp_reflectors_us[pinger]=${t_start_us}
 
 		((pingers_active)) && start_pinger "${pinger}"
 	else
@@ -1278,8 +1276,7 @@ declare -A pinger_by_reflector \
 retained_dl_owd_baselines_us \
 retained_ul_owd_baselines_us \
 retained_dl_owd_delta_ewmas_us \
-retained_ul_owd_delta_ewmas_us \
-retained_last_timestamp_reflectors_us
+retained_ul_owd_delta_ewmas_us
 
 base_shaper_rate_kbps[DL]=${base_dl_shaper_rate_kbps} base_shaper_rate_kbps[UL]=${base_ul_shaper_rate_kbps} \
 min_shaper_rate_kbps[DL]=${min_dl_shaper_rate_kbps} min_shaper_rate_kbps[UL]=${min_ul_shaper_rate_kbps} \
@@ -1373,10 +1370,6 @@ t_last_reflector_health_check_us=${t_start_us} \
 t_sustained_connection_idle_us=0 t_last_connection_idle_us=${t_start_us} reflectors_last_timestamp_us=${t_start_us} \
 pingers_t_start_us=${t_start_us} t_last_reflector_replacement_us=${t_start_us} t_last_reflector_comparison_us=${t_start_us}
 
-for ((reflector=0; reflector < no_reflectors; reflector++))
-do
-	retained_last_timestamp_reflectors_us[${reflectors[reflector]}]=${t_start_us}
-done
 for ((pinger=0; pinger < no_pingers; pinger++))
 do
 	last_timestamp_reflectors_us[pinger]=${t_start_us}
