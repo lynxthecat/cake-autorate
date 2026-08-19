@@ -1710,6 +1710,9 @@ do
 					ul_owd_deltas_us[delays_idx] = ul_owd_delta_us,
 					sum_ul_owd_deltas_us += ul_owd_delta_us,
 
+					avg_owd_delta_us[DL] = sum_dl_owd_deltas_us / bufferbloat_detection_window,
+					avg_owd_delta_us[UL] = sum_ul_owd_deltas_us / bufferbloat_detection_window,
+
 					bufferbloat_detected[DL] = sum_dl_delays >= bufferbloat_detection_thr ? 1 : 0,
 					bufferbloat_detected[UL] = sum_ul_delays >= bufferbloat_detection_thr ? 1 : 0,
 
@@ -1724,12 +1727,6 @@ do
 					then
 						if (( t_start_us > (t_last_bufferbloat_us[direction]+bufferbloat_refractory_period_us) ))
 						then
-							if (( direction == DL ))
-							then
-								((avg_owd_delta_us[DL]=sum_dl_owd_deltas_us/bufferbloat_detection_window))
-							else
-								((avg_owd_delta_us[UL]=sum_ul_owd_deltas_us/bufferbloat_detection_window))
-							fi
 							if (( compensated_avg_owd_delta_max_adjust_down_thr_us[direction] <= compensated_owd_delta_delay_thr_us[direction] ))
 							then
 								shaper_rate_adjust_down_factor=1000
@@ -1754,12 +1751,6 @@ do
 					then
 						if (( achieved_rate_updated[direction] && t_start_us > (t_last_bufferbloat_us[direction]+bufferbloat_refractory_period_us) ))
 						then
-							if (( direction == DL ))
-							then
-								((avg_owd_delta_us[DL]=sum_dl_owd_deltas_us/bufferbloat_detection_window))
-							else
-								((avg_owd_delta_us[UL]=sum_ul_owd_deltas_us/bufferbloat_detection_window))
-							fi
 							if (( compensated_owd_delta_delay_thr_us[direction] <= compensated_avg_owd_delta_max_adjust_up_thr_us[direction] ))
 							then
 								shaper_rate_adjust_up_factor=1000
@@ -1849,10 +1840,6 @@ do
 
 				if (( output_processing_stats || output_summary_stats ))
 				then
-					((
-						avg_owd_delta_us[DL]=sum_dl_owd_deltas_us/bufferbloat_detection_window,
-						avg_owd_delta_us[UL]=sum_ul_owd_deltas_us/bufferbloat_detection_window
-					))
 					load_condition[DL]="dl_${load_state_name[${load_state[DL]}]}"
 					load_condition[UL]="ul_${load_state_name[${load_state[UL]}]}"
 					((bufferbloat_detected[DL])) && load_condition[DL]+=_bb
