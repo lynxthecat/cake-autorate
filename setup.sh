@@ -141,15 +141,18 @@ main() {
 	mkdir -p "${SCRIPT_PREFIX}" "${CONFIG_PREFIX}"
 
 	# Get the latest commit to download
-	[ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ] && \
+	if [ -z "${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT:-}" ]
+	then
 		if [ "${MY_OS}" = "openwrt" ] || [ "${MY_OS}" = "asuswrt" ]
 		then
 			JSON_CMD="jsonfilter -e @.sha"
 		else
 			JSON_CMD="jq -r .sha"
 		fi
-		commit=$(download_url "${API_URL}" | ${JSON_CMD}) || \
+		commit=$(download_url "${API_URL}" | ${JSON_CMD})
+	else
 		commit="${__CAKE_AUTORATE_SETUP_SH_EXEC_COMMIT}"
+	fi
 	if [ -z "${commit:-}" ];
 	then
 		printf >&2 "Invalid operation occurred, commit variable should not be empty"
