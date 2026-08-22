@@ -232,6 +232,14 @@ main() {
 		mv "${tmp}/config.primary.sh" config.primary.sh
 	fi
 
+	# Install the MQTT publisher configuration only if one is not already present
+	if [ -f mqtt-publisher.config.sh ]
+	then
+		rm -f "${tmp}/mqtt-publisher.config.sh"
+	else
+		mv "${tmp}/mqtt-publisher.config.sh" mqtt-publisher.config.sh
+	fi
+
 	# remove old program files from cake-autorate directory
 	cd "${SCRIPT_PREFIX}"
 	old_fnames="cake-autorate.sh cake-autorate_defaults.sh cake-autorate_launcher.sh cake-autorate_lib.sh cake-autorate_setup.sh"

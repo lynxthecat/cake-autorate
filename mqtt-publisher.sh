@@ -211,7 +211,12 @@ publish_stats()
 }
 
 SCRIPT_PREFIX="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-CONFIG_PREFIX="${SCRIPT_PREFIX}"
+CONFIG_PREFIX="${CAKE_AUTORATE_CONFIG_PREFIX:-${SCRIPT_PREFIX}}"
+
+if [[ -r ${CONFIG_PREFIX}/mqtt-publisher.config.sh ]]; then
+    # shellcheck source=mqtt-publisher.config.sh
+    . "${CONFIG_PREFIX}/mqtt-publisher.config.sh"
+fi
 
 declare -A seen_log_dir=()
 log_dirs=()
