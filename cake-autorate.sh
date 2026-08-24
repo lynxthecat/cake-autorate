@@ -615,7 +615,7 @@ start_pingers()
 			kill $$ 2>/dev/null
 			;;
 	esac
-	pingers_active=1
+	pingers_active=1 t_last_start_pingers_us=${EPOCHREALTIME/.}
 }
 
 sleep_until_next_pinger_time_slot()
@@ -1892,6 +1892,15 @@ do
 
 				log_msg "DEBUG" "load check is: (( ${achieved_rate_kbps[DL]} kbps > ${connection_stall_thr_kbps} kbps for download && ${achieved_rate_kbps[UL]} kbps > ${connection_stall_thr_kbps} kbps for upload ))"
 
+				if (( t_start_us - reflectors_last_timestamp_us >= global_ping_response_timeout_us &&
+					t_start_us - t_last_start_pingers_us >= global_ping_response_timeout_us ))
+				then
+					log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded."
+					log_msg "DEBUG" "Restarting pingers."
+					stop_pingers
+					start_pingers
+				fi
+
 				# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 				# and therefore resume normal operation
 				if (( achieved_rate_kbps[DL] > connection_stall_thr_kbps && achieved_rate_kbps[UL] > connection_stall_thr_kbps ))
@@ -2053,6 +2062,11 @@ do
 				global_ping_response_timeout=1
 				((min_shaper_rates_enforcement)) && set_min_shaper_rates
 				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded."
+			fi
+
+			if (( t_start_us - reflectors_last_timestamp_us >= global_ping_response_timeout_us &&
+				t_start_us - t_last_start_pingers_us >= global_ping_response_timeout_us ))
+			then
 				log_msg "DEBUG" "Restarting pingers."
 				stop_pingers
 				start_pingers
