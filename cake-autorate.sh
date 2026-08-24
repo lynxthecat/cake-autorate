@@ -675,6 +675,24 @@ stop_pingers()
 	pingers_active=0
 }
 
+handle_global_ping_response_timeout()
+{
+	(( t_start_us - reflectors_last_timestamp_us >= global_ping_response_timeout_us )) || return
+
+	if ((global_ping_response_timeout == 0))
+	then
+		global_ping_response_timeout=1
+		((min_shaper_rates_enforcement)) && set_min_shaper_rates
+		log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded."
+	fi
+
+	if (( t_start_us - t_last_start_pingers_us >= global_ping_response_timeout_us ))
+	then
+		log_msg "DEBUG" "Restarting pingers."
+		stop_pingers
+		start_pingers
+	fi
+}
 
 replace_pinger_reflector()
 {
@@ -1346,7 +1364,7 @@ then
 	fi
 fi
 
-sustained_connection_idle=0 reflector_offences_idx=0 pingers_active=0
+sustained_connection_idle=0 reflector_offences_idx=0 pingers_active=0 global_ping_response_timeout=0
 
 monitor_achieved_rates "${rx_bytes_path}" "${tx_bytes_path}" "${monitor_achieved_rates_interval_us}" &
 proc_pids['monitor_achieved_rates']=${!}
@@ -1684,6 +1702,7 @@ do
 					log_msg "DEBUG" "processed response from [${reflector}] that is > 500ms old. Skipping."
 					continue
 				fi
+				global_ping_response_timeout=0
 
 				# Keep track of delays across detection window, detect any bufferbloat and determine load percentages
 				((
@@ -1892,14 +1911,7 @@ do
 
 				log_msg "DEBUG" "load check is: (( ${achieved_rate_kbps[DL]} kbps > ${connection_stall_thr_kbps} kbps for download && ${achieved_rate_kbps[UL]} kbps > ${connection_stall_thr_kbps} kbps for upload ))"
 
-				if (( t_start_us - reflectors_last_timestamp_us >= global_ping_response_timeout_us &&
-					t_start_us - t_last_start_pingers_us >= global_ping_response_timeout_us ))
-				then
-					log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded."
-					log_msg "DEBUG" "Restarting pingers."
-					stop_pingers
-					start_pingers
-				fi
+				handle_global_ping_response_timeout
 
 				# non-zero load so despite no reflector response within stall interval, the connection not considered to have stalled
 				# and therefore resume normal operation
@@ -1909,8 +1921,6 @@ do
 					log_msg "DEBUG" "load above connection stall threshold so resuming normal operation."
 				else
 					change_state_main "STALL"
-
-					t_connection_stall_time_us=${t_start_us} global_ping_response_timeout=0
 				fi
 
 			fi
@@ -2057,20 +2067,7 @@ do
 				change_state_main "RUNNING"
 			fi
 
-			if (( global_ping_response_timeout==0 && t_start_us > (t_connection_stall_time_us + global_ping_response_timeout_us - stall_detection_timeout_us) ))
-			then
-				global_ping_response_timeout=1
-				((min_shaper_rates_enforcement)) && set_min_shaper_rates
-				log_msg "SYSLOG" "Warning: Configured global ping response timeout: ${global_ping_response_timeout_s} seconds exceeded."
-			fi
-
-			if (( t_start_us - reflectors_last_timestamp_us >= global_ping_response_timeout_us &&
-				t_start_us - t_last_start_pingers_us >= global_ping_response_timeout_us ))
-			then
-				log_msg "DEBUG" "Restarting pingers."
-				stop_pingers
-				start_pingers
-			fi
+			handle_global_ping_response_timeout
 			;;
 		*)
 			log_msg "ERROR" "Unrecognized main state: ${main_state}. Exiting now."
