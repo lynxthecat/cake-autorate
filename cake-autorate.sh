@@ -115,6 +115,7 @@ cleanup_and_killall()
 
 	((terminate_maintain_log_file_timeout_ms=log_file_buffer_timeout_ms+500))
 	terminate "${proc_pids['maintain_log_file']:-}" "${terminate_maintain_log_file_timeout_ms}"
+	terminate "${proc_pids['log_file_waker']:-}"
 
 	[[ -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -154,7 +155,7 @@ log_msg()
 {
 	# send logging message to stdout, log file fifo, log file and/or system logger
 
-	local type=${1} msg=${2} instance_id=${instance_id:-"unknown"} log_timestamp=${EPOCHREALTIME}
+	local type=${1} msg=${2} instance_id=${instance_id:-"unknown"} log_timestamp=${EPOCHREALTIME} log_frame_payload
 
 	case ${type} in
 
@@ -186,7 +187,17 @@ log_msg()
 	((log_to_file)) || return
 	if (( log_fd >= 0 ))
 	then
-		printf '%s' "${msg}" >&"${log_fd}"
+		if (( ${#msg} <= 4091 ))
+		then
+			printf 'L%04d%s' "${#msg}" "${msg}" >&"${log_fd}"
+		else
+			while [[ -n ${msg} ]]
+			do
+				log_frame_payload=${msg::4091}
+				printf 'L%04d%s' "${#log_frame_payload}" "${log_frame_payload}" >&"${log_fd}"
+				msg=${msg:4091}
+			done
+		fi
 	else
 		printf '%s' "${msg}" >> "${log_file_path}"
 	fi
@@ -319,7 +330,7 @@ export_log_file()
 	log_file_export_path="${log_file_path/.log/_${log_file_export_datetime}.log}"
 	log_msg "DEBUG" "Exporting log file with path: ${log_file_path/.log/_${log_file_export_datetime}.log}"
 
-	flush_log_pipe
+	flush_log_pipe || return 1
 
 	# Now export with or without compression to the appropriate export path
 	if ((log_file_export_compress))
@@ -343,11 +354,52 @@ export_log_file()
 flush_log_pipe()
 {
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -r -t 0 -u "${log_fd}"
+	while IFS= read -r -t 0 -u "${log_fd}"
 	do
-		read -r -u "${log_fd}" log_line
-		printf '%s\n' "${log_line}" >&${log_file_fd}
-		((log_file_size_bytes+=${#log_line}))
+		frame_header=""
+		if ! IFS= read -r -N 5 -u "${log_fd}" frame_header
+		then
+			trap - TERM EXIT USR1 USR2
+			printf 'ERROR: incomplete internal log protocol header: %q\n' "${frame_header}" >&"${original_stderr_fd}"
+			return 1
+		fi
+		if [[ ${frame_header} != L[0-9][0-9][0-9][0-9] ]]
+		then
+			trap - TERM EXIT USR1 USR2
+			printf 'ERROR: malformed internal log protocol header: %q\n' "${frame_header}" >&"${original_stderr_fd}"
+			return 1
+		fi
+		frame_length=$((10#${frame_header:1}))
+		if (( frame_length > 4091 ))
+		then
+			trap - TERM EXIT USR1 USR2
+			printf 'ERROR: invalid internal log protocol payload length: %d\n' "${frame_length}" >&"${original_stderr_fd}"
+			return 1
+		fi
+		(( frame_length == 0 )) && continue
+		frame_payload=""
+		if ! IFS= read -r -N "${frame_length}" -u "${log_fd}" frame_payload
+		then
+			trap - TERM EXIT USR1 USR2
+			printf 'ERROR: incomplete internal log protocol payload: expected %d bytes, received %d\n' \
+				"${frame_length}" "${#frame_payload}" >&"${original_stderr_fd}"
+			return 1
+		fi
+		log_chunk+=${frame_payload}
+	done
+	printf '%s' "${log_chunk}" >&${log_file_fd}
+	((log_file_size_bytes+=${#log_chunk}))
+	log_chunk=""
+}
+
+log_file_waker()
+{
+	printf -v log_file_buffer_timeout_s %.3f "${log_file_buffer_timeout_ms}e-3"
+	while kill -0 "${proc_pids['maintain_log_file']}" 2>/dev/null
+	do
+		sleep_s "${log_file_buffer_timeout_s}"
+		kill -0 "${proc_pids['maintain_log_file']}" 2>/dev/null || break
+		printf 'L0000' >&"${log_fd}"
 	done
 }
 
@@ -361,7 +413,7 @@ maintain_log_file()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
+	log_chunk=""
 
 	while :
 	do
@@ -375,17 +427,50 @@ maintain_log_file()
 
 		while :
 		do
-			read -r -N "${log_file_buffer_size_B}" -t "${log_file_buffer_timeout_s}" -u "${log_fd}" log_chunk
-		
-			printf '%s' "${log_chunk}" >&${log_file_fd}
-
-			((log_file_size_bytes+=${#log_chunk}))
+			frame_header=""
+			if ! IFS= read -r -N 5 -u "${log_fd}" frame_header
+			then
+				trap - TERM EXIT USR1 USR2
+				printf 'ERROR: incomplete internal log protocol header: %q\n' "${frame_header}" >&"${original_stderr_fd}"
+				exit 1
+			fi
+			if [[ ${frame_header} != L[0-9][0-9][0-9][0-9] ]]
+			then
+				trap - TERM EXIT USR1 USR2
+				printf 'ERROR: malformed internal log protocol header: %q\n' "${frame_header}" >&"${original_stderr_fd}"
+				exit 1
+			fi
+			frame_length=$((10#${frame_header:1}))
+			if (( frame_length > 4091 ))
+			then
+				trap - TERM EXIT USR1 USR2
+				printf 'ERROR: invalid internal log protocol payload length: %d\n' "${frame_length}" >&"${original_stderr_fd}"
+				exit 1
+			fi
+			if (( frame_length > 0 ))
+			then
+				frame_payload=""
+				if ! IFS= read -r -N "${frame_length}" -u "${log_fd}" frame_payload
+				then
+					trap - TERM EXIT USR1 USR2
+					printf 'ERROR: incomplete internal log protocol payload: expected %d bytes, received %d\n' \
+						"${frame_length}" "${#frame_payload}" >&"${original_stderr_fd}"
+					exit 1
+				fi
+				log_chunk+=${frame_payload}
+			fi
+			if (( ${#log_chunk} >= log_file_buffer_size_B || frame_length == 0 ))
+			then
+				printf '%s' "${log_chunk}" >&${log_file_fd}
+				((log_file_size_bytes+=${#log_chunk}))
+				log_chunk=""
+			fi
 
 			# Verify log file time < configured maximum
 			if (( SECONDS - t_log_file_start_s > log_file_max_time_s ))
 			then
 				log_msg "DEBUG" "log file maximum time: ${log_file_max_time_mins} minutes has elapsed so flushing and rotating log file."
-				flush_log_pipe
+				flush_log_pipe || exit 1
 				rotate_log_file
 				break
 			# Verify log file size < configured maximum
@@ -393,7 +478,7 @@ maintain_log_file()
 			then
 				((log_file_size_KB=log_file_size_bytes/1024))
 				log_msg "DEBUG" "log file size: ${log_file_size_KB} KB has exceeded configured maximum: ${log_file_max_size_KB} KB so flushing and rotating log file."
-				flush_log_pipe
+				flush_log_pipe || exit 1
 				rotate_log_file
 				break
 			fi
@@ -405,18 +490,18 @@ maintain_log_file()
 					;;
 				*KILL*)
 					log_msg "DEBUG" "received log file kill signal so flushing log and exiting."
-					flush_log_pipe
+					flush_log_pipe || exit 1
 					trap - TERM EXIT
 					exit
 					;;
 				*EXPORT*)
 					log_msg "DEBUG" "received log file export signal so exporting log file."
-					export_log_file
+					export_log_file || exit 1
 					signal="${signal//EXPORT}"
 					;;
 				*RESET*)
 					log_msg "DEBUG" "received log file reset signal so flushing log and resetting log file."
-					flush_log_pipe
+					flush_log_pipe || exit 1
 					reset_log_file
 					signal="${signal//RESET}"
 					break
@@ -1160,13 +1245,15 @@ then
 	exec {log_fd}<> <(:)
 	maintain_log_file &
 	proc_pids['maintain_log_file']=${!}
+	log_file_waker &
+	proc_pids['log_file_waker']=${!}
 fi
 
 # Redirect stdout to the log pipe when it is not being output directly
 if ! ((print_to_stdout))
 then
-	echo "stdout not a terminal so redirecting output to: ${log_file_path}"
-	((log_to_file)) && exec 1>&${log_fd}
+	echo "stdout not a terminal; disabling unexpected stdout output"
+	((log_to_file)) && exec 1>/dev/null
 fi
 
 # Initialize rx_bytes_path and tx_bytes_path if not set
