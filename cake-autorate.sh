@@ -454,7 +454,8 @@ maintain_log_file()
 				fi
 				log_chunk+=${frame_payload}
 			fi
-			if (( ${#log_chunk} >= log_file_buffer_size_B || frame_length == 0 ))
+			if (( ${#log_chunk} > 0 &&
+				(${#log_chunk} >= log_file_buffer_size_B || frame_length == 0) ))
 			then
 				printf '%s' "${log_chunk}" >&${log_file_fd}
 				((log_file_size_bytes+=${#log_chunk}))
