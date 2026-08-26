@@ -155,7 +155,7 @@ log_msg()
 {
 	# send logging message to stdout, log file fifo, log file and/or system logger
 
-	local type=${1} msg=${2} instance_id=${instance_id:-"unknown"} log_timestamp=${EPOCHREALTIME} log_frame_payload
+	local type=${1} msg=${2} instance_id=${instance_id:-"unknown"} log_timestamp=${EPOCHREALTIME}
 
 	case ${type} in
 
@@ -187,17 +187,13 @@ log_msg()
 	((log_to_file)) || return
 	if (( log_fd >= 0 ))
 	then
-		if (( ${#msg} <= 4091 ))
+		if (( ${#msg} > 4091 ))
 		then
-			printf 'L%04d%s' "${#msg}" "${msg}" >&"${log_fd}"
-		else
-			while [[ -n ${msg} ]]
-			do
-				log_frame_payload=${msg::4091}
-				printf 'L%04d%s' "${#log_frame_payload}" "${log_frame_payload}" >&"${log_fd}"
-				msg=${msg:4091}
-			done
+			printf 'ERROR: rejected internal log record of %d bytes; maximum is 4091 bytes\n' \
+				"${#msg}" >&"${original_stderr_fd}"
+			return 1
 		fi
+		printf 'L%04d%s' "${#msg}" "${msg}" >&"${log_fd}"
 	else
 		printf '%s' "${msg}" >> "${log_file_path}"
 	fi
