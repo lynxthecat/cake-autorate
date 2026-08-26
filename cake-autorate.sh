@@ -390,7 +390,6 @@ flush_log_pipe()
 
 log_file_waker()
 {
-	printf -v log_file_buffer_timeout_s %.3f "${log_file_buffer_timeout_ms}e-3"
 	while kill -0 "${proc_pids['maintain_log_file']}" 2>/dev/null
 	do
 		sleep_s "${log_file_buffer_timeout_s}"
@@ -1238,6 +1237,7 @@ then
 		log_file_max_time_s=log_file_max_time_mins*60,
 		log_file_max_size_bytes=log_file_max_size_KB*1024
 	))
+	printf -v log_file_buffer_timeout_s %.3f "${log_file_buffer_timeout_ms}e-3"
 	exec {log_fd}<> <(:)
 	maintain_log_file &
 	proc_pids['maintain_log_file']=${!}
