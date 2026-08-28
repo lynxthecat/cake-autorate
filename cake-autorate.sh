@@ -115,6 +115,7 @@ cleanup_and_killall()
 
 	((terminate_maintain_log_file_timeout_ms=log_file_buffer_timeout_ms+500))
 	terminate "${proc_pids['maintain_log_file']:-}" "${terminate_maintain_log_file_timeout_ms}"
+	terminate "${proc_pids['log_file_waker']:-}"
 
 	[[ -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -186,6 +187,16 @@ log_msg()
 	((log_to_file)) || return
 	if (( log_fd >= 0 ))
 	then
+		if [[ ${msg} == *"${log_file_padding_byte}"* ]]
+		then
+			printf 'ERROR: Log record contained the reserved log-pipe padding byte.\n' >&2
+			return 1
+		elif (( ${#msg} > 4096 ))
+		then
+			printf 'ERROR: Log record was %d bytes; maximum atomic log-pipe record size is 4096 bytes.\n' \
+				"${#msg}" >&2
+			return 1
+		fi
 		printf '%s' "${msg}" >&"${log_fd}"
 	else
 		printf '%s' "${msg}" >> "${log_file_path}"
@@ -342,12 +353,35 @@ export_log_file()
 
 flush_log_pipe()
 {
+	local log_chunk
+
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -r -t 0 -u "${log_fd}"
+
+	while
+		log_chunk=""
+		IFS= read -r -N "${log_file_buffer_size_B}" \
+			-t 0.01 -u "${log_fd}" log_chunk ||
+			[[ -n ${log_chunk} ]]
 	do
-		read -r -u "${log_fd}" log_line
-		printf '%s\n' "${log_line}" >&${log_file_fd}
-		((log_file_size_bytes+=${#log_line}))
+		log_chunk=${log_chunk//"${log_file_padding_byte}"/}
+
+		if [[ -n ${log_chunk} ]]
+		then
+			printf '%s' "${log_chunk}" >&${log_file_fd}
+			((log_file_size_bytes+=${#log_chunk}))
+		fi
+	done
+}
+
+log_file_waker()
+{
+	trap '' INT
+	trap 'exit' TERM EXIT
+
+	while sleep_s "${log_file_buffer_timeout_s}"
+	do
+		kill -0 "${proc_pids['maintain_log_file']}" 2>/dev/null || break
+		printf '%s' "${log_file_padding}" >&"${log_fd}"
 	done
 }
 
@@ -361,8 +395,6 @@ maintain_log_file()
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
-	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
-
 	while :
 	do
 		exec {log_file_fd}> "${log_file_path}"
@@ -375,11 +407,14 @@ maintain_log_file()
 
 		while :
 		do
-			read -r -N "${log_file_buffer_size_B}" -t "${log_file_buffer_timeout_s}" -u "${log_fd}" log_chunk
-		
-			printf '%s' "${log_chunk}" >&${log_file_fd}
+			IFS= read -r -N "${log_file_buffer_size_B}" -u "${log_fd}" log_chunk
+			log_chunk=${log_chunk//"${log_file_padding_byte}"/}
 
-			((log_file_size_bytes+=${#log_chunk}))
+			if [[ -n ${log_chunk} ]]
+			then
+				printf '%s' "${log_chunk}" >&${log_file_fd}
+				((log_file_size_bytes+=${#log_chunk}))
+			fi
 
 			# Verify log file time < configured maximum
 			if (( SECONDS - t_log_file_start_s > log_file_max_time_s ))
@@ -1157,9 +1192,15 @@ then
 		log_file_max_time_s=log_file_max_time_mins*60,
 		log_file_max_size_bytes=log_file_max_size_KB*1024
 	))
+	log_file_padding_byte=$'\x1e'
+	printf -v log_file_buffer_timeout_s %.3f "${log_file_buffer_timeout_ms}e-3"
+	printf -v log_file_padding '%*s' "${log_file_buffer_size_B}" ''
+	log_file_padding=${log_file_padding// /"${log_file_padding_byte}"}
 	exec {log_fd}<> <(:)
 	maintain_log_file &
 	proc_pids['maintain_log_file']=${!}
+	log_file_waker &
+	proc_pids['log_file_waker']=${!}
 fi
 
 # Redirect stdout to the log pipe when it is not being output directly
