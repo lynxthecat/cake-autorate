@@ -20,6 +20,7 @@ cake_autorate_version="3.3.0-PRERELEASE"
 ## main - main process
 ## monitor_achieved_rates - monitor network transfer rates
 ## maintain_log_file - maintain and rotate log file
+## log_file_waker - mark buffered log intervals
 ##
 ## IPC is facilitated via FIFOs in the form of anonymous pipes
 ## thereby to enable transferring data between processes
@@ -97,7 +98,7 @@ mapfile -t valid_config_entries < <(grep -E '^[^(#| )].*=' "${SCRIPT_PREFIX}/def
 trap cleanup_and_killall INT TERM EXIT
 
 cleanup_and_killall()
-{	
+{
 	# Do not fail on error for this critical cleanup code
 	set +e
 
@@ -114,7 +115,11 @@ cleanup_and_killall()
 	terminate "${pinger_pids[*]}"
 
 	((terminate_maintain_log_file_timeout_ms=log_file_buffer_timeout_ms+500))
-	terminate "${proc_pids['maintain_log_file']:-}" "${terminate_maintain_log_file_timeout_ms}"
+	terminate "${proc_pids['maintain_log_file']:-}" \
+		"${terminate_maintain_log_file_timeout_ms}"
+	terminate "${proc_pids['log_file_waker']:-}"
+
+	unset "proc_pids[maintain_log_file]" "proc_pids[log_file_waker]"
 
 	[[ -d ${run_path} ]] && rm -r "${run_path}"
 	rmdir /var/run/cake-autorate 2>/dev/null
@@ -342,26 +347,48 @@ export_log_file()
 
 flush_log_pipe()
 {
+	local log_chunk
+
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-	while read -r -t 0 -u "${log_fd}"
+	while
+		log_chunk=""
+		IFS= read -r -d '' -t 0.01 -u "${log_fd}" log_chunk ||
+			[[ -n ${log_chunk} ]]
 	do
-		read -r -u "${log_fd}" log_line
-		printf '%s\n' "${log_line}" >&${log_file_fd}
-		((log_file_size_bytes+=${#log_line}))
+		if [[ -n ${log_chunk} ]]
+		then
+			printf '%s' "${log_chunk}" >&${log_file_fd}
+			((log_file_size_bytes+=${#log_chunk}))
+		fi
+	done
+}
+
+log_file_waker()
+{
+	trap '' INT
+	trap 'exit' TERM
+
+	while sleep_s "${log_file_buffer_timeout_s}"
+	do
+		kill -0 "${proc_pids['maintain_log_file']}" 2>/dev/null || break
+		# Bash variables cannot contain NUL, so write the interval marker directly.
+		printf '\0' >&"${log_fd}"
 	done
 }
 
 maintain_log_file()
 {
+	local log_chunk
+	local -a log_chunks
 	signal=""
 	trap '' INT
-	trap 'signal+=KILL' TERM EXIT
+	# Wake a blocked mapfile so it can process the termination request.
+	trap 'signal+=KILL; printf "\0" >&"${log_fd}"' TERM
+	trap 'signal+=KILL' EXIT
 	trap 'signal+=EXPORT' USR1
 	trap 'signal+=RESET' USR2
 
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
-
-	printf -v log_file_buffer_timeout_s %.1f "${log_file_buffer_timeout_ms}e-3"
 
 	while :
 	do
@@ -375,11 +402,20 @@ maintain_log_file()
 
 		while :
 		do
-			read -r -N "${log_file_buffer_size_B}" -t "${log_file_buffer_timeout_s}" -u "${log_fd}" log_chunk
-		
-			printf '%s' "${log_chunk}" >&${log_file_fd}
-
-			((log_file_size_bytes+=${#log_chunk}))
+			log_chunks=()
+			if ! mapfile -d '' -t -n 1 -u "${log_fd}" log_chunks &&
+				(( ${#log_chunks[@]} == 0 )) && [[ -z ${signal} ]]
+			then
+				printf 'ERROR: Buffered log collector failed while reading the log pipe.\n' >&2
+				trap - TERM EXIT
+				exit 1
+			fi
+			log_chunk=${log_chunks[0]-}
+			if [[ -n ${log_chunk} ]]
+			then
+				printf '%s' "${log_chunk}" >&${log_file_fd}
+				((log_file_size_bytes+=${#log_chunk}))
+			fi
 
 			# Verify log file time < configured maximum
 			if (( SECONDS - t_log_file_start_s > log_file_max_time_s ))
@@ -1157,9 +1193,12 @@ then
 		log_file_max_time_s=log_file_max_time_mins*60,
 		log_file_max_size_bytes=log_file_max_size_KB*1024
 	))
+	printf -v log_file_buffer_timeout_s %.3f "${log_file_buffer_timeout_ms}e-3"
 	exec {log_fd}<> <(:)
 	maintain_log_file &
 	proc_pids['maintain_log_file']=${!}
+	log_file_waker &
+	proc_pids['log_file_waker']=${!}
 fi
 
 # Redirect stdout to the log pipe when it is not being output directly
