@@ -4,34 +4,52 @@ set -u
 parse()
 {
 	local method=$1 line=$2 timestamp reflector seq dl_owd_us ul_owd_us unexpected
-	local dl_owd_ms ul_owd_ms rtt_ms originate received transmit finished
+	local dl_owd_ms ul_owd_ms rtt_ms originate received transmit finished reflector_response=0
 	local field1 field2 field3 field4 field5 field6 field7 field8 field9 field10 field11 field12
+	local sars_dl_var sars_ul_var sars_overflow_var
 	case $method in
-		irtt) read -r timestamp reflector seq dl_owd_us ul_owd_us unexpected <<< "$line" ;;
-		tsping) read -r timestamp reflector seq field3 field4 field5 field6 field7 dl_owd_ms ul_owd_ms unexpected <<< "$line" ;;
-		fping) read -r timestamp reflector field2 seq field4 field5 rtt_ms field7 field8 field9 field10 field11 unexpected <<< "$line" ;;
-		fping-ts) read -r timestamp reflector field2 seq field4 field5 field6 field7 field8 field9 field10 field11 field12 originate received transmit finished unexpected <<< "$line" ;;
-		ping) read -r timestamp field1 field2 field3 reflector seq field6 rtt_ms field8 unexpected <<< "$line" ;;
+		irtt) sars_dl_var=reflector sars_ul_var=seq sars_overflow_var=dl_owd_us ;;
+		tsping) sars_dl_var=reflector sars_ul_var=seq sars_overflow_var=field3 ;;
+		fping|fping-ts) sars_dl_var=reflector sars_ul_var=field2 sars_overflow_var=seq ;;
+		ping) sars_dl_var=field1 sars_ul_var=field2 sars_overflow_var=field3 ;;
+	esac
+
+	case $method in
+		irtt)
+			read -r timestamp reflector seq dl_owd_us ul_owd_us unexpected <<< "$line"
+			[[ $timestamp != SARS && -n $ul_owd_us && -z $unexpected ]] && reflector_response=1
+			;;
+		tsping)
+			read -r timestamp reflector seq field3 field4 field5 field6 field7 dl_owd_ms ul_owd_ms unexpected <<< "$line"
+			[[ $timestamp != SARS && -n $ul_owd_ms && -z $unexpected ]] && reflector_response=1
+			;;
+		fping)
+			read -r timestamp reflector field2 seq field4 field5 rtt_ms field7 field8 field9 field10 field11 unexpected <<< "$line"
+			if [[ $timestamp != SARS && -n $field11 && -z $unexpected && $rtt_ms != *[!0-9.]* ]]; then seq=${seq#[}; seq=${seq%]}; reflector_response=1; fi
+			;;
+		fping-ts)
+			read -r timestamp reflector field2 seq field4 field5 field6 field7 field8 field9 field10 field11 field12 originate received transmit finished unexpected <<< "$line"
+			if [[ $timestamp != SARS && -n $finished && -z $unexpected ]]; then seq=${seq#[}; seq=${seq%]}; originate=${originate#Originate=}000 received=${received#Receive=}000 transmit=${transmit#Transmit=}000 finished=${finished#Localreceive=}000 reflector_response=1; fi
+			;;
+		ping)
+			read -r timestamp field1 field2 field3 reflector seq field6 rtt_ms field8 unexpected <<< "$line"
+			if [[ $timestamp != SARS && -n $field8 && -z $unexpected && $rtt_ms == time=* ]]; then reflector=${reflector%:}; seq=${seq//icmp_seq=}; rtt_ms=${rtt_ms//time=}; reflector_response=1; fi
+			;;
 	esac
 
 	[[ -n $timestamp ]] || { printf empty; return; }
 	if [[ $timestamp == SARS ]]
 	then
-		case $method in
-			irtt) [[ -n $reflector && -n $seq && -z $dl_owd_us$unexpected ]] && printf 'sars:%s:%s' "$reflector" "$seq" || printf malformed ;;
-			tsping) [[ -n $reflector && -n $seq && -z $field3$unexpected ]] && printf 'sars:%s:%s' "$reflector" "$seq" || printf malformed ;;
-			fping|fping-ts) [[ -n $reflector && -n $field2 && -z $seq$unexpected ]] && printf 'sars:%s:%s' "$reflector" "$field2" || printf malformed ;;
-			ping) [[ -n $field1 && -n $field2 && -z $field3$unexpected ]] && printf 'sars:%s:%s' "$field1" "$field2" || printf malformed ;;
-		esac
+		if [[ -n ${!sars_dl_var} && -n ${!sars_ul_var} && -z ${!sars_overflow_var} ]]; then printf 'sars:%s:%s' "${!sars_dl_var}" "${!sars_ul_var}"; else printf malformed; fi
 		return
 	fi
-
+	((reflector_response)) || { printf malformed; return; }
 	case $method in
-		irtt) [[ -n $ul_owd_us && -z $unexpected ]] && printf 'ping:%s:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$dl_owd_us" "$ul_owd_us" || printf malformed ;;
-		tsping) [[ -n $ul_owd_ms && -z $unexpected ]] && printf 'ping:%s:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$dl_owd_ms" "$ul_owd_ms" || printf malformed ;;
-		fping) [[ -n $field11 && -z $unexpected && $rtt_ms != *[!0-9.]* ]] && printf 'ping:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$rtt_ms" || printf malformed ;;
-		fping-ts) [[ -n $finished && -z $unexpected ]] && printf 'ping:%s:%s:%s:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "${originate#Originate=}000" "${received#Receive=}000" "${transmit#Transmit=}000" "${finished#Localreceive=}000" || printf malformed ;;
-		ping) [[ -n $field8 && -z $unexpected && $rtt_ms == time=* ]] && printf 'ping:%s:%s:%s:%s' "$timestamp" "${reflector%:}" "$seq" "$rtt_ms" || printf malformed ;;
+		irtt) printf 'ping:%s:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$dl_owd_us" "$ul_owd_us" ;;
+		tsping) printf 'ping:%s:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$dl_owd_ms" "$ul_owd_ms" ;;
+		fping) printf 'ping:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$rtt_ms" ;;
+		fping-ts) printf 'ping:%s:%s:%s:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$originate" "$received" "$transmit" "$finished" ;;
+		ping) printf 'ping:%s:%s:%s:%s' "$timestamp" "$reflector" "$seq" "$rtt_ms" ;;
 	esac
 }
 
@@ -44,9 +62,9 @@ check()
 
 check 'ping:1720000000000000:1.1.1.1:7:1200:2300' irtt '1720000000000000 1.1.1.1 7 1200 2300'
 check 'ping:1720000000.123456:1.1.1.1:8:1.25:2.50' tsping '1720000000.123456 1.1.1.1 8 a b c d e 1.25 2.50'
-check 'ping:[1720000000.12345]:1.1.1.1:[9]:12.3' fping '[1720000000.12345] 1.1.1.1 : [9] 64 bytes 12.3 ms ttl 57 x z'
-check 'ping:[1720000000.12345]:1.1.1.1:[10]:100000:101000:102000:103000' fping-ts '[1720000000.12345] 1.1.1.1 : [10] 64 bytes 4.0 ms ttl 57 x y z Originate=100 Receive=101 Transmit=102 Localreceive=103'
-check 'ping:[1720000000.123456]:1.1.1.1:icmp_seq=11:time=8.4' ping '[1720000000.123456] 64 bytes from 1.1.1.1: icmp_seq=11 ttl=57 time=8.4 ms'
+check 'ping:[1720000000.12345]:1.1.1.1:9:12.3' fping '[1720000000.12345] 1.1.1.1 : [9] 64 bytes 12.3 ms ttl 57 x z'
+check 'ping:[1720000000.12345]:1.1.1.1:10:100000:101000:102000:103000' fping-ts '[1720000000.12345] 1.1.1.1 : [10] 64 bytes 4.0 ms ttl 57 x y z Originate=100 Receive=101 Transmit=102 Localreceive=103'
+check 'ping:[1720000000.123456]:1.1.1.1:11:8.4' ping '[1720000000.123456] 64 bytes from 1.1.1.1: icmp_seq=11 ttl=57 time=8.4 ms'
 
 for method in irtt tsping fping fping-ts ping; do
 	check 'sars:123:456' "$method" 'SARS 123 456'
