@@ -1044,6 +1044,12 @@ unset valid_config_entries user_config config_error_count key
 # shellcheck source=config.primary.sh
 . "${config_path}"
 
+if (( 10#${log_file_buffer_timeout_ms} < 50 ))
+then
+	printf 'ERROR: log_file_buffer_timeout_ms must be at least 50 milliseconds. Exiting now.\n' >&2
+	exit 1
+fi
+
 if [[ ${config_path} =~ config\.(.*)\.sh ]]
 then
 	instance_id=${BASH_REMATCH[1]} run_path="/var/run/cake-autorate/${instance_id}"
