@@ -1411,18 +1411,65 @@ log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_
 
 while :
 do
-	unset command
 	reflector_response=0
-	read -r -u "${main_fd}" -a command
-	((${#command[@]})) || continue
 
-	case ${command[0]} in
+	# Read pinger output directly into the fields used below.  The extra final
+	# variable is intentional: read assigns all surplus words to its last
+	# variable, allowing the exact field counts accepted by the former array
+	# parser to be preserved.
+	# Placeholder fields enforce those counts.
+	# shellcheck disable=SC2034
+	case ${pinger_method} in
+		irtt)
+			read -r -u "${main_fd}" timestamp reflector seq dl_owd_us ul_owd_us unexpected
+			;;
+		tsping)
+			read -r -u "${main_fd}" timestamp reflector seq field3 field4 field5 field6 field7 dl_owd_ms ul_owd_ms unexpected
+			;;
+		fping)
+			read -r -u "${main_fd}" timestamp reflector field2 seq field4 field5 rtt_ms field7 field8 field9 field10 field11 unexpected
+			;;
+		fping-ts)
+			read -r -u "${main_fd}" timestamp reflector field2 seq field4 field5 field6 field7 field8 field9 field10 field11 field12 originate received transmit finished unexpected
+			;;
+		ping)
+			read -r -u "${main_fd}" timestamp field1 field2 field3 reflector seq field6 rtt_ms field8 unexpected
+			;;
+		*)
+			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
+			kill $$ 2>/dev/null
+			;;
+	esac
+	[[ -n ${timestamp} ]] || continue
+
+	case ${timestamp} in
 
 		# Set download and upload achieved rates
 		SARS)
-			if ((${#command[@]} == 3))
+			sars_response=0
+			case ${pinger_method} in
+				irtt)
+					achieved_dl_rate_kbps=${reflector} achieved_ul_rate_kbps=${seq}
+					[[ -n ${achieved_dl_rate_kbps} && -n ${achieved_ul_rate_kbps} && -z ${dl_owd_us}${unexpected} ]] && sars_response=1
+					;;
+				tsping)
+					achieved_dl_rate_kbps=${reflector} achieved_ul_rate_kbps=${seq}
+					[[ -n ${achieved_dl_rate_kbps} && -n ${achieved_ul_rate_kbps} && -z ${field3}${unexpected} ]] && sars_response=1
+					;;
+				fping|fping-ts)
+					achieved_dl_rate_kbps=${reflector} achieved_ul_rate_kbps=${field2}
+					[[ -n ${achieved_dl_rate_kbps} && -n ${achieved_ul_rate_kbps} && -z ${seq}${unexpected} ]] && sars_response=1
+					;;
+				ping)
+					achieved_dl_rate_kbps=${field1} achieved_ul_rate_kbps=${field2}
+					[[ -n ${achieved_dl_rate_kbps} && -n ${achieved_ul_rate_kbps} && -z ${field3}${unexpected} ]] && sars_response=1
+					;;
+				*)
+					;;
+			esac
+			if ((sars_response))
 			then
-				achieved_rate_kbps[DL]=${command[1]} achieved_rate_kbps[UL]=${command[2]} achieved_rate_updated[DL]=1 achieved_rate_updated[UL]=1
+				achieved_rate_kbps[DL]=${achieved_dl_rate_kbps} achieved_rate_kbps[UL]=${achieved_ul_rate_kbps} achieved_rate_updated[DL]=1 achieved_rate_updated[UL]=1
 				((
 					load_percent[DL]=100*achieved_rate_kbps[DL]/shaper_rate_kbps[DL],
 					load_percent[UL]=100*achieved_rate_kbps[UL]/shaper_rate_kbps[UL]
@@ -1459,33 +1506,33 @@ do
 			case "${pinger_method}" in
 
 				irtt)
-					if ((${#command[@]} == 5))
+					if [[ -n ${ul_owd_us} && -z ${unexpected} ]]
 					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_us=${command[3]} ul_owd_us=${command[4]} reflector_response=1
+						reflector_response=1
 					fi
 					;;
 				tsping)
-					if ((${#command[@]} == 10))
+					if [[ -n ${ul_owd_ms} && -z ${unexpected} ]]
 					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_ms=${command[8]} ul_owd_ms=${command[9]} reflector_response=1
+						reflector_response=1
 					fi
 					;;
 				fping)
-					if ((${#command[@]} == 12)) && [[ ${command[6]} != *[!0-9.]* ]]
+					if [[ -n ${field11} && -z ${unexpected} && ${rtt_ms} != *[!0-9.]* ]]
 					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
+						reflector_response=1
 					fi
 					;;
 				fping-ts)
-					if ((${#command[@]} == 17))
+					if [[ -n ${finished} && -z ${unexpected} ]]
 					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} originate=${command[13]#Originate=}000 received=${command[14]#Receive=}000 transmit=${command[15]#Transmit=}000 finished=${command[16]#Localreceive=}000 reflector_response=1
+						originate=${originate#Originate=}000 received=${received#Receive=}000 transmit=${transmit#Transmit=}000 finished=${finished#Localreceive=}000 reflector_response=1
 					fi
 					;;
 				ping)
-					if ((${#command[@]} == 9)) && [[ ${command[7]} == time=* ]]
+					if [[ -n ${field8} && -z ${unexpected} && ${rtt_ms} == time=* ]]
 					then
-						timestamp=${command[0]} reflector=${command[4]%:} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
+						reflector=${reflector%:} reflector_response=1
 					fi
 					;;
 				*)
