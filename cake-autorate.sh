@@ -1152,6 +1152,23 @@ case ${pinger_method} in
 		;;
 esac
 
+# Record where a three-field SARS message lands in each direct-read layout.
+# These variable names are resolved indirectly only on the cold SARS path.
+case ${pinger_method} in
+	irtt)
+		sars_dl_var=reflector sars_ul_var=seq sars_overflow_var=dl_owd_us
+		;;
+	tsping)
+		sars_dl_var=reflector sars_ul_var=seq sars_overflow_var=field3
+		;;
+	fping|fping-ts)
+		sars_dl_var=reflector sars_ul_var=field2 sars_overflow_var=seq
+		;;
+	ping)
+		sars_dl_var=field1 sars_ul_var=field2 sars_overflow_var=field3
+		;;
+esac
+
 (( no_pingers < 1 )) && { log_msg "ERROR" "number of pingers must be at least 1. Exiting script."; exit 1; }
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
 
@@ -1456,91 +1473,110 @@ log_msg "INFO" "Started cake-autorate with PID: ${BASHPID} and config: ${config_
 
 while :
 do
-	unset command
 	reflector_response=0
-	read -r -u "${main_fd}" -a command
-	((${#command[@]})) || continue
 
-	case ${command[0]} in
-
-		# Set download and upload achieved rates
-		SARS)
-			if ((${#command[@]} == 3))
+	# Read pinger output directly into the fields used below.  The extra final
+	# variable is intentional: read assigns all surplus words to its last
+	# variable, allowing the exact field counts accepted by the former array
+	# parser to be preserved.
+	# Placeholder fields enforce those counts.
+	# shellcheck disable=SC2034
+	case ${pinger_method} in
+		irtt)
+			read -r -u "${main_fd}" timestamp reflector seq dl_owd_us ul_owd_us unexpected
+			if [[ ${timestamp} != SARS && -n ${ul_owd_us} && -z ${unexpected} ]]
 			then
-				achieved_rate_kbps[DL]=${command[1]} achieved_rate_kbps[UL]=${command[2]} achieved_rate_updated[DL]=1 achieved_rate_updated[UL]=1
-				((
-					load_percent[DL]=100*achieved_rate_kbps[DL]/shaper_rate_kbps[DL],
-					load_percent[UL]=100*achieved_rate_kbps[UL]/shaper_rate_kbps[UL]
-				))
-
-				if ((output_load_stats))
-				then
-					printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[DL]}" "${achieved_rate_kbps[UL]}" "${shaper_rate_kbps[DL]}" "${shaper_rate_kbps[UL]}"
-					log_msg "LOAD" "${load_stats}"
-				fi
-
-				if (( load_percent[DL] > high_load_thr_percent ))
-				then
-					load_state[DL]=${LOAD_HIGH}
-				elif (( achieved_rate_kbps[DL] > connection_active_thr_kbps ))
-				then
-					load_state[DL]=${LOAD_LOW}
-				else
-					load_state[DL]=${LOAD_IDLE}
-				fi
-
-				if (( load_percent[UL] > high_load_thr_percent ))
-				then
-					load_state[UL]=${LOAD_HIGH}
-				elif (( achieved_rate_kbps[UL] > connection_active_thr_kbps ))
-				then
-					load_state[UL]=${LOAD_LOW}
-				else
-					load_state[UL]=${LOAD_IDLE}
-				fi
+				timestamp_us=${timestamp} reflector_response=1
+			fi
+			;;
+		tsping)
+			read -r -u "${main_fd}" timestamp reflector seq field3 field4 field5 field6 field7 dl_owd_ms ul_owd_ms unexpected
+			if [[ ${timestamp} != SARS && -n ${ul_owd_ms} && -z ${unexpected} ]]
+			then
+				dl_owd_us=${dl_owd_ms}000 ul_owd_us=${ul_owd_ms}000
+				timestamp_us=${timestamp//[.]} reflector_response=1
+			fi
+			;;
+		fping)
+			read -r -u "${main_fd}" timestamp reflector field2 seq field4 field5 rtt_ms field7 field8 field9 field10 field11 unexpected
+			if [[ ${timestamp} != SARS && -n ${field11} && -z ${unexpected} && ${rtt_ms} != *[!0-9.]* ]]
+			then
+				seq=${seq#[} seq=${seq%]}
+				printf -v rtt_us %.3f "${rtt_ms}"
+				((dl_owd_us=10#${rtt_us//.}/2, ul_owd_us=dl_owd_us))
+				timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
+				timestamp_us=${timestamp_us//.}0 reflector_response=1
+			fi
+			;;
+		fping-ts)
+			read -r -u "${main_fd}" timestamp reflector field2 seq field4 field5 field6 field7 field8 field9 field10 field11 field12 originate received transmit finished unexpected
+			if [[ ${timestamp} != SARS && -n ${finished} && -z ${unexpected} ]]
+			then
+				seq=${seq#[} seq=${seq%]}
+				originate=${originate#Originate=}000 received=${received#Receive=}000 transmit=${transmit#Transmit=}000 finished=${finished#Localreceive=}000
+				((dl_owd_us=finished-transmit, ul_owd_us=received-originate))
+				timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
+				timestamp_us=${timestamp_us//.}0 reflector_response=1
+			fi
+			;;
+		ping)
+			read -r -u "${main_fd}" timestamp field1 field2 field3 reflector seq field6 rtt_ms field8 unexpected
+			if [[ ${timestamp} != SARS && -n ${field8} && -z ${unexpected} && ${rtt_ms} == time=* ]]
+			then
+				reflector=${reflector%:} seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
+				printf -v rtt_us %.3f "${rtt_ms}"
+				((dl_owd_us=10#${rtt_us//.}/2, ul_owd_us=dl_owd_us))
+				timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
+				timestamp_us=${timestamp_us//.} reflector_response=1
 			fi
 			;;
 		*)
-			case "${pinger_method}" in
-
-				irtt)
-					if ((${#command[@]} == 5))
-					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_us=${command[3]} ul_owd_us=${command[4]} reflector_response=1
-					fi
-					;;
-				tsping)
-					if ((${#command[@]} == 10))
-					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_ms=${command[8]} ul_owd_ms=${command[9]} reflector_response=1
-					fi
-					;;
-				fping)
-					if ((${#command[@]} == 12)) && [[ ${command[6]} != *[!0-9.]* ]]
-					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} rtt_ms=${command[6]} reflector_response=1
-					fi
-					;;
-				fping-ts)
-					if ((${#command[@]} == 17))
-					then
-						timestamp=${command[0]} reflector=${command[1]} seq=${command[3]} originate=${command[13]#Originate=}000 received=${command[14]#Receive=}000 transmit=${command[15]#Transmit=}000 finished=${command[16]#Localreceive=}000 reflector_response=1
-					fi
-					;;
-				ping)
-					if ((${#command[@]} == 9)) && [[ ${command[7]} == time=* ]]
-					then
-						timestamp=${command[0]} reflector=${command[4]%:} seq=${command[5]} rtt_ms=${command[7]} reflector_response=1
-					fi
-					;;
-				*)
-					log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
-					kill $$ 2>/dev/null
-				;;
-			esac
+			log_msg "ERROR" "Unknown pinger method: ${pinger_method}"
+			kill $$ 2>/dev/null
 			;;
 	esac
+	[[ -n ${timestamp} ]] || continue
 
+	# Set download and upload achieved rates. The indirect expansions use the
+	# field layout selected once during initialization.
+	if [[ ${timestamp} == SARS ]]
+	then
+		achieved_dl_rate_kbps=${!sars_dl_var} achieved_ul_rate_kbps=${!sars_ul_var}
+		if [[ -n ${achieved_dl_rate_kbps} && -n ${achieved_ul_rate_kbps} && -z ${!sars_overflow_var} ]]
+		then
+			achieved_rate_kbps[DL]=${achieved_dl_rate_kbps} achieved_rate_kbps[UL]=${achieved_ul_rate_kbps} achieved_rate_updated[DL]=1 achieved_rate_updated[UL]=1
+			((
+				load_percent[DL]=100*achieved_rate_kbps[DL]/shaper_rate_kbps[DL],
+				load_percent[UL]=100*achieved_rate_kbps[UL]/shaper_rate_kbps[UL]
+			))
+
+			if ((output_load_stats))
+			then
+				printf -v load_stats '%s; %s; %s; %s; %s' "${EPOCHREALTIME}" "${achieved_rate_kbps[DL]}" "${achieved_rate_kbps[UL]}" "${shaper_rate_kbps[DL]}" "${shaper_rate_kbps[UL]}"
+				log_msg "LOAD" "${load_stats}"
+			fi
+
+			if (( load_percent[DL] > high_load_thr_percent ))
+			then
+				load_state[DL]=${LOAD_HIGH}
+			elif (( achieved_rate_kbps[DL] > connection_active_thr_kbps ))
+			then
+				load_state[DL]=${LOAD_LOW}
+			else
+				load_state[DL]=${LOAD_IDLE}
+			fi
+
+			if (( load_percent[UL] > high_load_thr_percent ))
+			then
+				load_state[UL]=${LOAD_HIGH}
+			elif (( achieved_rate_kbps[UL] > connection_active_thr_kbps ))
+			then
+				load_state[UL]=${LOAD_LOW}
+			else
+				load_state[UL]=${LOAD_IDLE}
+			fi
+		fi
+	fi
 	t_start_us=${EPOCHREALTIME/.}
 	if ((reflector_response))
 	then
@@ -1596,12 +1632,8 @@ do
 							))
 						fi
 						
-						timestamp_us=${timestamp}
-						
 						;;
 					tsping)
-						dl_owd_us=${dl_owd_ms}000 ul_owd_us=${ul_owd_ms}000
-
 						((
 							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
 							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
@@ -1633,16 +1665,9 @@ do
 							))
 						fi
 
-						timestamp_us=${timestamp//[.]}
-
 						;;
 					fping)
-						seq=${seq#[} seq=${seq%]}
-						printf -v rtt_us %.3f "${rtt_ms}"
-
 						((
-							dl_owd_us=10#${rtt_us//.}/2,
-							ul_owd_us=dl_owd_us,
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
 							dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
@@ -1659,18 +1684,11 @@ do
 								ul_owd_delta_ewmas_us[pinger]=dl_owd_delta_ewmas_us[pinger]
 							))
 						fi
-
-						timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
-						timestamp_us=${timestamp_us//.}0
 
 						;;
 
 					fping-ts)
-						seq=${seq#[} seq=${seq%]}
-
 						((
-							dl_owd_us=finished-transmit,
-							ul_owd_us=received-originate,
 							dl_owd_delta_us=dl_owd_us - dl_owd_baselines_us[pinger],
 							ul_owd_delta_us=ul_owd_us - ul_owd_baselines_us[pinger]
 						))
@@ -1700,19 +1718,9 @@ do
 							))
 						fi
 
-						timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
-						timestamp_us=${timestamp_us//.}0
-
 						;;
 					ping)
-						seq=${seq//icmp_seq=} rtt_ms=${rtt_ms//time=}
-
-						printf -v rtt_us %.3f "${rtt_ms}"
-
 						((
-							dl_owd_us=10#${rtt_us//.}/2,
-							ul_owd_us=dl_owd_us,
-
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 
 							dl_owd_baselines_us[pinger]=(dl_alpha*dl_owd_us+(1000000-dl_alpha)*dl_owd_baselines_us[pinger])/1000000,
@@ -1729,9 +1737,6 @@ do
 								ul_owd_delta_ewmas_us[pinger]=dl_owd_delta_ewmas_us[pinger]
 							))
 						fi
-
-						timestamp_us=${timestamp#[} timestamp_us=${timestamp_us%]}
-						timestamp_us=${timestamp_us//.}
 
 						;;
 					*)
