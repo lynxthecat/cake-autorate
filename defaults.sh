@@ -168,12 +168,6 @@ ping_extra_args=""
 # WARNING: no error checking - so use at own risk!
 ping_prefix_string=""
 
-# duration in minutes for each irtt session
-# irtt stores all results in-memory during a session
-# longer durations increase memory usage
-# lower values reduce memory but can cause gaps in data during session restarts
-irtt_session_duration_m=10 # (minutes)
-
 # interval in ms for monitoring achieved rx/tx rates
 # this is automatically adjusted based on maximum on the wire packet size
 # (adjustment significant at sub 12Mbit/s rates, else negligible)
