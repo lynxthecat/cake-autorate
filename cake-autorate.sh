@@ -542,58 +542,34 @@ start_pinger()
 			sleep_until_next_pinger_time_slot "${pinger}"
 
 			# shellcheck disable=SC2155
-			local pinger_pid=$( (
+			local pinger_pid=$(
 				set -m
-				${ping_prefix_string} gawk -v extra_args="${ping_extra_args}" -v interval_s="${reflector_ping_interval_s}" -v duration_m="${irtt_session_duration_m}" -v reflector="${reflectors[$pinger]}" -f <(cat <<-'EOT'
+				${ping_prefix_string} gawk -v extra_args="${ping_extra_args}" -v interval_s="${reflector_ping_interval_s}" -v reflector="${reflectors[$pinger]}" -f - 2> /dev/null >&"${main_fd}" <<-'EOT' &
 				@load "time"
 
-				function to_us(val, mult)
-				{
-					mult = (val ~ /ms$/) ? 1000    : \
-						   (val ~ /µs$/) ? 1       : \
-						   (val ~ /ns$/) ? 0.001   : \
-						   (val ~ /s$/)  ? 1000000 : -1
-
-					if (val ~ /^-/ || mult < 0) return -1
-					return sprintf("%.0f", val * mult)
-				}
-
+				# raw fields in ms: seq rtt rd sd ipdv dup late, with rd/sd NaN for duplicates and unstamped replies
+				# rd/sd go negative when clock offset exceeds the one-way delay
 				BEGIN {
-					FS = "[= ]+"
-
-					irtt_cmd = sprintf("stdbuf -oL irtt client %s -i '%ss' -d '%sm' '%s'", extra_args, interval_s, duration_m, (reflector ~ /:/ ? "[" reflector "]" : reflector))
+					irtt_cmd = sprintf("irtt client %s -i '%ss' -s -r --loose '%s'", extra_args, interval_s, reflector)
 
 					while (1)
 					{
-						start_time = systime()
-
 						while ((irtt_cmd | getline) > 0)
 						{
-							if (/seq=/ && /rd=/ && /sd=/)
+							if ($3 != "NaN" && $4 != "NaN")
 							{
-								ts = gensub(/\./, "", 1, sprintf("%.6f", gettimeofday()))
-								seq = $2; dl_owd = to_us($6); ul_owd = to_us($8)
-
-								if (dl_owd >= 0 && ul_owd >= 0)
-								{
-									printf("%s %s %d %d %d\n", ts, reflector, seq, dl_owd, ul_owd)
-									fflush("")
-								}
-							}
-							else if (/WaitForPackets/)
-							{
-								break
+								printf("%.0f %s %s %.0f %.0f\n", gettimeofday()*1000000, reflector, $1, $3*1000, $4*1000)
+								fflush("")
 							}
 						}
 
 						close(irtt_cmd)
-						if (systime() - start_time < 3) system("sleep 1")
+						system("sleep 1")
 					}
 				}
 				EOT
-				) 2> /dev/null >&"${main_fd}" &
 				echo $!
-			) )
+			)
 
 			pinger_pids["${pinger}"]=-${pinger_pid}
 			proc_pids["irtt_${pinger}_pinger"]=${pinger_pid}
@@ -1144,7 +1120,7 @@ case ${pinger_method} in
 	irtt)
 		command -v "irtt"   &> /dev/null || { log_msg "ERROR" "ping binary irtt does not exist. Exiting script."; exit 1; }
 		command -v "gawk"   &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires gawk. Exiting script."; exit 1; }
-		command -v "stdbuf" &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires stdbuf (coreutils). Exiting script."; exit 1; }
+		[[ $(irtt help client 2> /dev/null) == *"streaming mode"* ]] || { log_msg "ERROR" "pinger_method=irtt requires irtt 0.9.2 or later (streaming mode). Exiting script."; exit 1; }
 		gawk '@load "time"; BEGIN{exit}' < /dev/null &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires the gawk 'time' extension (gawk-gawkextra). Exiting script."; exit 1; }
 		;;
 	*)
