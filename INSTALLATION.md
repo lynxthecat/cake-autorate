@@ -388,7 +388,22 @@ to select the pinger method. Choices include:
 | **fping-ts**     | OWD        | Round Robin            | ICMP Type 13 pinging to multiple reflectors with tightly controlled timings. |
 | **tsping**       | OWD        | Round Robin            | ICMP Type 13 pinging to multiple reflectors with tightly controlled timings. |
 | **irtt**         | OWD        | Individual             | Custom UDP packet-based latency testing to a single reflector.               |
+| **irtt-rs**      | OWD        | Concurrent             | Multiple IRTT targets with reconnection and dynamic reflector replacement.   |
 | **iputils-ping** | RTT        | Individual             | Advanced pinging with sub-1s frequency and more features than BusyBox ping.  |
+
+`irtt-rs` requires [irtt-rs](https://github.com/Lochnair/irtt-rs) 0.10.2 or later
+and an IRTT-compatible UDP server at each
+reflector (default port 2112). It uses one client process for all active
+reflectors and passes native CSV directly to cake-autorate: no `awk` or `gawk`
+wrapper is required. Configure `pinger_method=irtt-rs`; use `ping_extra_args`
+for options such as `--hmac 0xYOUR_KEY`, `--mark` or `--bind-device`.
+Set `reflectors` to your IRTT server hostnames or IP addresses (ordinary ICMP
+reflectors will not work), and set `no_pingers` to the number of active servers,
+up to 128. Extra reflectors form the usual replacement queue. Probes are staggered
+across the interval; unchanged targets keep their sessions during replacement.
+See the upstream README for binaries and the OpenWrt package feed.
+Use `-4` or `-6` to select an address family if needed; `--dual-stack` changes
+target labels and is incompatible with reflector matching.
 
 Pinger methods with 'delay type' RTT (round trip time) can only determine
 the sum total of the upload and download latency (A->B and B->A). The

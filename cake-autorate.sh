@@ -112,7 +112,12 @@ cleanup_and_killall()
 
 	terminate "${proc_pids['monitor_achieved_rates']:-}"
 
-	terminate "${pinger_pids[*]}"
+	if [[ ${pinger_method} == irtt-rs && -n ${pinger_pids[0]:-} ]]
+	then
+		kill_pinger 0
+	else
+		terminate "${pinger_pids[*]}"
+	fi
 
 	((terminate_maintain_log_file_timeout_ms=log_file_buffer_timeout_ms+500))
 	terminate "${proc_pids['maintain_log_file']:-}" \
@@ -530,6 +535,24 @@ monitor_achieved_rates()
 
 # GENERIC PINGER START AND STOP FUNCTIONS
 
+update_irtt_rs_targets()
+{
+	local pinger targets=""
+
+	for ((pinger=0; pinger < no_pingers; pinger++))
+	do
+		targets+="${targets:+,}${reflectors[pinger]}"
+	done
+
+	# A terminated client must not send SIGPIPE to the main controller.
+	if ! (printf '%s\n' "${targets}" 2>/dev/null >&"${irtt_rs_targets_fd}")
+	then
+		log_msg "ERROR" "Unable to update irtt-rs targets. Restarting pinger."
+		kill_pinger 0
+		start_pinger 0
+	fi
+}
+
 start_pinger()
 {
 	local pinger=${1}
@@ -574,6 +597,20 @@ start_pinger()
 			pinger_pids["${pinger}"]=-${pinger_pid}
 			proc_pids["irtt_${pinger}_pinger"]=${pinger_pid}
 			;;
+		irtt-rs)
+			# Keep stdin open for complete target-set updates without restarting unchanged targets.
+			exec {irtt_rs_targets_fd}> >(
+				exec ${ping_prefix_string} irtt-rs client ${ping_extra_args} \
+					--continuous --reconnect --no-stats --targets-stdin \
+					--interval "${reflector_ping_interval_s}s" \
+					--format csv --header never \
+					--columns client_receive_wall_ns,target,seq,rd_us,sd_us \
+					--events echo_reply "${reflectors[@]:0:${no_pingers}}" \
+					2>/dev/null >&"${main_fd}"
+			)
+			pinger_pids[0]=${!}
+			proc_pids['irtt_rs_pinger']=${pinger_pids[0]}
+			;;
 		tsping)
 			# accommodate present tsping interval/sleep handling to prevent ping flood with only one pinger
 			(( tsping_sleep_time = no_pingers == 1 ? ping_response_interval_ms : 0 ))
@@ -613,7 +650,7 @@ start_pingers()
 	((pingers_active)) && return
 	case ${pinger_method} in
 
-		tsping|fping|fping-ts)
+		irtt-rs|tsping|fping|fping-ts)
 			start_pinger 0
 			;;
 		ping|irtt)
@@ -650,15 +687,25 @@ kill_pinger()
 	log_msg "DEBUG" "Starting: ${FUNCNAME[0]} with PID: ${BASHPID}"
 
 	case ${pinger_method} in
-		tsping|fping|fping-ts)
+		irtt-rs|tsping|fping|fping-ts)
 			pinger=0
 			;;
 
 		*)
 			;;
 	esac
-	
+
+	if [[ ${pinger_method} == irtt-rs && -n ${irtt_rs_targets_fd:-} ]]
+	then
+		exec {irtt_rs_targets_fd}>&-
+		unset irtt_rs_targets_fd
+	fi
 	terminate "${pinger_pids[pinger]}"
+	if [[ ${pinger_method} == irtt-rs ]]
+	then
+		wait "${pinger_pids[pinger]}" 2>/dev/null
+		unset 'pinger_pids[pinger]' 'proc_pids[irtt_rs_pinger]'
+	fi
 }
 
 stop_pingers()
@@ -668,7 +715,7 @@ stop_pingers()
 	((pingers_active)) || return
 	case ${pinger_method} in
 
-		tsping|fping|fping-ts)
+		irtt-rs|tsping|fping|fping-ts)
 			log_msg "DEBUG" "Killing ${pinger_method} instance."
 			kill_pinger 0
 			;;
@@ -724,7 +771,7 @@ replace_pinger_reflector()
 		bad_reflector=${reflectors[pinger]}
 		new_reflector=${reflectors[no_pingers]}
 		log_msg "DEBUG" "replacing reflector: ${bad_reflector} with ${new_reflector}."
-		((pingers_active)) && kill_pinger "${pinger}"
+		[[ ${pinger_method} != irtt-rs ]] && ((pingers_active)) && kill_pinger "${pinger}"
 
 		if ((retain_reflector_stats))
 		then
@@ -754,7 +801,15 @@ replace_pinger_reflector()
 		ul_owd_delta_ewmas_us[pinger]=${retained_ul_owd_delta_ewmas_us[${new_reflector}]:-0}
 		last_timestamp_reflectors_us[pinger]=${t_start_us}
 
-		((pingers_active)) && start_pinger "${pinger}"
+		if ((pingers_active))
+		then
+			if [[ ${pinger_method} == irtt-rs ]]
+			then
+				update_irtt_rs_targets
+			else
+				start_pinger "${pinger}"
+			fi
+		fi
 	else
 		log_msg "DEBUG" "No additional reflectors specified so just retaining: ${reflectors[pinger]}."
 	fi
@@ -1123,6 +1178,12 @@ case ${pinger_method} in
 		[[ $(irtt help client 2> /dev/null) == *"streaming mode"* ]] || { log_msg "ERROR" "pinger_method=irtt requires irtt 0.9.2 or later (streaming mode). Exiting script."; exit 1; }
 		gawk '@load "time"; BEGIN{exit}' < /dev/null &> /dev/null || { log_msg "ERROR" "pinger_method=irtt requires the gawk 'time' extension (gawk-gawkextra). Exiting script."; exit 1; }
 		;;
+	irtt-rs)
+		command -v "irtt-rs" &> /dev/null || { log_msg "ERROR" "pinger_method=irtt-rs requires irtt-rs. Exiting script."; exit 1; }
+		irtt_rs_help=$(irtt-rs client --help 2>/dev/null)
+		[[ ${irtt_rs_help} == *"--targets-stdin"* && ${irtt_rs_help} == *"--events"* ]] || { log_msg "ERROR" "pinger_method=irtt-rs requires irtt-rs 0.10.2 or later (--targets-stdin and --events). Exiting script."; exit 1; }
+		unset irtt_rs_help
+		;;
 	*)
 		command -v "${pinger_method}" &> /dev/null || { log_msg "ERROR" "ping binary ${pinger_method} does not exist. Exiting script."; exit 1; }
 		;;
@@ -1130,6 +1191,7 @@ esac
 
 (( no_pingers < 1 )) && { log_msg "ERROR" "number of pingers must be at least 1. Exiting script."; exit 1; }
 (( no_pingers > no_reflectors )) && { log_msg "ERROR" "number of pingers cannot be greater than number of reflectors. Exiting script."; exit 1; }
+[[ ${pinger_method} == irtt-rs ]] && (( no_pingers > 128 )) && { log_msg "ERROR" "irtt-rs supports at most 128 active targets. Exiting script."; exit 1; }
 
 (( min_dl_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_dl_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
 (( min_ul_shaper_rate_kbps < 1 )) && { log_msg "ERROR" "min_ul_shaper_rate_kbps must be at least 1. Exiting script."; exit 1; }
@@ -1485,6 +1547,14 @@ do
 						timestamp=${command[0]} reflector=${command[1]} seq=${command[2]} dl_owd_us=${command[3]} ul_owd_us=${command[4]} reflector_response=1
 					fi
 					;;
+				irtt-rs)
+					if ((${#command[@]} == 5)) && \
+						[[ ${command[0]} =~ ^[0-9]{19}$ && ${command[2]} =~ ^[0-9]+$ && \
+						   ${command[3]} =~ ^-?[0-9]+$ && ${command[4]} =~ ^-?[0-9]+$ ]]
+					then
+						timestamp=${command[0]:0:-3} reflector=${command[1]} seq=${command[2]} dl_owd_us=${command[3]} ul_owd_us=${command[4]} reflector_response=1
+					fi
+					;;
 				tsping)
 					if ((${#command[@]} == 10))
 					then
@@ -1552,7 +1622,7 @@ do
 				# parse pinger response according to pinger method
 				case ${pinger_method} in
 
-					irtt)
+					irtt|irtt-rs)
 						((
 							dl_alpha = dl_owd_us >= dl_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
 							ul_alpha = ul_owd_us >= ul_owd_baselines_us[pinger] ? alpha_baseline_increase : alpha_baseline_decrease,
