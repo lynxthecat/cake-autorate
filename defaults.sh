@@ -53,6 +53,7 @@ ul_if=wan     # upload interface
 # fping-ts - round robin pinging using ICMP type 13 (OWDs)
 # tsping - round robin pinging using ICMP type 13 (OWDs)
 # irtt - individual pinging (OWDs)
+# irtt-rs - concurrent UDP pinging to multiple reflectors (OWDs)
 # ping - (iputils-ping) individual pinging (RTTs)
 pinger_method=fping
 
